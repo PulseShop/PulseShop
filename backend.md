@@ -148,7 +148,7 @@ create table favorites (                -- optional server sync; localStorage is
 ## 7. Environment Variables
 
 ```
-# frontend/.env                      # safe to expose
+# frontend/.env                      # safe to expose /but repo will be private
 VITE_SUPABASE_URL=
 VITE_SUPABASE_ANON_KEY=
 VITE_PAYPAL_CLIENT_ID=

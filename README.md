@@ -46,3 +46,4 @@ From the `frontend/` directory:
 - **TanStack Query** for data fetching
 - **React Router v7**
 - **Radix UI** primitives
+- 
