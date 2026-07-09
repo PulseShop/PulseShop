@@ -6,4 +6,8 @@ dev-dist/
 .env.*
 !.env.example
 .DS_Store
+<<<<<<< HEAD
 .claude
+=======
+bakend/.env
+>>>>>>> e9e94bb (backend secured)
