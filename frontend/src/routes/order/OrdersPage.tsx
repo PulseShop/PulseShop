@@ -4,12 +4,14 @@ import { MobileShell } from "@/components/layout/MobileShell";
 import { Badge } from "@/components/ui/Badge";
 import { formatKes } from "@/lib/currency";
 import { useOrderHistory } from "@/stores/orderHistory";
+import { useShopHome } from "@/stores/shop";
 
 export function OrdersPage() {
   const orders = useOrderHistory((s) => s.orders);
+  const home = useShopHome();
 
   return (
-    <MobileShell>
+    <MobileShell homeTo={home}>
       <header className="px-4 pt-5">
         <h1 className="text-xl font-extrabold text-ink">Orders</h1>
         <p className="text-sm text-muted">
@@ -28,7 +30,7 @@ export function OrdersPage() {
               <p className="mt-1 text-sm text-muted">Your orders will show up here.</p>
             </div>
             <Link
-              to="/shop"
+              to={home}
               className="rounded-btn bg-primary px-5 py-2.5 text-sm font-bold text-white shadow-soft"
             >
               Browse products

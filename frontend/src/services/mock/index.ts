@@ -184,7 +184,7 @@ export const mockServices: Services = {
     async getProduct(id: string): Promise<Product | null> {
       await delay();
       const found = products.find((p) => p.id === id);
-      return found ? structuredClone(found) : null;
+      return found ? { ...structuredClone(found), shopSlug: merchant.handle } : null;
     },
 
     async createProduct(input: ProductInput): Promise<Product> {

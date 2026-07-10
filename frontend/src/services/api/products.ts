@@ -65,11 +65,14 @@ export const productsApi: ProductService = {
   async getProduct(id: string): Promise<Product | null> {
     const { data, error } = await supabase
       .from("products")
-      .select("*")
+      .select("*, merchants(handle)")
       .eq("id", id)
-      .maybeSingle<ProductRow>();
+      .maybeSingle();
     if (error) throw error;
-    return data ? toProduct(data) : null;
+    if (!data) return null;
+    const product = toProduct(data as ProductRow);
+    product.shopSlug = (data as { merchants?: { handle?: string } }).merchants?.handle;
+    return product;
   },
 
   async createProduct(input: ProductInput): Promise<Product> {

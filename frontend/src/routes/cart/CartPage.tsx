@@ -4,9 +4,11 @@ import { MobileShell } from "@/components/layout/MobileShell";
 import { Button } from "@/components/ui/Button";
 import { formatKes } from "@/lib/currency";
 import { cartSubtotal, useCart } from "@/stores/cart";
+import { useShopHome } from "@/stores/shop";
 
 export function CartPage() {
   const navigate = useNavigate();
+  const home = useShopHome();
   const items = useCart((s) => s.items);
   const setQty = useCart((s) => s.setQty);
   const remove = useCart((s) => s.remove);
@@ -14,7 +16,7 @@ export function CartPage() {
 
   if (items.length === 0) {
     return (
-      <MobileShell>
+      <MobileShell homeTo={home}>
         <header className="glass-header sticky top-0 z-30 px-4 py-4">
           <h1 className="text-lg font-extrabold text-ink">Your Cart</h1>
         </header>
@@ -24,7 +26,7 @@ export function CartPage() {
           </div>
           <p className="text-lg font-bold text-ink">Your cart is empty</p>
           <p className="text-sm text-muted">Add items while you browse, then check out all at once.</p>
-          <Link to="/shop" className="mt-1 font-semibold text-primary">
+          <Link to={home} className="mt-1 font-semibold text-primary">
             Browse products
           </Link>
         </div>
@@ -33,7 +35,7 @@ export function CartPage() {
   }
 
   return (
-    <MobileShell>
+    <MobileShell homeTo={home}>
       <header className="glass-header sticky top-0 z-30 flex items-center justify-between px-4 py-4">
         <h1 className="text-lg font-extrabold text-ink">Your Cart</h1>
         <span className="text-sm font-semibold text-muted">

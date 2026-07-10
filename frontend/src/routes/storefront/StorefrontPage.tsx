@@ -1,7 +1,8 @@
 import { useQuery } from "@tanstack/react-query";
 import { Package, Search, ShoppingBag, Star, Store } from "lucide-react";
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { Link, useParams } from "react-router";
+import { useShop } from "@/stores/shop";
 import { MobileShell } from "@/components/layout/MobileShell";
 import { ProductCard } from "@/components/product/ProductCard";
 import { WhatsAppIcon } from "@/components/ui/BrandIcons";
@@ -16,6 +17,12 @@ export function StorefrontPage() {
   const { shopSlug } = useParams();
   const isPublic = Boolean(shopSlug);
   const homeTo = shopSlug ? `/${shopSlug}` : "/shop";
+
+  // Remember the shop being browsed so the rest of the consumer flow can return here.
+  const setShopSlug = useShop((s) => s.setSlug);
+  useEffect(() => {
+    setShopSlug(shopSlug ?? null);
+  }, [shopSlug, setShopSlug]);
 
   const [category, setCategory] = useState("All");
   const [search, setSearch] = useState("");

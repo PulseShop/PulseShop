@@ -1,18 +1,19 @@
 import type { Services } from "../types";
-import { mockServices } from "../mock";
 import { authApi } from "./auth";
 import { ordersApi } from "./orders";
+import { paymentsApi } from "./payments";
 import { productsApi } from "./products";
 import { storageApi } from "./storage";
 
 /**
- * Real backend adapter. Auth, products, orders and storage hit Supabase;
- * payments stay on the mock (no live M-Pesa/PayPal gateway wired yet).
+ * Real backend adapter. Auth, products, orders and storage hit Supabase.
+ * Payments go through the payments adapter (placeholder until the partner wires
+ * the real M-Pesa/PayPal backend — see services/api/payments.ts).
  */
 export const apiServices: Services = {
   auth: authApi,
   products: productsApi,
   orders: ordersApi,
-  payments: mockServices.payments,
+  payments: paymentsApi,
   storage: storageApi,
 };

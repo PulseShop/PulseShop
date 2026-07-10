@@ -7,11 +7,25 @@ import { ProductCard } from "@/components/product/ProductCard";
 import { ProductCardSkeleton } from "@/components/ui/Skeleton";
 import { cn } from "@/lib/utils";
 import { services } from "@/services";
+import type { Product } from "@/types";
 import { useFavorites } from "@/stores/favorites";
+import { useShopHome } from "@/stores/shop";
 
 export function FavoritesPage() {
   const favorites = useFavorites((s) => s.favorites);
-  const productsQ = useQuery({ queryKey: ["products"], queryFn: services.products.listProducts });
+  const home = useShopHome();
+  const favIds = favorites.map((f) => f.productId);
+
+  // Fetch each favorited product by id so favorites work across shops and for
+  // shoppers who aren't the merchant.
+  const productsQ = useQuery({
+    queryKey: ["fav-products", favIds],
+    queryFn: async () => {
+      const results = await Promise.all(favIds.map((id) => services.products.getProduct(id)));
+      return results.filter((p): p is Product => p !== null);
+    },
+    enabled: favIds.length > 0,
+  });
   // ids currently animating out (200ms exit before the store removes them)
   const [exiting, setExiting] = useState<string[]>([]);
 
@@ -21,7 +35,7 @@ export function FavoritesPage() {
   );
 
   return (
-    <MobileShell>
+    <MobileShell homeTo={home}>
       <header className="px-4 pt-5">
         <h1 className="text-xl font-extrabold text-ink">Favorites</h1>
         <p className="text-sm text-muted">
@@ -48,7 +62,7 @@ export function FavoritesPage() {
               </p>
             </div>
             <Link
-              to="/shop"
+              to={home}
               className="rounded-btn bg-primary px-5 py-2.5 text-sm font-bold text-white shadow-soft"
             >
               Browse products

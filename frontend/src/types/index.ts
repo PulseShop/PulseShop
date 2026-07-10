@@ -15,6 +15,8 @@ export interface Product {
   reviewCount: number;
   description: string;
   createdAt: string;
+  /** Handle of the shop that owns this product (for public consumer routing). */
+  shopSlug?: string;
 }
 
 export interface Merchant {

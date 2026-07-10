@@ -8,3 +8,6 @@ dev-dist/
 .DS_Store
 .claude
 bakend/.env
+# Python
+__pycache__/
+*.pyc

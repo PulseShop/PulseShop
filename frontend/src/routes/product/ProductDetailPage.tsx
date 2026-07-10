@@ -1,6 +1,6 @@
 import { useQuery } from "@tanstack/react-query";
 import { ArrowLeft, ArrowRight, ChevronRight, Heart, Share2, ShoppingBag } from "lucide-react";
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { Link, useNavigate, useParams } from "react-router";
 import { MobileShell } from "@/components/layout/MobileShell";
 import { Gallery } from "@/components/product/Gallery";
@@ -17,18 +17,34 @@ import { services } from "@/services";
 import { useCart } from "@/stores/cart";
 import { useFavorites } from "@/stores/favorites";
 import { useOrderStore } from "@/stores/order";
+import { useShop, useShopHome } from "@/stores/shop";
 import { useToasts } from "@/stores/toast";
 
 export function ProductDetailPage() {
   const { id = "" } = useParams();
   const navigate = useNavigate();
   const push = useToasts((s) => s.push);
+  const home = useShopHome();
+  const setShopSlug = useShop((s) => s.setSlug);
 
   const productQ = useQuery({
     queryKey: ["product", id],
     queryFn: () => services.products.getProduct(id),
   });
-  const merchantQ = useQuery({ queryKey: ["merchant"], queryFn: services.products.getMerchant });
+  const product = productQ.data;
+
+  // The product carries its owning shop's handle — use it to load the right
+  // merchant (for contact/order routing) and remember it as the active shop.
+  const shopSlug = product?.shopSlug ?? null;
+  useEffect(() => {
+    if (shopSlug) setShopSlug(shopSlug);
+  }, [shopSlug, setShopSlug]);
+
+  const merchantQ = useQuery({
+    queryKey: ["shop", shopSlug],
+    queryFn: () => services.products.getShop(shopSlug!),
+    enabled: Boolean(shopSlug),
+  });
 
   const isFavorite = useFavorites((s) => s.isFavorite(id));
   const toggle = useFavorites((s) => s.toggle);
@@ -36,12 +52,11 @@ export function ProductDetailPage() {
   const { selectedSize, setSelectedSize } = useOrderStore();
   const [localSize, setLocalSize] = useState<string | null>(null);
 
-  const product = productQ.data;
   const merchant = merchantQ.data;
 
   if (productQ.isLoading) {
     return (
-      <MobileShell>
+      <MobileShell homeTo={home}>
         <div className="space-y-4 p-4">
           <Skeleton className="aspect-square w-full" />
           <Skeleton className="h-6 w-2/3 rounded" />
@@ -54,10 +69,10 @@ export function ProductDetailPage() {
 
   if (!product) {
     return (
-      <MobileShell>
+      <MobileShell homeTo={home}>
         <div className="flex min-h-[60dvh] flex-col items-center justify-center gap-3 p-6 text-center">
           <p className="text-lg font-bold text-ink">Product not found</p>
-          <Link to="/shop" className="font-semibold text-primary">
+          <Link to={home} className="font-semibold text-primary">
             Back to store
           </Link>
         </div>
@@ -149,7 +164,7 @@ export function ProductDetailPage() {
         {/* info block */}
         <div className="space-y-2.5">
           <nav className="flex items-center gap-1 text-xs font-medium text-muted">
-            <Link to="/shop" className="hover:text-primary">
+            <Link to={home} className="hover:text-primary">
               Store
             </Link>
             <ChevronRight className="size-3.5" />

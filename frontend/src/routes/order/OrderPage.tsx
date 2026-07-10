@@ -17,6 +17,7 @@ import { services } from "@/services";
 import type { PaymentMethod } from "@/types";
 import { useOrderStore } from "@/stores/order";
 import { useOrderHistory } from "@/stores/orderHistory";
+import { useShopHome } from "@/stores/shop";
 import { useToasts } from "@/stores/toast";
 import { PaymentSheet } from "./PaymentSheet";
 
@@ -41,12 +42,19 @@ export function OrderPage() {
   const { id = "" } = useParams();
   const navigate = useNavigate();
   const push = useToasts((s) => s.push);
+  const home = useShopHome();
 
   const productQ = useQuery({
     queryKey: ["product", id],
     queryFn: () => services.products.getProduct(id),
   });
-  const merchantQ = useQuery({ queryKey: ["merchant"], queryFn: services.products.getMerchant });
+  const product = productQ.data;
+  const shopSlug = product?.shopSlug ?? null;
+  const merchantQ = useQuery({
+    queryKey: ["shop", shopSlug],
+    queryFn: () => services.products.getShop(shopSlug!),
+    enabled: Boolean(shopSlug),
+  });
 
   const { selectedSize, qty, setQty, customer, saveCustomer } = useOrderStore();
   const addOrder = useOrderHistory((s) => s.add);
@@ -65,7 +73,6 @@ export function OrderPage() {
     mode: "onBlur",
   });
 
-  const product = productQ.data;
   const merchant = merchantQ.data;
 
   if (productQ.isLoading || !merchant) {
@@ -85,7 +92,7 @@ export function OrderPage() {
       <MobileShell nav={false}>
         <div className="flex min-h-[60dvh] flex-col items-center justify-center gap-3 text-center">
           <p className="text-lg font-bold text-ink">Product not found</p>
-          <Link to="/shop" className="font-semibold text-primary">
+          <Link to={home} className="font-semibold text-primary">
             Back to store
           </Link>
         </div>
@@ -111,6 +118,24 @@ export function OrderPage() {
     });
   };
 
+  const persistOrder = (
+    data: { name: string; phone: string; notes?: string },
+    ch: Channel | "direct",
+    payment: { method: PaymentMethod; status: "paid" } | null,
+  ) =>
+    // Record the order in the backend so it shows in the merchant's dashboard.
+    // Fire-and-forget: never block the shopper's WhatsApp/payment handoff on it.
+    services.orders
+      .submitOrder({
+        productId: product.id,
+        size: selectedSize,
+        qty,
+        customer: { name: data.name, phone: data.phone, notes: data.notes ?? "" },
+        channel: ch,
+        payment,
+      })
+      .catch(() => {});
+
   const sendOrder = handleSubmit((data) => {
     saveCustomer({ name: data.name, phone: data.phone, notes: data.notes ?? "" });
     const url = orderLink(
@@ -120,6 +145,7 @@ export function OrderPage() {
       channel,
     );
     recordOrder(`PS-${Date.now().toString(36).toUpperCase()}`, null, channel);
+    persistOrder(data, channel, null);
     window.open(url, "_blank", "noopener");
     push(`Order sent via ${channel === "whatsapp" ? "WhatsApp" : channel === "instagram" ? "Instagram" : "Facebook"}`, "success");
   });
@@ -276,7 +302,10 @@ export function OrderPage() {
         amount={total}
         defaultPhone={getValues("phone") || customer.phone}
         merchantWhatsApp={merchant.contacts.whatsapp}
-        onPaid={(reference, method) => recordOrder(reference, method, "direct")}
+        onPaid={(reference, method) => {
+          recordOrder(reference, method, "direct");
+          persistOrder(customer, "direct", { method, status: "paid" });
+        }}
       />
     </MobileShell>
   );
