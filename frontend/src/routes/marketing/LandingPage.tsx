@@ -30,7 +30,7 @@ const steps = [
   {
     icon: Sparkles,
     title: "Share your link",
-    body: "Drop pulseshop.com/yourshop in your bio. Every tap lands on your store.",
+    body: "Drop pulseshop.space/yourshop in your bio. Every tap lands on your store.",
   },
 ];
 
@@ -195,7 +195,7 @@ function ShopPreview() {
       {/* the link chip */}
       <div className="glass mx-auto mb-4 flex w-fit items-center gap-2 rounded-full px-4 py-2 text-sm font-bold text-ink">
         <Link2 className="size-4 text-primary" />
-        pulseshop.com/<span className="text-primary">zawadistyles</span>
+        pulseshop.space/<span className="text-primary">zawadistyles</span>
       </div>
 
       {/* the resolved shop */}

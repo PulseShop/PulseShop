@@ -4,16 +4,16 @@ import { cn } from "@/lib/utils";
 import { useFavorites } from "@/stores/favorites";
 import { cartCount, useCart } from "@/stores/cart";
 
-const items = [
-  { to: "/shop", label: "Home", icon: Home },
-  { to: "/favorites", label: "Favorites", icon: Heart },
-  { to: "/cart", label: "Cart", icon: ShoppingBag },
-  { to: "/orders", label: "Orders", icon: Package },
-];
-
-export function BottomNav() {
+export function BottomNav({ homeTo = "/shop" }: { homeTo?: string }) {
   const favCount = useFavorites((s) => s.favorites.length);
   const cartQty = useCart((s) => cartCount(s.items));
+
+  const items = [
+    { to: homeTo, label: "Home", icon: Home },
+    { to: "/favorites", label: "Favorites", icon: Heart },
+    { to: "/cart", label: "Cart", icon: ShoppingBag },
+    { to: "/orders", label: "Orders", icon: Package },
+  ];
 
   const badgeFor = (label: string) =>
     label === "Favorites" ? favCount : label === "Cart" ? cartQty : 0;
@@ -27,7 +27,7 @@ export function BottomNav() {
             <NavLink
               key={to}
               to={to}
-              end={to === "/shop"}
+              end={to === homeTo}
               aria-label={label}
               className={({ isActive }) =>
                 cn(

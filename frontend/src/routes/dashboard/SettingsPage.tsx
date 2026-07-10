@@ -6,7 +6,6 @@ import { DashboardShell } from "@/components/layout/DashboardShell";
 import { Button } from "@/components/ui/Button";
 import { Input } from "@/components/ui/Input";
 import { Skeleton } from "@/components/ui/Skeleton";
-import { fileToDataUrl } from "@/lib/image";
 import { services } from "@/services";
 import type { MerchantUpdate } from "@/services";
 import { useAuth } from "@/stores/auth";
@@ -77,10 +76,10 @@ export function SettingsPage() {
   const onAvatarPick = async (file: File | undefined) => {
     if (!file || !file.type.startsWith("image/")) return;
     try {
-      const avatarUrl = await fileToDataUrl(file);
+      const avatarUrl = await services.storage.uploadImage(file, "avatars");
       updateMut.mutate({ avatarUrl });
     } catch {
-      push("Couldn't read that image", "danger");
+      push("Couldn't upload that image", "danger");
     }
   };
 

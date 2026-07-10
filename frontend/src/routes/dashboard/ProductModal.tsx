@@ -47,6 +47,7 @@ export function ProductModal({
   const [sizeInput, setSizeInput] = useState("");
   const [stockQty, setStockQty] = useState(0);
   const [dragOver, setDragOver] = useState(false);
+  const [uploading, setUploading] = useState(false);
   // "DB Synced" indicator: pulses orange ~900ms on every ± tap, then back to green
   const [syncing, setSyncing] = useState(false);
   const syncTimer = useRef<ReturnType<typeof setTimeout>>();
@@ -102,15 +103,25 @@ export function ProductModal({
     syncTimer.current = setTimeout(() => setSyncing(false), 900);
   };
 
-  const addFiles = useCallback((files: FileList | null) => {
-    if (!files) return;
-    for (const file of Array.from(files)) {
-      if (!file.type.startsWith("image/")) continue;
-      const reader = new FileReader();
-      reader.onload = () => setImages((imgs) => [...imgs, reader.result as string]);
-      reader.readAsDataURL(file);
-    }
-  }, []);
+  const addFiles = useCallback(
+    async (files: FileList | null) => {
+      if (!files) return;
+      const picked = Array.from(files).filter((f) => f.type.startsWith("image/"));
+      if (!picked.length) return;
+      setUploading(true);
+      try {
+        for (const file of picked) {
+          const url = await services.storage.uploadImage(file, "products");
+          setImages((imgs) => [...imgs, url]);
+        }
+      } catch {
+        push("Couldn't upload image", "danger");
+      } finally {
+        setUploading(false);
+      }
+    },
+    [push],
+  );
 
   const addSize = () => {
     const v = sizeInput.trim().toUpperCase();
@@ -171,11 +182,21 @@ export function ProductModal({
             dragOver ? "border-primary bg-primary/5" : "border-stone-200 hover:border-primary/50",
           )}
         >
-          <ImagePlus className="size-7 text-muted" />
+          {uploading ? (
+            <Loader2 className="size-7 animate-spin text-primary" />
+          ) : (
+            <ImagePlus className="size-7 text-muted" />
+          )}
           <p className="text-sm font-semibold text-ink">
-            Drag & drop images, or <span className="text-primary">browse</span>
+            {uploading ? (
+              "Uploading…"
+            ) : (
+              <>
+                Drag & drop images, or <span className="text-primary">browse</span>
+              </>
+            )}
           </p>
-          <p className="text-xs text-muted">PNG, JPG — stored locally until backend lands</p>
+          <p className="text-xs text-muted">PNG or JPG</p>
           <input
             ref={fileInput}
             type="file"

@@ -1,11 +1,11 @@
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { ImagePlus, Loader2, Package, Pencil, ShoppingCart, Star } from "lucide-react";
+import { ImagePlus, Loader2, Package, Pencil, ShoppingCart, Star, Store } from "lucide-react";
 import { useEffect, useRef, useState } from "react";
+import { Link } from "react-router";
 import { DashboardShell } from "@/components/layout/DashboardShell";
 import { Button } from "@/components/ui/Button";
 import { Modal } from "@/components/ui/Modal";
 import { Skeleton } from "@/components/ui/Skeleton";
-import { fileToDataUrl } from "@/lib/image";
 import { services } from "@/services";
 import type { MerchantUpdate } from "@/services";
 import { useToasts } from "@/stores/toast";
@@ -36,10 +36,10 @@ export function DashboardOverviewPage() {
   const onBannerPick = async (file: File | undefined) => {
     if (!file || !file.type.startsWith("image/")) return;
     try {
-      const bannerUrl = await fileToDataUrl(file);
+      const bannerUrl = await services.storage.uploadImage(file, "banners");
       updateMut.mutate({ bannerUrl });
     } catch {
-      push("Couldn't read that image", "danger");
+      push("Couldn't upload that image", "danger");
     }
   };
 
@@ -86,6 +86,13 @@ export function DashboardOverviewPage() {
                 @{merchant.handle}
                 {merchant.location ? ` · ${merchant.location}` : ""}
               </p>
+              <Link
+                to={`/${merchant.handle}`}
+                target="_blank"
+                className="mt-3 inline-flex items-center gap-1.5 rounded-full bg-primary/10 px-3 py-1.5 text-xs font-bold text-primary transition-colors hover:bg-primary/15"
+              >
+                <Store className="size-3.5" /> pulseshop.space/{merchant.handle}
+              </Link>
             </div>
           </section>
         ) : (

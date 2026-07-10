@@ -98,4 +98,25 @@ export const productsApi: ProductService = {
     const { error } = await supabase.from("products").delete().eq("id", id);
     if (error) throw error;
   },
+
+  async getShop(slug: string): Promise<Merchant | null> {
+    const { data, error } = await supabase
+      .from("merchants")
+      .select("*")
+      .eq("handle", slug)
+      .maybeSingle<MerchantRow>();
+    if (error) throw error;
+    if (!data) return null;
+    return toMerchant(data, await merchantStats(data.id));
+  },
+
+  async listShopProducts(merchantId: string): Promise<Product[]> {
+    const { data, error } = await supabase
+      .from("products")
+      .select("*")
+      .eq("merchant_id", merchantId)
+      .order("created_at", { ascending: false });
+    if (error) throw error;
+    return (data as ProductRow[]).map(toProduct);
+  },
 };

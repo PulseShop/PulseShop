@@ -48,6 +48,32 @@ export interface Favorite {
   addedAt: string;
 }
 
+/** One line of a placed order, as the merchant sees it in their dashboard. */
+export interface OrderLine {
+  productName: string;
+  image: string;
+  size: string | null;
+  qty: number;
+  unitPriceKes: number;
+  lineTotalKes: number;
+}
+
+/** A placed order with its line items, scoped to the receiving merchant. */
+export interface MerchantOrder {
+  id: string;
+  reference: string;
+  customerName: string;
+  customerPhone: string;
+  customerNotes: string;
+  channel: OrderChannel;
+  paymentMethod: PaymentMethod | null;
+  paymentStatus: PaymentStatus;
+  subtotalKes: number;
+  totalKes: number;
+  placedAt: string;
+  items: OrderLine[];
+}
+
 /** The signed-in merchant's session identity. */
 export interface AuthUser {
   id: string;

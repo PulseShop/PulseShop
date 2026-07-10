@@ -1,6 +1,7 @@
 import { useQuery } from "@tanstack/react-query";
-import { Package, Search, ShoppingBag, Star } from "lucide-react";
+import { Package, Search, ShoppingBag, Star, Store } from "lucide-react";
 import { useMemo, useState } from "react";
+import { Link, useParams } from "react-router";
 import { MobileShell } from "@/components/layout/MobileShell";
 import { ProductCard } from "@/components/product/ProductCard";
 import { WhatsAppIcon } from "@/components/ui/BrandIcons";
@@ -10,12 +11,30 @@ import { cn } from "@/lib/utils";
 import { services } from "@/services";
 
 export function StorefrontPage() {
+  // When a :shopSlug is in the URL we're on a public shop (pulseshop.space/<slug>);
+  // otherwise it's the signed-in merchant previewing their own store at /shop.
+  const { shopSlug } = useParams();
+  const isPublic = Boolean(shopSlug);
+  const homeTo = shopSlug ? `/${shopSlug}` : "/shop";
+
   const [category, setCategory] = useState("All");
   const [search, setSearch] = useState("");
   const [searchOpen, setSearchOpen] = useState(false);
 
-  const merchantQ = useQuery({ queryKey: ["merchant"], queryFn: services.products.getMerchant });
-  const productsQ = useQuery({ queryKey: ["products"], queryFn: services.products.listProducts });
+  const merchantQ = useQuery({
+    queryKey: shopSlug ? ["shop", shopSlug] : ["merchant"],
+    queryFn: () => (shopSlug ? services.products.getShop(shopSlug) : services.products.getMerchant()),
+  });
+  const merchant = merchantQ.data;
+
+  const productsQ = useQuery({
+    queryKey: shopSlug ? ["shop-products", shopSlug] : ["products"],
+    queryFn: () =>
+      shopSlug
+        ? services.products.listShopProducts(merchant!.id)
+        : services.products.listProducts(),
+    enabled: shopSlug ? Boolean(merchant) : true,
+  });
 
   const categories = useMemo(() => {
     const cats = new Set((productsQ.data ?? []).map((p) => p.category));
@@ -32,10 +51,28 @@ export function StorefrontPage() {
     return list;
   }, [productsQ.data, category, search]);
 
-  const merchant = merchantQ.data;
+  // Public shop that doesn't exist -> friendly not-found instead of a stuck skeleton.
+  if (isPublic && merchantQ.isSuccess && !merchant) {
+    return (
+      <MobileShell nav={false}>
+        <div className="flex min-h-[70dvh] flex-col items-center justify-center gap-3 p-8 text-center">
+          <div className="flex size-14 items-center justify-center rounded-full bg-stone-100">
+            <Store className="size-7 text-muted" />
+          </div>
+          <p className="text-lg font-bold text-ink">Shop not found</p>
+          <p className="max-w-xs text-sm text-muted">
+            There's no shop at <span className="font-semibold text-ink">/{shopSlug}</span>.
+          </p>
+          <Link to="/" className="mt-1 font-semibold text-primary">
+            Go to PulseShop
+          </Link>
+        </div>
+      </MobileShell>
+    );
+  }
 
   return (
-    <MobileShell>
+    <MobileShell homeTo={homeTo}>
       {/* header row */}
       <header className="glass-header sticky top-0 z-30 flex items-center justify-between px-4 py-3">
         <span className="text-lg font-extrabold tracking-tight text-primary">PulseShop</span>

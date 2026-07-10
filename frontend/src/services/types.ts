@@ -1,4 +1,12 @@
-import type { AuthUser, Merchant, OrderDraft, PaymentResult, Product } from "@/types";
+import type {
+  AuthUser,
+  Merchant,
+  MerchantOrder,
+  OrderDraft,
+  PaymentResult,
+  PaymentStatus,
+  Product,
+} from "@/types";
 
 export interface Credentials {
   email: string;
@@ -60,10 +68,18 @@ export interface ProductService {
   createProduct(input: ProductInput): Promise<Product>;
   updateProduct(id: string, patch: Partial<ProductInput>): Promise<Product>;
   deleteProduct(id: string): Promise<void>;
+  /** Public: look up a shop by its handle/slug. Null when no such shop. */
+  getShop(slug: string): Promise<Merchant | null>;
+  /** Public: products for a given shop. */
+  listShopProducts(merchantId: string): Promise<Product[]>;
 }
 
 export interface OrderService {
   submitOrder(draft: OrderDraft): Promise<{ reference: string }>;
+  /** Orders received by the signed-in merchant, newest first. */
+  listOrders(): Promise<MerchantOrder[]>;
+  /** Update the payment status of one of the merchant's orders. */
+  updateOrderStatus(orderId: string, paymentStatus: PaymentStatus): Promise<void>;
 }
 
 export interface PaymentService {
@@ -71,9 +87,16 @@ export interface PaymentService {
   payWithPaypal(amount: number): Promise<PaymentResult>;
 }
 
+/** Image uploads. Mock keeps base64 inline; the API adapter uses Supabase Storage. */
+export interface StorageService {
+  /** Upload an image and return a URL usable in an <img src>. `folder` groups files. */
+  uploadImage(file: File, folder: string): Promise<string>;
+}
+
 export interface Services {
   auth: AuthService;
   products: ProductService;
   orders: OrderService;
   payments: PaymentService;
+  storage: StorageService;
 }

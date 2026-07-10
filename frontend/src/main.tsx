@@ -21,6 +21,7 @@ import { ComponentsPage } from "@/routes/dev/ComponentsPage";
 import { DashboardPlaceholder } from "@/routes/dashboard/PlaceholderPage";
 import { DashboardOverviewPage } from "@/routes/dashboard/DashboardOverviewPage";
 import { InventoryPage } from "@/routes/dashboard/InventoryPage";
+import { OrdersDashboardPage } from "@/routes/dashboard/OrdersPage";
 import { SettingsPage } from "@/routes/dashboard/SettingsPage";
 import { FavoritesPage } from "@/routes/favorites/FavoritesPage";
 import { OrderPage } from "@/routes/order/OrderPage";
@@ -62,10 +63,12 @@ createRoot(document.getElementById("root")!).render(
           <Route path="/orders" element={<OrdersPage />} />
           <Route path="/dashboard" element={<DashboardOverviewPage />} />
           <Route path="/dashboard/inventory" element={<InventoryPage />} />
-          <Route path="/dashboard/orders" element={<DashboardPlaceholder title="Orders" />} />
+          <Route path="/dashboard/orders" element={<OrdersDashboardPage />} />
           <Route path="/dashboard/analytics" element={<DashboardPlaceholder title="Analytics" />} />
           <Route path="/dashboard/settings" element={<SettingsPage />} />
           <Route path="/dev/components" element={<ComponentsPage />} />
+          {/* public shop by slug — keep LAST so static routes match first */}
+          <Route path="/:shopSlug" element={<StorefrontPage />} />
         </Routes>
         <Toaster />
         <InstallPrompt />

@@ -134,7 +134,7 @@ export function SignupPage() {
             {...register("slug", { onChange: () => setSlugEdited(true) })}
           />
           <p className="text-xs font-medium text-muted">
-            pulseshop.com/<span className="font-bold text-primary">{slug || "yourshop"}</span>
+            pulseshop.space/<span className="font-bold text-primary">{slug || "yourshop"}</span>
           </p>
         </div>
 
