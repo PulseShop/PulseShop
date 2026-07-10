@@ -1,7 +1,7 @@
 import { useQuery } from "@tanstack/react-query";
-import { Package, Search, ShoppingBag, Star, Store } from "lucide-react";
+import { ArrowLeft, Package, Search, ShoppingBag, Star, Store } from "lucide-react";
 import { useEffect, useMemo, useState } from "react";
-import { Link, useParams } from "react-router";
+import { Link, useParams, useSearchParams } from "react-router";
 import { useAuth } from "@/stores/auth";
 import { useShop } from "@/stores/shop";
 import { MobileShell } from "@/components/layout/MobileShell";
@@ -27,9 +27,14 @@ export function StorefrontPage() {
     setShopSlug(shopSlug ?? null);
   }, [shopSlug, setShopSlug]);
 
+  // A search typed from the product detail page arrives as ?q= — land here
+  // with it already applied instead of making the shopper retype it.
+  const [searchParams] = useSearchParams();
+  const initialQuery = searchParams.get("q") ?? "";
+
   const [category, setCategory] = useState("All");
-  const [search, setSearch] = useState("");
-  const [searchOpen, setSearchOpen] = useState(false);
+  const [search, setSearch] = useState(initialQuery);
+  const [searchOpen, setSearchOpen] = useState(Boolean(initialQuery));
 
   const merchantQ = useQuery({
     queryKey: shopSlug ? ["shop", shopSlug] : ["merchant"],
@@ -85,7 +90,20 @@ export function StorefrontPage() {
     <MobileShell homeTo={homeTo}>
       {/* header row */}
       <header className="glass-header sticky top-0 z-30 flex items-center justify-between px-4 py-3">
-        <span className="text-lg font-extrabold tracking-tight text-primary">PulseShop</span>
+        <div className="flex items-center gap-1">
+          {/* Merchant previewing their own store via "View as buyer" — give
+              them a way back that isn't the browser back button. */}
+          {!isPublic && session?.accountType === "merchant" && (
+            <Link
+              to="/dashboard"
+              aria-label="Back to dashboard"
+              className="flex size-9 items-center justify-center rounded-full text-ink hover:bg-stone-100"
+            >
+              <ArrowLeft className="size-5" />
+            </Link>
+          )}
+          <span className="text-lg font-extrabold tracking-tight text-primary">PulseShop</span>
+        </div>
         <div className="flex gap-1">
           <button
             type="button"

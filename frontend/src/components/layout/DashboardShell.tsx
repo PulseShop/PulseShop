@@ -115,7 +115,7 @@ export function DashboardShell({ children }: { children: ReactNode }) {
             </div>
           )}
 
-          <p className="px-5 pb-4 text-[11px] font-medium text-muted">PulseShop v21.1444</p>
+          <p className="px-5 pb-4 text-[11px] font-medium text-muted">PulseShop v22.1539</p>
         </aside>
 
         <main className="ml-[230px] flex-1 p-8">{children}</main>

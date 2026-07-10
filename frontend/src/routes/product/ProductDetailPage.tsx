@@ -1,9 +1,10 @@
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { ArrowLeft, ArrowRight, ChevronRight, Heart, ShoppingBag } from "lucide-react";
-import { useEffect, useState } from "react";
+import { ArrowLeft, ChevronRight, Heart, Search, ShoppingBag } from "lucide-react";
+import { useEffect, useMemo, useState } from "react";
 import { Link, useNavigate, useParams } from "react-router";
 import { MobileShell } from "@/components/layout/MobileShell";
 import { Gallery } from "@/components/product/Gallery";
+import { ProductCard } from "@/components/product/ProductCard";
 import { RatingRow } from "@/components/product/RatingRow";
 import { ShareMenu } from "@/components/product/ShareMenu";
 import { SizeSelector } from "@/components/product/SizeSelector";
@@ -60,6 +61,29 @@ export function ProductDetailPage() {
   const merchant = merchantQ.data;
   // A merchant can't rate their own product — the DB rejects it too.
   const ownsProduct = Boolean(session && merchant && session.id === merchant.id);
+
+  // Related products: same shop, same category first, other categories fill
+  // any remaining slots — sellers pick their own free-text categories, so
+  // there's no fixed taxonomy to map "Gaming Consoles" to "Electronics" against.
+  const shopProductsQ = useQuery({
+    queryKey: ["shop-products", shopSlug],
+    queryFn: () => services.products.listShopProducts(merchant!.id),
+    enabled: Boolean(merchant),
+  });
+  const relatedProducts = useMemo(() => {
+    if (!product) return [];
+    const others = (shopProductsQ.data ?? []).filter((p) => p.id !== product.id);
+    const sameCategory = others.filter((p) => p.category === product.category);
+    const rest = others.filter((p) => p.category !== product.category);
+    return [...sameCategory, ...rest].slice(0, 6);
+  }, [shopProductsQ.data, product]);
+
+  const [searchOpen, setSearchOpen] = useState(false);
+  const [searchQuery, setSearchQuery] = useState("");
+  const submitSearch = () => {
+    if (!searchQuery.trim()) return;
+    navigate(`${home}?q=${encodeURIComponent(searchQuery.trim())}`);
+  };
 
   const myRatingQ = useQuery({
     queryKey: ["my-rating", id],
@@ -165,23 +189,31 @@ export function ProductDetailPage() {
           <ArrowLeft className="size-5" />
         </button>
         <span className="max-w-[55%] truncate text-sm font-bold text-ink">{product.name}</span>
-        <div className="flex gap-2">
-          <button
-            type="button"
-            aria-label={isFavorite ? "Remove from favorites" : "Add to favorites"}
-            onClick={() => toggle(product.id)}
-            className="flex size-10 items-center justify-center rounded-full bg-card shadow-soft"
-          >
-            <Heart
-              className={cn("size-5", isFavorite ? "fill-favorite text-favorite" : "text-ink")}
-            />
-          </button>
-          <ShareMenu
-            product={product}
-            triggerClassName="flex size-10 items-center justify-center rounded-full bg-card shadow-soft"
+        <button
+          type="button"
+          aria-label="Search products"
+          onClick={() => setSearchOpen((v) => !v)}
+          className={cn(
+            "flex size-10 items-center justify-center rounded-full shadow-soft transition-colors",
+            searchOpen ? "bg-primary text-white" : "bg-card text-ink",
+          )}
+        >
+          <Search className="size-5" />
+        </button>
+      </header>
+
+      {searchOpen && (
+        <div className="px-4 pt-3 animate-grid-fade">
+          <input
+            autoFocus
+            value={searchQuery}
+            onChange={(e) => setSearchQuery(e.target.value)}
+            onKeyDown={(e) => e.key === "Enter" && submitSearch()}
+            placeholder="Search products…"
+            className="h-11 w-full rounded-btn border border-stone-200 bg-card px-3.5 text-sm outline-none focus:border-primary focus:ring-2 focus:ring-primary/20"
           />
         </div>
-      </header>
+      )}
 
       <div className="space-y-3.5 px-4 pb-24 pt-2">
         {/* Capped against the viewport so the price, rating and CTA stay above
@@ -246,23 +278,46 @@ export function ProductDetailPage() {
             <p className="text-xs font-medium text-muted">Ask about this product</p>
           </div>
         )}
+
+        {/* related products — same shop, same category first */}
+        {relatedProducts.length > 0 && (
+          <div className="space-y-2">
+            <h2 className="text-sm font-bold text-ink">You might also like</h2>
+            <div className="no-scrollbar -mx-4 flex gap-3 overflow-x-auto px-4 pb-1">
+              {relatedProducts.map((p) => (
+                <ProductCard key={p.id} product={p} className="w-40 shrink-0" />
+              ))}
+            </div>
+          </div>
+        )}
       </div>
 
       {/* primary CTA — floating glass bar echoing the nav pill */}
-      <div className="glass fixed bottom-[max(1rem,env(safe-area-inset-bottom))] left-1/2 z-40 flex w-[calc(100%-2rem)] max-w-[398px] -translate-x-1/2 gap-2 rounded-full p-2">
+      <div className="glass fixed bottom-[max(1rem,env(safe-area-inset-bottom))] left-1/2 z-40 flex w-[calc(100%-2rem)] max-w-[398px] -translate-x-1/2 items-center gap-1.5 rounded-full p-1.5">
+        <button
+          type="button"
+          aria-label={isFavorite ? "Remove from favorites" : "Add to favorites"}
+          onClick={() => toggle(product.id)}
+          className="flex size-10 shrink-0 items-center justify-center rounded-full border border-white/60 bg-white/70 text-ink"
+        >
+          <Heart className={cn("size-4.5", isFavorite ? "fill-favorite text-favorite" : "text-ink")} />
+        </button>
+        <ShareMenu
+          product={product}
+          triggerClassName="flex size-10 shrink-0 items-center justify-center rounded-full border border-white/60 bg-white/70 text-ink"
+        />
         <Button
           variant="outline"
-          size="lg"
-          className="flex-1 whitespace-nowrap rounded-full border-white/60 bg-white/70"
+          size="md"
+          className="flex-1 whitespace-nowrap rounded-full border-white/60 bg-white/70 px-2"
           disabled={soldOut}
           onClick={handleAddToCart}
         >
-          <ShoppingBag className="size-5" />
-          Add to Cart
+          <ShoppingBag className="size-4.5" />
+          Add
         </Button>
-        <Button size="lg" className="flex-1 rounded-full" disabled={soldOut} onClick={orderNow}>
+        <Button size="md" className="flex-1 whitespace-nowrap rounded-full px-2" disabled={soldOut} onClick={orderNow}>
           {soldOut ? "Sold Out" : "Buy Now"}
-          {!soldOut && <ArrowRight className="size-5" />}
         </Button>
       </div>
     </MobileShell>

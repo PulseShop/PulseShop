@@ -217,6 +217,25 @@ body {
   animation: toast-in 200ms ease-out;
 }
 
+/* step cards swinging into place, like photos clipped to a line */
+@keyframes step-swing-in {
+  0% {
+    opacity: 0;
+    transform: translateY(16px) rotate(0deg) scale(0.9);
+  }
+  60% {
+    opacity: 1;
+    transform: translateY(-4px) rotate(var(--tilt, 0deg)) scale(1.04);
+  }
+  100% {
+    opacity: 1;
+    transform: translateY(0) rotate(var(--tilt, 0deg)) scale(1);
+  }
+}
+.animate-step-swing-in {
+  animation: step-swing-in 560ms cubic-bezier(0.34, 1.56, 0.64, 1) both;
+}
+
 .no-scrollbar::-webkit-scrollbar {
   display: none;
 }

@@ -12,6 +12,7 @@ import {
 import { useEffect, useRef, useState } from "react";
 import { Link } from "react-router";
 import { DashboardShell } from "@/components/layout/DashboardShell";
+import { InstagramStoryWalkthrough } from "@/components/product/InstagramStoryWalkthrough";
 import { Button } from "@/components/ui/Button";
 import { Modal } from "@/components/ui/Modal";
 import { Skeleton } from "@/components/ui/Skeleton";
@@ -145,6 +146,8 @@ export function DashboardOverviewPage() {
             </p>
           </section>
         )}
+
+        <InstagramStoryWalkthrough />
       </div>
 
       {/* bio editor */}
