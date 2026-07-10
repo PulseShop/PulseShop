@@ -19,7 +19,7 @@ import {
  * direct counts silently read 0 (orders for anyone viewing someone else's
  * storefront; followers for the merchant reading their own shop).
  */
-async function merchantStats(
+export async function merchantStats(
   uid: string,
 ): Promise<{ products: number; orders: number; followers: number }> {
   const [{ count: products }, { data: orders }, { data: followers }] = await Promise.all([

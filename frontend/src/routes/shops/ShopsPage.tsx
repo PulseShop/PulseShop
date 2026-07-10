@@ -1,5 +1,5 @@
 import { useQuery } from "@tanstack/react-query";
-import { Store } from "lucide-react";
+import { Package, ShoppingCart, Store, Users } from "lucide-react";
 import { Link } from "react-router";
 import { MobileShell } from "@/components/layout/MobileShell";
 import { FollowButton } from "@/components/shop/FollowButton";
@@ -54,33 +54,51 @@ export function ShopsPage() {
           </div>
         ) : (
           (shopsQ.data ?? []).map((shop) => (
-            <div
-              key={shop.id}
-              className="flex items-center gap-3 rounded-card bg-card p-3 shadow-soft"
-            >
-              {/* profile — tap to open the shop */}
-              <Link to={`/${shop.handle}`} className="flex min-w-0 flex-1 items-center gap-3">
-                {shop.avatarUrl ? (
-                  <img
-                    src={shop.avatarUrl}
-                    alt={shop.name}
-                    className="size-12 shrink-0 rounded-full object-cover ring-2 ring-stone-100"
-                  />
-                ) : (
-                  <span className="flex size-12 shrink-0 items-center justify-center rounded-full bg-primary/10">
-                    <Store className="size-5 text-primary" />
-                  </span>
-                )}
-                <div className="min-w-0">
-                  <p className="truncate text-sm font-bold text-ink">{shop.name}</p>
-                  <p className="truncate text-xs text-muted">
-                    @{shop.handle}
-                    {shop.location ? ` · ${shop.location}` : ""}
-                  </p>
-                </div>
-              </Link>
+            <div key={shop.id} className="rounded-card bg-card p-3 shadow-soft">
+              <div className="flex items-center gap-3">
+                {/* profile — tap to open the shop */}
+                <Link to={`/${shop.handle}`} className="flex min-w-0 flex-1 items-center gap-3">
+                  {shop.avatarUrl ? (
+                    <img
+                      src={shop.avatarUrl}
+                      alt={shop.name}
+                      className="size-12 shrink-0 rounded-full object-cover ring-2 ring-stone-100"
+                    />
+                  ) : (
+                    <span className="flex size-12 shrink-0 items-center justify-center rounded-full bg-primary/10">
+                      <Store className="size-5 text-primary" />
+                    </span>
+                  )}
+                  <div className="min-w-0">
+                    <p className="truncate text-sm font-bold text-ink">{shop.name}</p>
+                    <p className="truncate text-xs text-muted">
+                      @{shop.handle}
+                      {shop.location ? ` · ${shop.location}` : ""}
+                    </p>
+                  </div>
+                </Link>
 
-              <FollowButton merchantId={shop.id} className="shrink-0" />
+                <FollowButton merchantId={shop.id} className="shrink-0" />
+              </div>
+
+              {shop.bio && (
+                <p className="mt-2.5 line-clamp-2 text-xs text-muted">{shop.bio}</p>
+              )}
+
+              <div className="mt-2.5 flex items-center gap-4 border-t border-stone-100 pt-2.5 text-xs text-muted">
+                <span className="flex items-center gap-1">
+                  <Package className="size-3.5" />
+                  {shop.stats.products} product{shop.stats.products === 1 ? "" : "s"}
+                </span>
+                <span className="flex items-center gap-1">
+                  <ShoppingCart className="size-3.5" />
+                  {shop.stats.orders} order{shop.stats.orders === 1 ? "" : "s"}
+                </span>
+                <span className="flex items-center gap-1">
+                  <Users className="size-3.5" />
+                  {shop.stats.followers} follower{shop.stats.followers === 1 ? "" : "s"}
+                </span>
+              </div>
             </div>
           ))
         )}

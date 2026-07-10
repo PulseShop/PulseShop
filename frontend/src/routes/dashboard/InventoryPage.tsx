@@ -15,6 +15,7 @@ import {
 } from "lucide-react";
 import { useEffect, useMemo, useState } from "react";
 import { DashboardShell } from "@/components/layout/DashboardShell";
+import { StockAdjuster } from "@/components/product/StockAdjuster";
 import { StockBadge } from "@/components/product/StockBadge";
 import { Button } from "@/components/ui/Button";
 import { Modal } from "@/components/ui/Modal";
@@ -364,7 +365,9 @@ export function InventoryPage() {
                   <td className="px-2 py-3">
                     <StockBadge status={p.status} />
                   </td>
-                  <td className="px-2 py-3 font-semibold text-ink">{p.stockQty}</td>
+                  <td className="px-2 py-3">
+                    <StockAdjuster product={p} />
+                  </td>
                   <td className="px-4 py-3">
                     <div className="flex justify-end gap-1">
                       <button

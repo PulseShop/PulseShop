@@ -2,6 +2,7 @@ import type { Merchant } from "@/types";
 import type { FollowService } from "../types";
 import { requireUserId, supabase } from "./client";
 import { type MerchantRow, toMerchant } from "./mappers";
+import { merchantStats } from "./products";
 
 /**
  * Shop discovery + follows. The shop list is public (merchants RLS allows
@@ -15,10 +16,9 @@ export const followsApi: FollowService = {
       .select("*")
       .order("created_at", { ascending: false });
     if (error) throw error;
-    // Stats aren't shown on the discover list — skip the per-shop count queries.
-    return (data as MerchantRow[]).map((row) =>
-      toMerchant(row, { products: 0, orders: 0, followers: 0 }),
-    );
+    const rows = data as MerchantRow[];
+    const stats = await Promise.all(rows.map((row) => merchantStats(row.id)));
+    return rows.map((row, i) => toMerchant(row, stats[i]));
   },
 
   async listFollowing(): Promise<string[]> {
