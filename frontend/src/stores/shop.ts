@@ -1,5 +1,6 @@
 import { create } from "zustand";
 import { persist } from "zustand/middleware";
+import { useAuth } from "@/stores/auth";
 
 /**
  * Remembers which shop the shopper is currently browsing so the consumer flow
@@ -22,8 +23,13 @@ export const useShop = create<ShopState>()(
   ),
 );
 
-/** The path the Home tab / "back to store" links should point to. */
+/**
+ * The path the Home tab / "back to store" links should point to: the shop
+ * being browsed; else a merchant's own store preview; else the shop list.
+ */
 export function useShopHome(): string {
   const slug = useShop((s) => s.slug);
-  return slug ? `/${slug}` : "/shop";
+  const session = useAuth((s) => s.session);
+  if (slug) return `/${slug}`;
+  return session?.accountType === "merchant" ? "/shop" : "/shops";
 }

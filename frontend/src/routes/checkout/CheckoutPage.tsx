@@ -18,6 +18,7 @@ import type { PaymentMethod } from "@/types";
 import { cartSubtotal, useCart } from "@/stores/cart";
 import { useOrderStore } from "@/stores/order";
 import { useOrderHistory } from "@/stores/orderHistory";
+import { useShop } from "@/stores/shop";
 import { useToasts } from "@/stores/toast";
 import { PaymentSheet } from "@/routes/order/PaymentSheet";
 
@@ -46,8 +47,17 @@ export function CheckoutPage() {
   const clearCart = useCart((s) => s.clear);
   const { customer, saveCustomer } = useOrderStore();
   const addOrder = useOrderHistory((s) => s.add);
+  const activeSlug = useShop((s) => s.slug);
 
-  const merchantQ = useQuery({ queryKey: ["merchant"], queryFn: services.products.getMerchant });
+  // The cart holds items from one shop; resolve that shop publicly by its
+  // handle so guest shoppers can check out. (Falls back to the shop being
+  // browsed for carts persisted before items carried a shopSlug.)
+  const shopSlug = items[0]?.shopSlug ?? activeSlug;
+  const merchantQ = useQuery({
+    queryKey: ["shop", shopSlug],
+    queryFn: () => services.products.getShop(shopSlug!),
+    enabled: Boolean(shopSlug),
+  });
   const [channel, setChannel] = useState<Channel>("whatsapp");
   const [payOpen, setPayOpen] = useState(false);
 
@@ -65,6 +75,9 @@ export function CheckoutPage() {
 
   // Nothing to check out — bounce back to the cart.
   if (items.length === 0) return <Navigate to="/cart" replace />;
+
+  // Carts saved before items carried their shop can't be routed — start over.
+  if (!shopSlug) return <Navigate to="/cart" replace />;
 
   const merchant = merchantQ.data;
   if (!merchant) {
@@ -99,6 +112,23 @@ export function CheckoutPage() {
     }
   };
 
+  const persistOrder = (
+    data: { name: string; phone: string; notes?: string },
+    ch: Channel | "direct",
+    payment: { method: PaymentMethod; status: "paid" } | null,
+  ) =>
+    // Record the order in the backend so it shows in the merchant's dashboard.
+    // Fire-and-forget: never block the shopper's WhatsApp/payment handoff on it.
+    services.orders
+      .submitCartOrder({
+        shopSlug,
+        items: items.map((i) => ({ productId: i.productId, size: i.size, qty: i.qty })),
+        customer: { name: data.name, phone: data.phone, notes: data.notes ?? "" },
+        channel: ch,
+        payment,
+      })
+      .catch(() => {});
+
   const sendOrder = handleSubmit((data) => {
     saveCustomer({ name: data.name, phone: data.phone, notes: data.notes ?? "" });
     const url = cartOrderLink(
@@ -108,6 +138,7 @@ export function CheckoutPage() {
       channel,
     );
     recordOrders(`PS-${Date.now().toString(36).toUpperCase()}`, null, channel);
+    persistOrder(data, channel, null);
     window.open(url, "_blank", "noopener");
     clearCart();
     push(
@@ -246,6 +277,7 @@ export function CheckoutPage() {
         merchantWhatsApp={merchant.contacts.whatsapp}
         onPaid={(reference, method) => {
           recordOrders(reference, method, "direct");
+          persistOrder(getValues(), "direct", { method, status: "paid" });
           clearCart();
           navigate("/orders");
         }}

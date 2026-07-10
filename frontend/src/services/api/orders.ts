@@ -1,4 +1,11 @@
-import type { MerchantOrder, OrderChannel, OrderDraft, PaymentMethod, PaymentStatus } from "@/types";
+import type {
+  CartOrderDraft,
+  MerchantOrder,
+  OrderChannel,
+  OrderDraft,
+  PaymentMethod,
+  PaymentStatus,
+} from "@/types";
 import { discountedPrice } from "@/lib/currency";
 import type { OrderService } from "../types";
 import { requireUserId, supabase } from "./client";
@@ -97,6 +104,60 @@ export const ordersApi: OrderService = {
       qty: draft.qty,
       unit_price_kes: unit,
     });
+    if (iErr) throw iErr;
+
+    return { reference };
+  },
+
+  async submitCartOrder(draft: CartOrderDraft): Promise<{ reference: string }> {
+    // Snapshot names/images and recompute prices from the DB — cart lines may
+    // hold stale prices captured at add-time.
+    const ids = draft.items.map((i) => i.productId);
+    const { data: products, error: pErr } = await supabase
+      .from("products")
+      .select("id, merchant_id, name, images, price_kes, discount_pct")
+      .in("id", ids);
+    if (pErr) throw pErr;
+    if (!products || products.length === 0) throw new Error("No products found for this order");
+
+    const byId = new Map(products.map((p) => [p.id, p]));
+    const lines = draft.items.flatMap((item) => {
+      const p = byId.get(item.productId);
+      if (!p) return []; // product removed since it was added to the cart
+      const unit = discountedPrice(p.price_kes, p.discount_pct);
+      return [{
+        product_id: p.id,
+        product_name: p.name,
+        image: p.images?.[0] ?? "",
+        size: item.size,
+        qty: item.qty,
+        unit_price_kes: unit,
+      }];
+    });
+    if (lines.length === 0) throw new Error("None of the cart items exist any more");
+
+    const total = lines.reduce((sum, l) => sum + l.unit_price_kes * l.qty, 0);
+    const reference = makeRef();
+    const orderId = crypto.randomUUID();
+
+    const { error: oErr } = await supabase.from("orders").insert({
+      id: orderId,
+      reference,
+      merchant_id: products[0].merchant_id,
+      customer_name: draft.customer.name,
+      customer_phone: draft.customer.phone,
+      customer_notes: draft.customer.notes,
+      channel: draft.channel,
+      payment_method: draft.payment?.method ?? null,
+      payment_status: draft.payment?.status === "paid" ? "paid" : "pending",
+      subtotal_kes: total,
+      total_kes: total,
+    });
+    if (oErr) throw oErr;
+
+    const { error: iErr } = await supabase
+      .from("order_items")
+      .insert(lines.map((l) => ({ ...l, order_id: orderId })));
     if (iErr) throw iErr;
 
     return { reference };

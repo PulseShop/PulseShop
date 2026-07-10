@@ -112,14 +112,23 @@ export function ProductDetailPage() {
       push("Please select a size first");
       return;
     }
-    addToCart({
+    if (!product.shopSlug) {
+      push("Couldn't work out this product's shop — try again", "danger");
+      return;
+    }
+    const added = addToCart({
       productId: product.id,
+      shopSlug: product.shopSlug,
       name: product.name,
       image: product.images[0],
       unitPrice: finalPrice,
       size,
       stockQty: product.stockQty,
     });
+    if (!added) {
+      push("Your cart has items from another shop — check out or clear it first", "danger");
+      return;
+    }
     push("Added to cart — keep shopping", "success");
   };
 

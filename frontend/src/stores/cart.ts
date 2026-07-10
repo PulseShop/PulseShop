@@ -3,6 +3,8 @@ import { persist } from "zustand/middleware";
 
 export interface CartItem {
   productId: string;
+  /** Handle of the shop the product belongs to — the cart is one shop at a time. */
+  shopSlug: string;
   name: string;
   image: string;
   /** Discounted unit price captured when the item was added. */
@@ -19,7 +21,12 @@ const sameLine = (a: Pick<CartItem, "productId" | "size">, productId: string, si
 
 interface CartState {
   items: CartItem[];
-  add: (item: Omit<CartItem, "qty">, qty?: number) => void;
+  /**
+   * Adds an item. The cart holds items from ONE shop at a time (an order goes
+   * to a single seller) — returns false when the item belongs to a different
+   * shop than the current cart, so the UI can tell the shopper.
+   */
+  add: (item: Omit<CartItem, "qty">, qty?: number) => boolean;
   setQty: (productId: string, size: string | null, qty: number) => void;
   remove: (productId: string, size: string | null) => void;
   clear: () => void;
@@ -27,9 +34,11 @@ interface CartState {
 
 export const useCart = create<CartState>()(
   persist(
-    (set) => ({
+    (set, get) => ({
       items: [],
-      add: (item, qty = 1) =>
+      add: (item, qty = 1) => {
+        const current = get().items;
+        if (current.length > 0 && current[0].shopSlug !== item.shopSlug) return false;
         set((s) => {
           const existing = s.items.find((i) => sameLine(i, item.productId, item.size));
           if (existing) {
@@ -42,7 +51,9 @@ export const useCart = create<CartState>()(
             };
           }
           return { items: [...s.items, { ...item, qty: Math.min(qty, item.stockQty) }] };
-        }),
+        });
+        return true;
+      },
       setQty: (productId, size, qty) =>
         set((s) => ({
           items: s.items.map((i) =>

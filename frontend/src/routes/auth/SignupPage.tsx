@@ -115,6 +115,11 @@ export function SignupPage() {
           <Link to="/login" className="font-bold text-primary">
             Log in
           </Link>
+          <br />
+          Just here to shop?{" "}
+          <Link to="/signup/shopper" className="font-bold text-primary">
+            Create a shopper account
+          </Link>
         </>
       }
     >

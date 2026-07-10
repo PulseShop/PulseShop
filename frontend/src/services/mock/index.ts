@@ -1,5 +1,6 @@
 import type {
   AuthUser,
+  CartOrderDraft,
   Merchant,
   MerchantOrder,
   OrderDraft,
@@ -7,7 +8,14 @@ import type {
   PaymentStatus,
   Product,
 } from "@/types";
-import type { Credentials, MerchantUpdate, ProductInput, Services, SignupInput } from "../types";
+import type {
+  Credentials,
+  MerchantUpdate,
+  ProductInput,
+  Services,
+  ShopperSignupInput,
+  SignupInput,
+} from "../types";
 import { statusForQty } from "@/lib/constants";
 import { discountedPrice } from "@/lib/currency";
 import { fileToDataUrl } from "@/lib/image";
@@ -17,6 +25,7 @@ const LATENCY = 300;
 const STORAGE_KEY = "pulseshop-mock-products";
 const MERCHANT_KEY = "pulseshop-mock-merchant";
 const ORDERS_KEY = "pulseshop-mock-orders-received";
+const FOLLOWS_KEY = "pulseshop-mock-follows";
 
 const delay = (ms = LATENCY) => new Promise((r) => setTimeout(r, ms));
 
@@ -132,7 +141,13 @@ export const mockServices: Services = {
     // Accepts any credentials and returns the demo shop's session.
     async login({ email }: Credentials): Promise<AuthUser> {
       await delay();
-      return { id: "u1", email, shopName: MERCHANT.name, shopSlug: MERCHANT.handle };
+      return {
+        id: "u1",
+        email,
+        accountType: "merchant",
+        shopName: MERCHANT.name,
+        shopSlug: MERCHANT.handle,
+      };
     },
 
     async signup(input: SignupInput): Promise<AuthUser> {
@@ -140,8 +155,20 @@ export const mockServices: Services = {
       return {
         id: `u${Date.now()}`,
         email: input.email,
+        accountType: "merchant",
         shopName: input.shopName,
         shopSlug: input.shopSlug,
+      };
+    },
+
+    async signupShopper(input: ShopperSignupInput): Promise<AuthUser> {
+      await delay();
+      return {
+        id: `u${Date.now()}`,
+        email: input.email,
+        accountType: "shopper",
+        shopName: "",
+        shopSlug: "",
       };
     },
 
@@ -178,7 +205,7 @@ export const mockServices: Services = {
 
     async listProducts(): Promise<Product[]> {
       await delay();
-      return structuredClone(products);
+      return structuredClone(products).map((p) => ({ ...p, shopSlug: merchant.handle }));
     },
 
     async getProduct(id: string): Promise<Product | null> {
@@ -227,7 +254,7 @@ export const mockServices: Services = {
 
     async listShopProducts(_merchantId: string): Promise<Product[]> {
       await delay();
-      return structuredClone(products);
+      return structuredClone(products).map((p) => ({ ...p, shopSlug: merchant.handle }));
     },
   },
 
@@ -270,6 +297,44 @@ export const mockServices: Services = {
       return { reference };
     },
 
+    async submitCartOrder(draft: CartOrderDraft): Promise<{ reference: string }> {
+      await delay();
+      const reference = makeRef();
+      const items = draft.items.flatMap((item) => {
+        const p = products.find((x) => x.id === item.productId);
+        if (!p) return [];
+        const unit = discountedPrice(p.priceKes, p.discountPct);
+        return [{
+          productName: p.name,
+          image: p.images[0] ?? "",
+          size: item.size,
+          qty: item.qty,
+          unitPriceKes: unit,
+          lineTotalKes: unit * item.qty,
+        }];
+      });
+      const total = items.reduce((s, i) => s + i.lineTotalKes, 0);
+      ordersReceived = [
+        {
+          id: `o${Date.now()}`,
+          reference,
+          customerName: draft.customer.name,
+          customerPhone: draft.customer.phone,
+          customerNotes: draft.customer.notes,
+          channel: draft.channel,
+          paymentMethod: draft.payment?.method ?? null,
+          paymentStatus: draft.payment?.status === "paid" ? "paid" : "pending",
+          subtotalKes: total,
+          totalKes: total,
+          placedAt: new Date().toISOString(),
+          items,
+        },
+        ...ordersReceived,
+      ];
+      saveOrders(ordersReceived);
+      return { reference };
+    },
+
     async listOrders(): Promise<MerchantOrder[]> {
       await delay();
       return structuredClone(ordersReceived);
@@ -281,6 +346,37 @@ export const mockServices: Services = {
         o.id === orderId ? { ...o, paymentStatus } : o,
       );
       saveOrders(ordersReceived);
+    },
+  },
+
+  follows: {
+    // Single demo shop in mock mode; follows persist per browser.
+    async listShops(): Promise<Merchant[]> {
+      await delay();
+      return [{ ...structuredClone(merchant), stats: { ...merchant.stats, products: products.length } }];
+    },
+
+    async listFollowing(): Promise<string[]> {
+      await delay();
+      try {
+        return JSON.parse(localStorage.getItem(FOLLOWS_KEY) ?? "[]") as string[];
+      } catch {
+        return [];
+      }
+    },
+
+    async follow(merchantId: string): Promise<void> {
+      await delay();
+      const ids = new Set(JSON.parse(localStorage.getItem(FOLLOWS_KEY) ?? "[]") as string[]);
+      ids.add(merchantId);
+      localStorage.setItem(FOLLOWS_KEY, JSON.stringify([...ids]));
+    },
+
+    async unfollow(merchantId: string): Promise<void> {
+      await delay();
+      const ids = new Set(JSON.parse(localStorage.getItem(FOLLOWS_KEY) ?? "[]") as string[]);
+      ids.delete(merchantId);
+      localStorage.setItem(FOLLOWS_KEY, JSON.stringify([...ids]));
     },
   },
 

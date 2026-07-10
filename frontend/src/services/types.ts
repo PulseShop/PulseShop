@@ -1,5 +1,6 @@
 import type {
   AuthUser,
+  CartOrderDraft,
   Merchant,
   MerchantOrder,
   OrderDraft,
@@ -22,15 +23,24 @@ export interface SignupInput {
   socials: { whatsapp: string; instagram: string; facebook: string };
 }
 
+/** Shopper signup — no shop, just an identity for following/favorites. */
+export interface ShopperSignupInput {
+  name: string;
+  email: string;
+  password: string;
+}
+
 /**
- * Merchant auth. The mock accepts anything and fabricates a session; the real
- * adapter (services/api/auth) wires these to Supabase Auth with the same shape.
+ * Auth for both account types. The mock accepts anything and fabricates a
+ * session; the real adapter (services/api/auth) wires these to Supabase Auth
+ * with the same shape.
  */
 export interface AuthService {
   login(creds: Credentials): Promise<AuthUser>;
   signup(input: SignupInput): Promise<AuthUser>;
+  signupShopper(input: ShopperSignupInput): Promise<AuthUser>;
   logout(): Promise<void>;
-  /** Change the signed-in merchant's account email. */
+  /** Change the signed-in user's account email. */
   updateEmail(email: string): Promise<void>;
 }
 
@@ -76,10 +86,22 @@ export interface ProductService {
 
 export interface OrderService {
   submitOrder(draft: OrderDraft): Promise<{ reference: string }>;
+  /** Multi-item order from the cart checkout — one order, many line items. */
+  submitCartOrder(draft: CartOrderDraft): Promise<{ reference: string }>;
   /** Orders received by the signed-in merchant, newest first. */
   listOrders(): Promise<MerchantOrder[]>;
   /** Update the payment status of one of the merchant's orders. */
   updateOrderStatus(orderId: string, paymentStatus: PaymentStatus): Promise<void>;
+}
+
+/** Instagram-style shop following for signed-in users. */
+export interface FollowService {
+  /** Public: every shop on the platform, for the discover list. */
+  listShops(): Promise<Merchant[]>;
+  /** Merchant ids the signed-in user follows. */
+  listFollowing(): Promise<string[]>;
+  follow(merchantId: string): Promise<void>;
+  unfollow(merchantId: string): Promise<void>;
 }
 
 export interface PaymentService {
@@ -97,6 +119,7 @@ export interface Services {
   auth: AuthService;
   products: ProductService;
   orders: OrderService;
+  follows: FollowService;
   payments: PaymentService;
   storage: StorageService;
 }

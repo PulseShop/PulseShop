@@ -1,15 +1,19 @@
-import { Heart, Home, Package, ShoppingBag } from "lucide-react";
+import { Heart, Home, Package, ShoppingBag, Store } from "lucide-react";
 import { NavLink } from "react-router";
 import { cn } from "@/lib/utils";
 import { useFavorites } from "@/stores/favorites";
 import { cartCount, useCart } from "@/stores/cart";
+import { useShopHome } from "@/stores/shop";
 
-export function BottomNav({ homeTo = "/shop" }: { homeTo?: string }) {
+export function BottomNav({ homeTo }: { homeTo?: string }) {
   const favCount = useFavorites((s) => s.favorites.length);
   const cartQty = useCart((s) => cartCount(s.items));
+  const defaultHome = useShopHome();
+  const home = homeTo ?? defaultHome;
 
   const items = [
-    { to: homeTo, label: "Home", icon: Home },
+    { to: home, label: "Home", icon: Home },
+    { to: "/shops", label: "Shops", icon: Store },
     { to: "/favorites", label: "Favorites", icon: Heart },
     { to: "/cart", label: "Cart", icon: ShoppingBag },
     { to: "/orders", label: "Orders", icon: Package },
@@ -27,7 +31,7 @@ export function BottomNav({ homeTo = "/shop" }: { homeTo?: string }) {
             <NavLink
               key={to}
               to={to}
-              end={to === homeTo}
+              end={to === home}
               aria-label={label}
               className={({ isActive }) =>
                 cn(

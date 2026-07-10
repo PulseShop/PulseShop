@@ -1,5 +1,6 @@
 import type { Services } from "../types";
 import { authApi } from "./auth";
+import { followsApi } from "./follows";
 import { ordersApi } from "./orders";
 import { paymentsApi } from "./payments";
 import { productsApi } from "./products";
@@ -14,6 +15,7 @@ export const apiServices: Services = {
   auth: authApi,
   products: productsApi,
   orders: ordersApi,
+  follows: followsApi,
   payments: paymentsApi,
   storage: storageApi,
 };

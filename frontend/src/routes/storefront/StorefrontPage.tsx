@@ -2,9 +2,11 @@ import { useQuery } from "@tanstack/react-query";
 import { Package, Search, ShoppingBag, Star, Store } from "lucide-react";
 import { useEffect, useMemo, useState } from "react";
 import { Link, useParams } from "react-router";
+import { useAuth } from "@/stores/auth";
 import { useShop } from "@/stores/shop";
 import { MobileShell } from "@/components/layout/MobileShell";
 import { ProductCard } from "@/components/product/ProductCard";
+import { FollowButton } from "@/components/shop/FollowButton";
 import { WhatsAppIcon } from "@/components/ui/BrandIcons";
 import { ProductCardSkeleton, Skeleton } from "@/components/ui/Skeleton";
 import { merchantChatLink } from "@/lib/deeplinks";
@@ -17,6 +19,7 @@ export function StorefrontPage() {
   const { shopSlug } = useParams();
   const isPublic = Boolean(shopSlug);
   const homeTo = shopSlug ? `/${shopSlug}` : "/shop";
+  const session = useAuth((s) => s.session);
 
   // Remember the shop being browsed so the rest of the consumer flow can return here.
   const setShopSlug = useShop((s) => s.setSlug);
@@ -146,15 +149,21 @@ export function StorefrontPage() {
               <Stat icon={<Star className="size-4 fill-amber-400 text-amber-400" />} value={merchant.stats.rating} label="Rating" />
             </div>
 
-            <a
-              href={merchantChatLink(merchant)}
-              target="_blank"
-              rel="noreferrer"
-              className="mt-4 inline-flex h-11 items-center gap-2 rounded-full bg-whatsapp px-6 text-sm font-bold text-white shadow-soft transition-transform active:scale-95"
-            >
-              <WhatsAppIcon className="size-4.5" />
-              Chat on WhatsApp
-            </a>
+            <div className="mt-4 flex items-center gap-2">
+              {/* follow only makes sense on someone else's shop */}
+              {isPublic && session?.id !== merchant.id && (
+                <FollowButton merchantId={merchant.id} className="h-11 px-5" />
+              )}
+              <a
+                href={merchantChatLink(merchant)}
+                target="_blank"
+                rel="noreferrer"
+                className="inline-flex h-11 items-center gap-2 rounded-full bg-whatsapp px-6 text-sm font-bold text-white shadow-soft transition-transform active:scale-95"
+              >
+                <WhatsAppIcon className="size-4.5" />
+                Chat on WhatsApp
+              </a>
+            </div>
           </div>
         ) : (
           <div className="flex flex-col items-center gap-3">

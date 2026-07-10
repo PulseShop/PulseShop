@@ -45,6 +45,15 @@ export interface OrderDraft {
   payment: null | { method: PaymentMethod; status: PaymentStatus };
 }
 
+/** A multi-item order from the cart checkout. All items belong to one shop. */
+export interface CartOrderDraft {
+  shopSlug: string;
+  items: { productId: string; size: string | null; qty: number }[];
+  customer: { name: string; phone: string; notes: string };
+  channel: OrderChannel;
+  payment: null | { method: PaymentMethod; status: PaymentStatus };
+}
+
 export interface Favorite {
   productId: string;
   addedAt: string;
@@ -76,10 +85,13 @@ export interface MerchantOrder {
   items: OrderLine[];
 }
 
-/** The signed-in merchant's session identity. */
+export type AccountType = "merchant" | "shopper";
+
+/** The signed-in user's session identity. Shoppers have no shop — empty strings. */
 export interface AuthUser {
   id: string;
   email: string;
+  accountType: AccountType;
   shopName: string;
   shopSlug: string;
 }

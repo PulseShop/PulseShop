@@ -55,11 +55,15 @@ export const productsApi: ProductService = {
     const uid = await requireUserId();
     const { data, error } = await supabase
       .from("products")
-      .select("*")
+      .select("*, merchants(handle)")
       .eq("merchant_id", uid)
       .order("created_at", { ascending: false });
     if (error) throw error;
-    return (data as ProductRow[]).map(toProduct);
+    return (data as (ProductRow & { merchants?: { handle?: string } })[]).map((row) => {
+      const product = toProduct(row);
+      product.shopSlug = row.merchants?.handle;
+      return product;
+    });
   },
 
   async getProduct(id: string): Promise<Product | null> {
@@ -116,10 +120,14 @@ export const productsApi: ProductService = {
   async listShopProducts(merchantId: string): Promise<Product[]> {
     const { data, error } = await supabase
       .from("products")
-      .select("*")
+      .select("*, merchants(handle)")
       .eq("merchant_id", merchantId)
       .order("created_at", { ascending: false });
     if (error) throw error;
-    return (data as ProductRow[]).map(toProduct);
+    return (data as (ProductRow & { merchants?: { handle?: string } })[]).map((row) => {
+      const product = toProduct(row);
+      product.shopSlug = row.merchants?.handle;
+      return product;
+    });
   },
 };
