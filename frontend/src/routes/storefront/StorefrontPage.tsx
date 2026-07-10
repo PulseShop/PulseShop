@@ -1,5 +1,5 @@
 import { useQuery } from "@tanstack/react-query";
-import { ArrowLeft, Check, Heart, Package, Search, ShoppingBag, Star, Store } from "lucide-react";
+import { AlertTriangle, ArrowLeft, Check, Heart, Package, Search, ShoppingBag, Star, Store } from "lucide-react";
 import { useEffect, useMemo, useState } from "react";
 import { Link, useParams, useSearchParams } from "react-router";
 import { useAuth } from "@/stores/auth";
@@ -91,6 +91,30 @@ export function StorefrontPage() {
     return list;
   }, [productsQ.data, category, search, availableOnly, maxPrice, sort]);
 
+  // Merchant fetch failed (DB down, offline) -> explicit retry instead of an
+  // infinite skeleton — the `merchant ? … : <Skeleton>` branch below can't
+  // tell "still loading" from "never going to load".
+  if (merchantQ.isError) {
+    return (
+      <MobileShell nav={false}>
+        <div className="flex min-h-[70dvh] flex-col items-center justify-center gap-3 p-8 text-center">
+          <div className="flex size-14 items-center justify-center rounded-full bg-danger/10">
+            <AlertTriangle className="size-7 text-danger" />
+          </div>
+          <p className="text-lg font-bold text-ink">Couldn't load this shop</p>
+          <p className="max-w-xs text-sm text-muted">Check your connection and try again.</p>
+          <button
+            type="button"
+            onClick={() => merchantQ.refetch()}
+            className="mt-1 rounded-btn bg-primary px-4 py-2 text-sm font-semibold text-white focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary focus-visible:ring-offset-2"
+          >
+            Try again
+          </button>
+        </div>
+      </MobileShell>
+    );
+  }
+
   // Public shop that doesn't exist -> friendly not-found instead of a stuck skeleton.
   if (isPublic && merchantQ.isSuccess && !merchant) {
     return (
@@ -122,7 +146,7 @@ export function StorefrontPage() {
             <Link
               to="/dashboard"
               aria-label="Back to dashboard"
-              className="flex size-9 items-center justify-center rounded-full text-ink hover:bg-stone-100"
+              className="flex size-11 items-center justify-center rounded-full text-ink hover:bg-stone-100 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary"
             >
               <ArrowLeft className="size-5" />
             </Link>
@@ -148,7 +172,7 @@ export function StorefrontPage() {
             aria-label="Search products"
             onClick={() => setSearchOpen((v) => !v)}
             className={cn(
-              "flex size-10 items-center justify-center rounded-full transition-colors",
+              "flex size-11 items-center justify-center rounded-full transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary",
               searchOpen ? "bg-primary text-white" : "text-ink hover:bg-stone-100",
             )}
           >
@@ -273,7 +297,7 @@ export function StorefrontPage() {
             type="button"
             onClick={() => setCategory(cat)}
             className={cn(
-              "flex-shrink-0 rounded-full px-4 py-2 text-sm font-semibold transition-colors",
+              "flex min-h-11 flex-shrink-0 items-center rounded-full px-4 text-sm font-semibold transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary",
               cat === category
                 ? "bg-primary text-white"
                 : "bg-card text-muted shadow-soft hover:text-ink",
@@ -373,7 +397,7 @@ export function StorefrontPage() {
               <button
                 type="button"
                 onClick={() => productsQ.refetch()}
-                className="mt-3 rounded-btn bg-primary px-4 py-2 text-sm font-semibold text-white"
+                className="mt-3 rounded-btn bg-primary px-4 py-2 text-sm font-semibold text-white focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary focus-visible:ring-offset-2"
               >
                 Try again
               </button>

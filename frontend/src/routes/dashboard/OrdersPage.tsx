@@ -68,7 +68,12 @@ export function OrdersDashboardPage() {
       push("Couldn't update order", "danger");
     },
     onSuccess: () => push("Order updated", "success"),
-    onSettled: () => qc.invalidateQueries({ queryKey: ["orders-received"] }),
+    onSettled: () => {
+      qc.invalidateQueries({ queryKey: ["orders-received"] });
+      // Keeps the DashboardShell sidebar's pending-count badge in sync — it
+      // reads a lighter count query instead of this page's full order list.
+      qc.invalidateQueries({ queryKey: ["orders-pending-count"] });
+    },
   });
 
   return (

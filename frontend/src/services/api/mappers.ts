@@ -2,10 +2,16 @@ import type { Merchant, Product, StockStatus } from "@/types";
 import { toSocialHandle, toWhatsAppDigits } from "@/lib/phone";
 import type { MerchantUpdate, ProductInput } from "../types";
 
-/** A row from the `products` table (snake_case). */
+/**
+ * A row from the `products` table (snake_case). `merchant_id` and
+ * `description` are optional here — the public storefront grid query
+ * (listShopProducts) omits both (unused by ProductCard, and description can
+ * be the largest field on the row); toProduct() already falls back safely
+ * when they're absent.
+ */
 export interface ProductRow {
   id: string;
-  merchant_id: string;
+  merchant_id?: string;
   name: string;
   sku: string;
   category: string;
@@ -17,7 +23,7 @@ export interface ProductRow {
   sizes: string[] | null;
   rating: number | string;
   review_count: number;
-  description: string | null;
+  description?: string | null;
   created_at: string;
 }
 

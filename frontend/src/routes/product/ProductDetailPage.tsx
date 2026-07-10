@@ -225,7 +225,7 @@ export function ProductDetailPage() {
             type="button"
             aria-label="Go back"
             onClick={() => navigate(-1)}
-            className="flex size-10 shrink-0 items-center justify-center rounded-full bg-card shadow-soft lg:bg-transparent lg:shadow-none lg:hover:bg-stone-100"
+            className="flex size-11 shrink-0 items-center justify-center rounded-full bg-card shadow-soft focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary lg:bg-transparent lg:shadow-none lg:hover:bg-stone-100"
           >
             <ArrowLeft className="size-5" />
           </button>

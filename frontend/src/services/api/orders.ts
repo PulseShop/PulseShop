@@ -107,6 +107,17 @@ export const ordersApi: OrderService = {
     return (data as OrderRow[]).map(toMerchantOrder);
   },
 
+  async countPendingOrders(): Promise<number> {
+    const uid = await requireUserId();
+    const { count, error } = await supabase
+      .from("orders")
+      .select("*", { count: "exact", head: true })
+      .eq("merchant_id", uid)
+      .eq("payment_status", "pending");
+    if (error) throw error;
+    return count ?? 0;
+  },
+
   async updateOrderStatus(orderId: string, paymentStatus: PaymentStatus): Promise<void> {
     const uid = await requireUserId();
     const { error } = await supabase

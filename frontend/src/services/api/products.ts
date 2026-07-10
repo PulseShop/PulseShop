@@ -12,36 +12,31 @@ import {
 } from "./mappers";
 
 /**
- * Product, order and follower counts for a merchant, used to populate
- * Merchant.stats. Orders and followers go through security-definer RPCs rather
- * than plain `count(*)` queries: RLS on `orders` only exposes rows to the
- * owning merchant, and RLS on `follows` only exposes rows to the *follower*, so
- * direct counts silently read 0 (orders for anyone viewing someone else's
- * storefront; followers for the merchant reading their own shop).
+ * Product, order, follower and rating stats for a merchant, used to populate
+ * Merchant.stats. Orders, followers and the average rating all go through
+ * security-definer/invoker RPCs rather than plain queries: RLS on `orders`
+ * only exposes rows to the owning merchant, RLS on `follows` only exposes
+ * rows to the *follower* (so direct counts silently read 0 for anyone else
+ * viewing the storefront, or for the merchant reading their own shop), and
+ * the rating average is a single server-side aggregate instead of fetching
+ * every product's rating/review_count row to average client-side.
  */
 export async function merchantStats(
   uid: string,
 ): Promise<{ products: number; orders: number; followers: number; rating: number }> {
-  const [{ count: products }, { data: orders }, { data: followers }, { data: ratingRows }] =
+  const [{ count: products }, { data: orders }, { data: followers }, { data: rating }] =
     await Promise.all([
       supabase.from("products").select("*", { count: "exact", head: true }).eq("merchant_id", uid),
       supabase.rpc("merchant_order_count", { p_merchant_id: uid }),
       supabase.rpc("merchant_follower_count", { p_merchant_id: uid }),
-      supabase.from("products").select("rating, review_count").eq("merchant_id", uid),
+      supabase.rpc("merchant_avg_rating", { p_merchant_id: uid }),
     ]);
-
-  const rows = ratingRows ?? [];
-  const totalReviews = rows.reduce((sum, r) => sum + (r.review_count ?? 0), 0);
-  const rating =
-    totalReviews === 0
-      ? 0
-      : rows.reduce((sum, r) => sum + Number(r.rating) * (r.review_count ?? 0), 0) / totalReviews;
 
   return {
     products: products ?? 0,
     orders: Number(orders ?? 0),
     followers: Number(followers ?? 0),
-    rating,
+    rating: Number(rating ?? 0),
   };
 }
 
@@ -143,9 +138,17 @@ export const productsApi: ProductService = {
   },
 
   async listShopProducts(merchantId: string): Promise<Product[]> {
+    // Public storefront grid (ProductCard) never renders description or
+    // merchant_id — description in particular can be the largest field on
+    // the row, and this query runs for every shop every buyer browses, so
+    // it's worth trimming. listProducts() (the merchant's own dashboard)
+    // keeps select("*") since it feeds the product edit form, which needs
+    // every field including description.
     const { data, error } = await supabase
       .from("products")
-      .select("*, merchants(handle)")
+      .select(
+        "id, name, sku, category, price_kes, discount_pct, stock_qty, status, images, sizes, rating, review_count, created_at, merchants(handle)",
+      )
       .eq("merchant_id", merchantId)
       .order("created_at", { ascending: false });
     if (error) throw error;

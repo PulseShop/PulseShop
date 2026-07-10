@@ -3,8 +3,10 @@
 @theme {
   --font-sans: "Plus Jakarta Sans", ui-sans-serif, system-ui, sans-serif;
 
-  --color-primary: #0d9488;
-  --color-primary-deep: #0f766e;
+  /* teal-700/800 (not teal-600/700) — teal-600 fails WCAG AA (~3.75:1) for
+     white button/badge text; teal-700 clears it (~5.47:1). */
+  --color-primary: #0f766e;
+  --color-primary-deep: #115e59;
   --color-whatsapp: #25d366;
   --color-instagram: #e4405f;
   --color-facebook: #1877f2;

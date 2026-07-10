@@ -63,7 +63,9 @@ export function ShopDetailsOnboardingPage() {
         navigate("/login", { replace: true });
         return;
       }
-      if (user.accountType === "merchant" && user.shopName !== "My Shop") {
+      // Post-0008, an un-onboarded OAuth user has no merchant row and resolves
+      // as a shopper; a merchant account means onboarding is already done.
+      if (user.accountType === "merchant") {
         setSession(user);
         navigate("/dashboard/inventory", { replace: true });
         return;

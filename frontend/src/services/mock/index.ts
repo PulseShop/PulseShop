@@ -376,6 +376,11 @@ export const mockServices: Services = {
       return structuredClone(ordersReceived);
     },
 
+    async countPendingOrders(): Promise<number> {
+      await delay();
+      return ordersReceived.filter((o) => o.paymentStatus === "pending").length;
+    },
+
     async updateOrderStatus(orderId: string, paymentStatus: PaymentStatus): Promise<void> {
       await delay();
       ordersReceived = ordersReceived.map((o) =>

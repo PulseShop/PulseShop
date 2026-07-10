@@ -1,5 +1,6 @@
 import { useQuery } from "@tanstack/react-query";
 import {
+  AlertTriangle,
   ArrowLeft,
   BarChart3,
   Boxes,
@@ -23,10 +24,14 @@ const nav = [
 
 export function DashboardShell({ children }: { children: ReactNode }) {
   const merchantQ = useQuery({ queryKey: ["merchant"], queryFn: services.products.getMerchant });
-  // Orders *received* by this merchant that still need action — not the
-  // shopper-side order-history store (that's this device's own placed orders).
-  const ordersQ = useQuery({ queryKey: ["orders-received"], queryFn: services.orders.listOrders });
-  const orderCount = (ordersQ.data ?? []).filter((o) => o.paymentStatus === "pending").length;
+  // Just the pending count for the sidebar badge — not the shopper-side
+  // order-history store (that's this device's own placed orders), and not a
+  // full order+line-item fetch (that belongs to the Orders page itself).
+  const orderCountQ = useQuery({
+    queryKey: ["orders-pending-count"],
+    queryFn: services.orders.countPendingOrders,
+  });
+  const orderCount = orderCountQ.data ?? 0;
   const merchant = merchantQ.data;
 
   return (
@@ -101,7 +106,21 @@ export function DashboardShell({ children }: { children: ReactNode }) {
             ))}
           </nav>
 
-          {merchant && (
+          {merchantQ.isError ? (
+            <div className="m-3 flex items-center gap-2 rounded-card bg-danger/5 p-3">
+              <AlertTriangle className="size-4 shrink-0 text-danger" />
+              <div className="min-w-0 flex-1">
+                <p className="text-xs font-semibold text-danger">Couldn't load your profile</p>
+                <button
+                  type="button"
+                  onClick={() => merchantQ.refetch()}
+                  className="text-xs font-bold text-danger underline underline-offset-2 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-danger"
+                >
+                  Retry
+                </button>
+              </div>
+            </div>
+          ) : merchant ? (
             <div className="m-3 flex items-center gap-3 rounded-card bg-stone-50 p-3">
               <img
                 src={merchant.avatarUrl}
@@ -113,9 +132,9 @@ export function DashboardShell({ children }: { children: ReactNode }) {
                 <p className="truncate text-xs text-muted">@{merchant.handle}</p>
               </div>
             </div>
-          )}
+          ) : null}
 
-          <p className="px-5 pb-4 text-[11px] font-medium text-muted">PulseShop v22.1539</p>
+          <p className="px-5 pb-4 text-[11px] font-medium text-muted">PulseShop v23.1903</p>
         </aside>
 
         <main className="ml-[230px] flex-1 p-8">{children}</main>

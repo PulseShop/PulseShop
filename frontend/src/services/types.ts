@@ -110,6 +110,9 @@ export interface OrderService {
   submitCartOrder(draft: CartOrderDraft): Promise<{ reference: string }>;
   /** Orders received by the signed-in merchant, newest first. */
   listOrders(): Promise<MerchantOrder[]>;
+  /** Count of the signed-in merchant's orders still `pending` — for badges/UI
+   * that only need the number, not every order + its line items. */
+  countPendingOrders(): Promise<number>;
   /** Update the payment status of one of the merchant's orders. */
   updateOrderStatus(orderId: string, paymentStatus: PaymentStatus): Promise<void>;
 }

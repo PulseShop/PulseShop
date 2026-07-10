@@ -200,7 +200,7 @@ export function OrderPage() {
           type="button"
           aria-label="Go back"
           onClick={() => navigate(-1)}
-          className="flex size-10 items-center justify-center rounded-full bg-card shadow-soft"
+          className="flex size-11 items-center justify-center rounded-full bg-card shadow-soft focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary"
         >
           <ArrowLeft className="size-5" />
         </button>

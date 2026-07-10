@@ -11,8 +11,14 @@ export function BottomNav({ homeTo }: { homeTo?: string }) {
   const defaultHome = useShopHome();
   const home = homeTo ?? defaultHome;
 
+  // When there's no shop context (guest, or a shopper who hasn't opened a
+  // store yet), useShopHome() falls back to "/shops" — the same place the
+  // Shops tab already points to. Showing both would mean two tabs sharing
+  // one destination (and both lit up "active" at once, since `end={to ===
+  // home}` would be true for each), so Home only gets its own tab when it's
+  // actually distinct from Shops.
   const items = [
-    { to: home, label: "Home", icon: Home },
+    ...(home === "/shops" ? [] : [{ to: home, label: "Home", icon: Home }]),
     { to: "/shops", label: "Shops", icon: Store },
     { to: "/favorites", label: "Favorites", icon: Heart },
     { to: "/cart", label: "Cart", icon: ShoppingBag },
@@ -29,7 +35,7 @@ export function BottomNav({ homeTo }: { homeTo?: string }) {
           const badge = badgeFor(label);
           return (
             <NavLink
-              key={to}
+              key={label}
               to={to}
               end={to === home}
               aria-label={label}

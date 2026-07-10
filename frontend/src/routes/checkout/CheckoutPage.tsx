@@ -182,7 +182,7 @@ export function CheckoutPage() {
           type="button"
           aria-label="Go back"
           onClick={() => navigate(-1)}
-          className="flex size-10 items-center justify-center rounded-full bg-card shadow-soft"
+          className="flex size-11 items-center justify-center rounded-full bg-card shadow-soft focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary"
         >
           <ArrowLeft className="size-5" />
         </button>
@@ -251,7 +251,7 @@ export function CheckoutPage() {
                   disabled={!available}
                   aria-label={available ? label : `${label} — not set up by this seller`}
                   className={cn(
-                    "flex h-10 items-center justify-center gap-1.5 rounded-[10px] text-xs font-bold transition-all",
+                    "flex h-11 items-center justify-center gap-1.5 rounded-[10px] text-xs font-bold transition-all focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary",
                     !available && "cursor-not-allowed opacity-35",
                     available && channel === ch ? "bg-card text-ink shadow-soft" : "text-muted",
                   )}
