@@ -63,9 +63,11 @@ export function OrderPage() {
     enabled: Boolean(shopSlug),
   });
 
-  const { selectedSize, qty, setQty, customer, saveCustomer } = useOrderStore();
+  const { selectedSize, qty, setQty, customer, saveCustomer, preferredChannel } = useOrderStore();
   const addOrder = useOrderHistory((s) => s.add);
-  const [channel, setChannel] = useState<Channel>("whatsapp");
+  // Desktop product page lets a buyer pick their channel before they get
+  // here — respect it instead of always starting on WhatsApp.
+  const [channel, setChannel] = useState<Channel>(preferredChannel ?? "whatsapp");
   const [payOpen, setPayOpen] = useState(false);
   const [pendingReference, setPendingReference] = useState<string | null>(null);
   const [pendingNotify, setPendingNotify] = useState<{

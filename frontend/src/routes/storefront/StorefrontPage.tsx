@@ -1,17 +1,21 @@
 import { useQuery } from "@tanstack/react-query";
-import { ArrowLeft, Package, Search, ShoppingBag, Star, Store } from "lucide-react";
+import { ArrowLeft, Check, Heart, Package, Search, ShoppingBag, Star, Store } from "lucide-react";
 import { useEffect, useMemo, useState } from "react";
 import { Link, useParams, useSearchParams } from "react-router";
 import { useAuth } from "@/stores/auth";
+import { cartCount, useCart } from "@/stores/cart";
 import { useShop } from "@/stores/shop";
 import { MobileShell } from "@/components/layout/MobileShell";
 import { ProductCard } from "@/components/product/ProductCard";
 import { FollowButton } from "@/components/shop/FollowButton";
 import { SocialLinks } from "@/components/shop/SocialLinks";
 import { ProductCardSkeleton, Skeleton } from "@/components/ui/Skeleton";
+import { formatKes } from "@/lib/currency";
 import { merchantSocialLinks } from "@/lib/deeplinks";
 import { cn } from "@/lib/utils";
 import { services } from "@/services";
+
+type SortOrder = "newest" | "price-asc" | "price-desc";
 
 export function StorefrontPage() {
   // When a :shopSlug is in the URL we're on a public shop (pulseshop.space/<slug>);
@@ -36,6 +40,14 @@ export function StorefrontPage() {
   const [search, setSearch] = useState(initialQuery);
   const [searchOpen, setSearchOpen] = useState(Boolean(initialQuery));
 
+  // Desktop-only filters (sidebar) — mobile just has the category pills.
+  const [sort, setSort] = useState<SortOrder>("newest");
+  const [availableOnly, setAvailableOnly] = useState(false);
+  const [maxPrice, setMaxPrice] = useState<number | null>(null);
+
+  const cartItems = useCart((s) => s.items);
+  const cartItemCount = cartCount(cartItems);
+
   const merchantQ = useQuery({
     queryKey: shopSlug ? ["shop", shopSlug] : ["merchant"],
     queryFn: () => (shopSlug ? services.products.getShop(shopSlug) : services.products.getMerchant()),
@@ -56,6 +68,11 @@ export function StorefrontPage() {
     return ["All", ...cats];
   }, [productsQ.data]);
 
+  const priceCeiling = useMemo(
+    () => Math.max(0, ...(productsQ.data ?? []).map((p) => p.priceKes)),
+    [productsQ.data],
+  );
+
   const filtered = useMemo(() => {
     let list = productsQ.data ?? [];
     if (category !== "All") list = list.filter((p) => p.category === category);
@@ -63,8 +80,16 @@ export function StorefrontPage() {
       const q = search.trim().toLowerCase();
       list = list.filter((p) => p.name.toLowerCase().includes(q));
     }
+    if (availableOnly) list = list.filter((p) => p.status !== "out");
+    if (maxPrice != null) list = list.filter((p) => p.priceKes <= maxPrice);
+
+    list = [...list];
+    if (sort === "price-asc") list.sort((a, b) => a.priceKes - b.priceKes);
+    else if (sort === "price-desc") list.sort((a, b) => b.priceKes - a.priceKes);
+    else list.sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime());
+
     return list;
-  }, [productsQ.data, category, search]);
+  }, [productsQ.data, category, search, availableOnly, maxPrice, sort]);
 
   // Public shop that doesn't exist -> friendly not-found instead of a stuck skeleton.
   if (isPublic && merchantQ.isSuccess && !merchant) {
@@ -87,10 +112,10 @@ export function StorefrontPage() {
   }
 
   return (
-    <MobileShell homeTo={homeTo}>
+    <MobileShell homeTo={homeTo} wide>
       {/* header row */}
-      <header className="glass-header sticky top-0 z-30 flex items-center justify-between px-4 py-3">
-        <div className="flex items-center gap-1">
+      <header className="glass-header sticky top-0 z-30 flex items-center justify-between px-4 py-3 lg:px-6">
+        <div className="flex items-center gap-2">
           {/* Merchant previewing their own store via "View as buyer" — give
               them a way back that isn't the browser back button. */}
           {!isPublic && session?.accountType === "merchant" && (
@@ -102,9 +127,22 @@ export function StorefrontPage() {
               <ArrowLeft className="size-5" />
             </Link>
           )}
-          <span className="text-lg font-extrabold tracking-tight text-primary">PulseShop</span>
+          <span className="text-lg font-extrabold tracking-tight text-primary lg:hidden">
+            PulseShop
+          </span>
+          {/* desktop: shop identity takes the wordmark's place, once loaded */}
+          {merchant && (
+            <Link to={homeTo} className="hidden items-center gap-2.5 lg:flex">
+              <img
+                src={merchant.avatarUrl}
+                alt=""
+                className="size-8 rounded-full object-cover"
+              />
+              <span className="text-sm font-extrabold text-ink">{merchant.name}</span>
+            </Link>
+          )}
         </div>
-        <div className="flex gap-1">
+        <div className="flex items-center gap-1 lg:gap-2">
           <button
             type="button"
             aria-label="Search products"
@@ -116,6 +154,36 @@ export function StorefrontPage() {
           >
             <Search className="size-5" />
           </button>
+          {/* desktop: quick links that replace the bottom tab bar's job up here */}
+          <Link
+            to="/favorites"
+            aria-label="Favorites"
+            className="hidden size-10 items-center justify-center rounded-full text-ink hover:bg-stone-100 lg:flex"
+          >
+            <Heart className="size-5" />
+          </Link>
+          <Link
+            to="/cart"
+            aria-label="Cart"
+            className="relative hidden size-10 items-center justify-center rounded-full text-ink hover:bg-stone-100 lg:flex"
+          >
+            <ShoppingBag className="size-5" />
+            {cartItemCount > 0 && (
+              <span className="absolute right-0.5 top-0.5 flex size-4 items-center justify-center rounded-full bg-favorite text-[10px] font-bold text-white">
+                {cartItemCount}
+              </span>
+            )}
+          </Link>
+          {merchant && (
+            <div className="ml-1 hidden items-center gap-1.5 border-l border-stone-200 pl-3 lg:flex">
+              <SocialLinks
+                links={merchantSocialLinks(merchant)}
+                ariaPrefix="Chat on"
+                size="size-9"
+                iconSize="size-4"
+              />
+            </div>
+          )}
         </div>
       </header>
 
@@ -138,55 +206,67 @@ export function StorefrontPage() {
         </div>
       )}
 
-      {/* merchant hero */}
-      <section className={cn("px-4", merchant?.bannerUrl ? "pt-0" : "pt-5")}>
+      {/* merchant hero — centered stack on mobile, horizontal band on desktop */}
+      <section className={cn("px-4 lg:px-6", merchant?.bannerUrl ? "pt-0" : "pt-5 lg:pt-6")}>
         {merchant ? (
-          <div className="flex flex-col items-center text-center">
-            <div className={cn("relative", merchant.bannerUrl && "-mt-10")}>
-              <img
-                src={merchant.avatarUrl}
-                alt={merchant.name}
-                className="size-20 rounded-full object-cover ring-4 ring-card shadow-soft"
-              />
-              {merchant.isOnline && (
-                <span className="absolute bottom-1 right-1 flex size-4">
-                  <span className="absolute inline-flex size-full rounded-full bg-success animate-ping-slow" />
-                  <span className="relative inline-flex size-4 rounded-full border-2 border-card bg-success" />
-                </span>
-              )}
+          <div className="flex flex-col items-center text-center lg:flex-row lg:items-center lg:justify-between lg:text-left">
+            <div className="flex flex-col items-center text-center lg:flex-row lg:items-center lg:gap-5 lg:text-left">
+              <div className={cn("relative", merchant.bannerUrl && "-mt-10 lg:mt-0")}>
+                <img
+                  src={merchant.avatarUrl}
+                  alt={merchant.name}
+                  className="size-20 rounded-full object-cover ring-4 ring-card shadow-soft lg:size-24"
+                />
+                {merchant.isOnline && (
+                  <span className="absolute bottom-1 right-1 flex size-4">
+                    <span className="absolute inline-flex size-full rounded-full bg-success animate-ping-slow" />
+                    <span className="relative inline-flex size-4 rounded-full border-2 border-card bg-success" />
+                  </span>
+                )}
+              </div>
+              <div>
+                <h1 className="mt-3 text-xl font-extrabold text-ink lg:mt-0 lg:text-2xl">
+                  {merchant.name}
+                </h1>
+                <p className="text-sm text-muted">
+                  @{merchant.handle} · {merchant.location}
+                </p>
+                <p className="mt-2 max-w-xs text-sm text-ink/80 lg:max-w-sm">{merchant.bio}</p>
+              </div>
             </div>
-            <h1 className="mt-3 text-xl font-extrabold text-ink">{merchant.name}</h1>
-            <p className="text-sm text-muted">
-              @{merchant.handle} · {merchant.location}
-            </p>
-            <p className="mt-2 max-w-xs text-sm text-ink/80">{merchant.bio}</p>
 
-            <div className="mt-4 flex w-full max-w-xs justify-between rounded-card bg-card px-6 py-3 shadow-soft">
-              <Stat icon={<Package className="size-4 text-primary" />} value={merchant.stats.products} label="Products" />
-              <Stat icon={<ShoppingBag className="size-4 text-primary" />} value={merchant.stats.orders} label="Orders" />
-              <Stat icon={<Star className="size-4 fill-amber-400 text-amber-400" />} value={merchant.stats.rating.toFixed(1)} label="Rating" />
+            <div className="mt-4 flex w-full max-w-xs flex-col items-center gap-4 lg:mt-0 lg:w-auto lg:max-w-none lg:items-end">
+              <div className="flex w-full justify-between rounded-card bg-card px-6 py-3 shadow-soft lg:w-auto lg:gap-6">
+                <Stat icon={<Package className="size-4 text-primary" />} value={merchant.stats.products} label="Products" />
+                <Stat icon={<ShoppingBag className="size-4 text-primary" />} value={merchant.stats.orders} label="Orders" />
+                <Stat icon={<Star className="size-4 fill-amber-400 text-amber-400" />} value={merchant.stats.rating.toFixed(1)} label="Rating" />
               </div>
 
-            <div className="mt-4 flex items-center gap-2">
-              {/* follow only makes sense on someone else's shop */}
-              {isPublic && session?.id !== merchant.id && (
-                <FollowButton merchantId={merchant.id} className="h-11 px-5" />
-              )}
-              <SocialLinks links={merchantSocialLinks(merchant)} ariaPrefix="Chat on" size="size-11" />
+              <div className="flex items-center gap-2">
+                {/* follow only makes sense on someone else's shop */}
+                {isPublic && session?.id !== merchant.id && (
+                  <FollowButton merchantId={merchant.id} className="h-11 px-5" />
+                )}
+                <SocialLinks links={merchantSocialLinks(merchant)} ariaPrefix="Chat on" size="size-11" />
+              </div>
             </div>
           </div>
         ) : (
-          <div className="flex flex-col items-center gap-3">
-            <Skeleton className="size-20 rounded-full" />
-            <Skeleton className="h-6 w-40 rounded" />
-            <Skeleton className="h-4 w-56 rounded" />
-            <Skeleton className="h-14 w-full max-w-xs" />
+          <div className="flex flex-col items-center gap-3 lg:flex-row lg:items-center lg:justify-between">
+            <div className="flex flex-col items-center gap-3 lg:flex-row lg:gap-5">
+              <Skeleton className="size-20 rounded-full lg:size-24" />
+              <div className="flex flex-col items-center gap-3 lg:items-start">
+                <Skeleton className="h-6 w-40 rounded" />
+                <Skeleton className="h-4 w-56 rounded" />
+              </div>
+            </div>
+            <Skeleton className="h-14 w-full max-w-xs lg:w-64" />
           </div>
         )}
       </section>
 
-      {/* category pills */}
-      <div className="no-scrollbar mt-6 flex gap-2 overflow-x-auto px-4 pb-1">
+      {/* category pills — mobile only; desktop uses the sidebar list below */}
+      <div className="no-scrollbar mt-6 flex gap-2 overflow-x-auto px-4 pb-1 lg:hidden">
         {categories.map((cat) => (
           <button
             key={cat}
@@ -204,38 +284,117 @@ export function StorefrontPage() {
         ))}
       </div>
 
-      {/* product grid */}
-      <section className="px-4 pb-6 pt-4">
-        {productsQ.isLoading ? (
-          <div className="grid grid-cols-2 gap-3">
-            {Array.from({ length: 6 }).map((_, i) => (
-              <ProductCardSkeleton key={i} />
-            ))}
+      <div className="px-4 pb-6 pt-4 lg:flex lg:gap-8 lg:px-6">
+        {/* desktop sidebar — categories, price, availability */}
+        <aside className="hidden shrink-0 lg:block lg:w-56">
+          <div className="space-y-6">
+            <div>
+              <h2 className="text-sm font-bold text-ink">Categories</h2>
+              <ul className="mt-3 space-y-1">
+                {categories.map((cat) => (
+                  <li key={cat}>
+                    <button
+                      type="button"
+                      onClick={() => setCategory(cat)}
+                      className={cn(
+                        "flex w-full items-center justify-between rounded-btn px-2.5 py-1.5 text-left text-sm font-medium transition-colors",
+                        cat === category ? "text-primary" : "text-muted hover:text-ink",
+                      )}
+                    >
+                      {cat}
+                      {cat === category && <Check className="size-4" />}
+                    </button>
+                  </li>
+                ))}
+              </ul>
+            </div>
+
+            {priceCeiling > 0 && (
+              <div>
+                <h2 className="text-sm font-bold text-ink">Price Range</h2>
+                <p className="mt-1 text-xs text-muted">
+                  {formatKes(0)} to {formatKes(maxPrice ?? priceCeiling)}
+                </p>
+                <input
+                  type="range"
+                  min={0}
+                  max={priceCeiling}
+                  value={maxPrice ?? priceCeiling}
+                  onChange={(e) => setMaxPrice(Number(e.target.value))}
+                  className="mt-2 w-full accent-primary"
+                />
+              </div>
+            )}
+
+            <div>
+              <h2 className="text-sm font-bold text-ink">Availability</h2>
+              <label className="mt-3 flex items-center gap-2 text-sm font-medium text-ink">
+                <input
+                  type="checkbox"
+                  checked={availableOnly}
+                  onChange={(e) => setAvailableOnly(e.target.checked)}
+                  className="size-4 rounded accent-primary"
+                />
+                Available only
+              </label>
+            </div>
           </div>
-        ) : productsQ.isError ? (
-          <div className="rounded-card bg-card p-8 text-center shadow-soft">
-            <p className="font-semibold text-ink">Couldn't load products</p>
-            <button
-              type="button"
-              onClick={() => productsQ.refetch()}
-              className="mt-3 rounded-btn bg-primary px-4 py-2 text-sm font-semibold text-white"
+        </aside>
+
+        {/* product grid */}
+        <section className="flex-1">
+          {!productsQ.isLoading && !productsQ.isError && (
+            <div className="mb-3 hidden items-center justify-between lg:flex">
+              <p className="text-sm text-muted">{filtered.length} products found</p>
+              <label className="flex items-center gap-2 text-sm text-muted">
+                Sort by
+                <select
+                  value={sort}
+                  onChange={(e) => setSort(e.target.value as SortOrder)}
+                  className="rounded-btn border border-stone-200 bg-card px-2.5 py-1.5 text-sm font-semibold text-ink outline-none focus:border-primary"
+                >
+                  <option value="newest">Newest</option>
+                  <option value="price-asc">Price: Low to High</option>
+                  <option value="price-desc">Price: High to Low</option>
+                </select>
+              </label>
+            </div>
+          )}
+
+          {productsQ.isLoading ? (
+            <div className="grid grid-cols-2 gap-3 lg:grid-cols-3 xl:grid-cols-4">
+              {Array.from({ length: 6 }).map((_, i) => (
+                <ProductCardSkeleton key={i} />
+              ))}
+            </div>
+          ) : productsQ.isError ? (
+            <div className="rounded-card bg-card p-8 text-center shadow-soft">
+              <p className="font-semibold text-ink">Couldn't load products</p>
+              <button
+                type="button"
+                onClick={() => productsQ.refetch()}
+                className="mt-3 rounded-btn bg-primary px-4 py-2 text-sm font-semibold text-white"
+              >
+                Try again
+              </button>
+            </div>
+          ) : filtered.length === 0 ? (
+            <div className="rounded-card bg-card p-8 text-center shadow-soft">
+              <p className="font-semibold text-ink">No products found</p>
+              <p className="mt-1 text-sm text-muted">Try a different category or search.</p>
+            </div>
+          ) : (
+            <div
+              key={`${category}-${search}-${sort}-${availableOnly}-${maxPrice}`}
+              className="grid grid-cols-2 gap-3 animate-grid-fade lg:grid-cols-3 xl:grid-cols-4"
             >
-              Try again
-            </button>
-          </div>
-        ) : filtered.length === 0 ? (
-          <div className="rounded-card bg-card p-8 text-center shadow-soft">
-            <p className="font-semibold text-ink">No products found</p>
-            <p className="mt-1 text-sm text-muted">Try a different category or search.</p>
-          </div>
-        ) : (
-          <div key={`${category}-${search}`} className="grid grid-cols-2 gap-3 animate-grid-fade">
-            {filtered.map((p) => (
-              <ProductCard key={p.id} product={p} />
-            ))}
-          </div>
-        )}
-      </section>
+              {filtered.map((p) => (
+                <ProductCard key={p.id} product={p} />
+              ))}
+            </div>
+          )}
+        </section>
+      </div>
     </MobileShell>
   );
 }

@@ -6,6 +6,7 @@ export function Gallery({
   alt,
   frameClassName = "aspect-square",
   thumbnails = true,
+  thumbnailsClassName,
 }: {
   images: string[];
   alt: string;
@@ -14,6 +15,9 @@ export function Gallery({
   /** Thumbnail strip below the frame. Off on narrow screens, where the swipe
    *  track and its dot indicators already cover navigation. */
   thumbnails?: boolean;
+  /** Extra classes on the thumbnail strip — e.g. responsive display toggles
+   *  when a page wants thumbnails at some breakpoints but not others. */
+  thumbnailsClassName?: string;
 }) {
   const [active, setActive] = useState(0);
   const trackRef = useRef<HTMLDivElement>(null);
@@ -67,7 +71,7 @@ export function Gallery({
       </div>
 
       {thumbnails && images.length > 1 && (
-        <div className="no-scrollbar flex gap-2 overflow-x-auto">
+        <div className={cn("no-scrollbar flex gap-2 overflow-x-auto", thumbnailsClassName)}>
           {images.map((src, i) => (
             <button
               key={src}
