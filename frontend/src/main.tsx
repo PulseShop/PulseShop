@@ -31,6 +31,7 @@ import { OrdersPage } from "@/routes/order/OrdersPage";
 import { ProductDetailPage } from "@/routes/product/ProductDetailPage";
 import { StorefrontPage } from "@/routes/storefront/StorefrontPage";
 import { RequireMerchant } from "./routes/auth/RequireAuth";
+import { AuthCallbackPage } from "./routes/auth/AuthCallbackPage";
 
 registerSW({ immediate: true });
 
@@ -55,6 +56,7 @@ createRoot(document.getElementById("root")!).render(
         <Routes>
           <Route path="/" element={<LandingPage />} />
           <Route path="/welcome" element={<LandingPage />} />
+          <Route path="/auth/callback" element={<AuthCallbackPage />} />
           <Route path="/shop" element={<StorefrontPage />} />
           <Route path="/login" element={<LoginPage />} />
           <Route path="/signup" element={<SignupPage />} />
