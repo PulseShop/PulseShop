@@ -12,6 +12,7 @@ import { Input, Textarea } from "@/components/ui/Input";
 import { Skeleton } from "@/components/ui/Skeleton";
 import { discountedPrice, formatKes } from "@/lib/currency";
 import { orderLink } from "@/lib/deeplinks";
+import { isValidPhone } from "@/lib/phone";
 import { cn } from "@/lib/utils";
 import { services } from "@/services";
 import type { PaymentMethod } from "@/types";
@@ -25,7 +26,7 @@ const customerSchema = z.object({
   name: z.string().min(2, "Enter your full name"),
   phone: z
     .string()
-    .regex(/^(\+?254|0)?[17]\d{8}$/, "Enter a valid Kenyan phone number (e.g. +254712345678)"),
+    .refine(isValidPhone, "Enter a valid phone number, with country code (e.g. +254712345678)"),
   notes: z.string().max(300).optional().default(""),
 });
 

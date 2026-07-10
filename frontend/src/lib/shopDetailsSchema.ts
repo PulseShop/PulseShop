@@ -1,4 +1,5 @@
 import { z } from "zod";
+import { isValidPhone } from "@/lib/phone";
 import { SLUG_MIN_LENGTH, SLUG_PATTERN } from "@/lib/slug";
 
 /** Shop-profile fields shared by full signup (SignupPage) and the post-Google
@@ -22,7 +23,7 @@ interface ShopSocialsValue {
 }
 
 /** At least one contact method is required so orders have somewhere to land;
- * WhatsApp, when given, must look like a Kenyan number. */
+ * WhatsApp, when given, must be a valid phone number (any country). */
 export function refineShopSocials(val: ShopSocialsValue, ctx: z.RefinementCtx) {
   const whatsapp = (val.whatsapp ?? "").trim();
   const instagram = (val.instagram ?? "").trim();
@@ -35,11 +36,11 @@ export function refineShopSocials(val: ShopSocialsValue, ctx: z.RefinementCtx) {
       message: "Link at least one — WhatsApp, Instagram or Facebook",
     });
   }
-  if (whatsapp && !/^(\+?254|0)?[17]\d{8}$/.test(whatsapp)) {
+  if (whatsapp && !isValidPhone(whatsapp)) {
     ctx.addIssue({
       code: z.ZodIssueCode.custom,
       path: ["whatsapp"],
-      message: "Enter a valid Kenyan WhatsApp number",
+      message: "Enter a valid WhatsApp number, with country code (e.g. +254712345678)",
     });
   }
 }
