@@ -1,7 +1,15 @@
 import { useQuery } from "@tanstack/react-query";
-import { BarChart3, Boxes, LayoutDashboard, Monitor, Settings, ShoppingCart } from "lucide-react";
+import {
+  ArrowLeft,
+  BarChart3,
+  Boxes,
+  LayoutDashboard,
+  Monitor,
+  Settings,
+  ShoppingCart,
+} from "lucide-react";
 import type { ReactNode } from "react";
-import { NavLink } from "react-router";
+import { Link, NavLink } from "react-router";
 import { cn } from "@/lib/utils";
 import { services } from "@/services";
 
@@ -35,6 +43,13 @@ export function DashboardShell({ children }: { children: ReactNode }) {
             larger device.
           </p>
         </div>
+        <Link
+          to="/shop"
+          className="inline-flex items-center gap-2 rounded-btn bg-primary px-4 py-2.5 text-sm font-bold text-white"
+        >
+          <ArrowLeft className="size-4" />
+          Go to your shop
+        </Link>
       </div>
 
       <div className="hidden min-h-dvh bg-surface lg:flex">
@@ -49,6 +64,16 @@ export function DashboardShell({ children }: { children: ReactNode }) {
               <p className="text-[11px] text-muted">Merchant Studio</p>
             </div>
           </div>
+
+          {/* Way out of the dashboard: /shop renders the merchant's own
+              storefront exactly as a buyer sees it. */}
+          <Link
+            to="/shop"
+            className="group mx-3 mb-2 flex items-center gap-3 rounded-btn border border-stone-200 px-3 py-2.5 text-sm font-semibold text-muted transition-colors hover:border-primary/30 hover:bg-primary/5 hover:text-primary"
+          >
+            <ArrowLeft className="size-[18px] transition-transform group-hover:-translate-x-0.5" />
+            View as buyer
+          </Link>
 
           <nav className="flex-1 space-y-1 px-3 py-2">
             {nav.map(({ to, label, icon: Icon, end }) => (
@@ -90,7 +115,7 @@ export function DashboardShell({ children }: { children: ReactNode }) {
             </div>
           )}
 
-          <p className="px-5 pb-4 text-[11px] font-medium text-muted">PulseShop v12.2114</p>
+          <p className="px-5 pb-4 text-[11px] font-medium text-muted">PulseShop v15.0354</p>
         </aside>
 
         <main className="ml-[230px] flex-1 p-8">{children}</main>

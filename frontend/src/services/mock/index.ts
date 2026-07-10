@@ -27,6 +27,7 @@ const MERCHANT_KEY = "pulseshop-mock-merchant";
 const ORDERS_KEY = "pulseshop-mock-orders-received";
 const FOLLOWS_KEY = "pulseshop-mock-follows";
 const FAVORITES_KEY = "pulseshop-mock-server-favorites";
+const RATINGS_KEY = "pulseshop-mock-my-ratings";
 
 const delay = (ms = LATENCY) => new Promise((r) => setTimeout(r, ms));
 
@@ -137,6 +138,36 @@ function saveOrders(list: MerchantOrder[]) {
 
 let ordersReceived = loadOrders();
 
+function loadIds(key: string): string[] {
+  try {
+    return JSON.parse(localStorage.getItem(key) ?? "[]") as string[];
+  } catch {
+    return [];
+  }
+}
+
+function loadMyRatings(): Record<string, number> {
+  try {
+    return JSON.parse(localStorage.getItem(RATINGS_KEY) ?? "{}") as Record<string, number>;
+  } catch {
+    return {};
+  }
+}
+
+/**
+ * Merchant.stats for the demo shop. Products is live; orders and rating come
+ * from the seed. Followers is the seed plus this device's own follow, so the
+ * dashboard's follower count visibly reacts to following the shop.
+ */
+function merchantStats(): Merchant["stats"] {
+  const following = loadIds(FOLLOWS_KEY).includes(merchant.id) ? 1 : 0;
+  return {
+    ...merchant.stats,
+    products: products.length,
+    followers: MERCHANT.stats.followers + following,
+  };
+}
+
 export const mockServices: Services = {
   auth: {
     // Accepts any credentials and returns the demo shop's session.
@@ -189,7 +220,7 @@ export const mockServices: Services = {
   products: {
     async getMerchant(): Promise<Merchant> {
       await delay();
-      return { ...structuredClone(merchant), stats: { ...merchant.stats, products: products.length } };
+      return { ...structuredClone(merchant), stats: merchantStats() };
     },
 
     async updateMerchant(patch: MerchantUpdate): Promise<Merchant> {
@@ -205,7 +236,7 @@ export const mockServices: Services = {
         },
       };
       saveMerchant(merchant);
-      return { ...structuredClone(merchant), stats: { ...merchant.stats, products: products.length } };
+      return { ...structuredClone(merchant), stats: merchantStats() };
     },
 
     async listProducts(): Promise<Product[]> {
@@ -254,7 +285,7 @@ export const mockServices: Services = {
     async getShop(slug: string): Promise<Merchant | null> {
       await delay();
       if (merchant.handle !== slug) return null;
-      return { ...structuredClone(merchant), stats: { ...merchant.stats, products: products.length } };
+      return { ...structuredClone(merchant), stats: merchantStats() };
     },
 
     async listShopProducts(_merchantId: string): Promise<Product[]> {
@@ -358,30 +389,58 @@ export const mockServices: Services = {
     // Single demo shop in mock mode; follows persist per browser.
     async listShops(): Promise<Merchant[]> {
       await delay();
-      return [{ ...structuredClone(merchant), stats: { ...merchant.stats, products: products.length } }];
+      return [{ ...structuredClone(merchant), stats: merchantStats() }];
     },
 
     async listFollowing(): Promise<string[]> {
       await delay();
-      try {
-        return JSON.parse(localStorage.getItem(FOLLOWS_KEY) ?? "[]") as string[];
-      } catch {
-        return [];
-      }
+      return loadIds(FOLLOWS_KEY);
     },
 
     async follow(merchantId: string): Promise<void> {
       await delay();
-      const ids = new Set(JSON.parse(localStorage.getItem(FOLLOWS_KEY) ?? "[]") as string[]);
+      const ids = new Set(loadIds(FOLLOWS_KEY));
       ids.add(merchantId);
       localStorage.setItem(FOLLOWS_KEY, JSON.stringify([...ids]));
     },
 
     async unfollow(merchantId: string): Promise<void> {
       await delay();
-      const ids = new Set(JSON.parse(localStorage.getItem(FOLLOWS_KEY) ?? "[]") as string[]);
+      const ids = new Set(loadIds(FOLLOWS_KEY));
       ids.delete(merchantId);
       localStorage.setItem(FOLLOWS_KEY, JSON.stringify([...ids]));
+    },
+  },
+
+  reviews: {
+    // Mirrors the `reviews` table + its aggregate trigger: one rating per
+    // product per device, folded into the product's running average.
+    async getMyRating(productId: string): Promise<number | null> {
+      await delay();
+      return loadMyRatings()[productId] ?? null;
+    },
+
+    async rateProduct(productId: string, stars: number): Promise<void> {
+      await delay();
+      const mine = loadMyRatings();
+      const previous = mine[productId] ?? null;
+      const idx = products.findIndex((p) => p.id === productId);
+
+      if (idx !== -1) {
+        const p = products[idx];
+        // Re-rating replaces the old star value; a first rating adds a review.
+        const count = previous == null ? p.reviewCount + 1 : p.reviewCount;
+        const totalStars = p.rating * p.reviewCount - (previous ?? 0) + stars;
+        products[idx] = {
+          ...p,
+          reviewCount: count,
+          rating: count ? Math.round((totalStars / count) * 10) / 10 : 0,
+        };
+        saveProducts(products);
+      }
+
+      mine[productId] = stars;
+      localStorage.setItem(RATINGS_KEY, JSON.stringify(mine));
     },
   },
 
@@ -390,23 +449,19 @@ export const mockServices: Services = {
     // hooks/useFavorites.ts) has something real to talk to in mock mode too.
     async listFavorites(): Promise<string[]> {
       await delay();
-      try {
-        return JSON.parse(localStorage.getItem(FAVORITES_KEY) ?? "[]") as string[];
-      } catch {
-        return [];
-      }
+      return loadIds(FAVORITES_KEY);
     },
 
     async addFavorite(productId: string): Promise<void> {
       await delay();
-      const ids = new Set(JSON.parse(localStorage.getItem(FAVORITES_KEY) ?? "[]") as string[]);
+      const ids = new Set(loadIds(FAVORITES_KEY));
       ids.add(productId);
       localStorage.setItem(FAVORITES_KEY, JSON.stringify([...ids]));
     },
 
     async removeFavorite(productId: string): Promise<void> {
       await delay();
-      const ids = new Set(JSON.parse(localStorage.getItem(FAVORITES_KEY) ?? "[]") as string[]);
+      const ids = new Set(loadIds(FAVORITES_KEY));
       ids.delete(productId);
       localStorage.setItem(FAVORITES_KEY, JSON.stringify([...ids]));
     },

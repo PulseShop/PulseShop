@@ -5,6 +5,7 @@ import { followsApi } from "./follows";
 import { ordersApi } from "./orders";
 import { paymentsApi } from "./payments";
 import { productsApi } from "./products";
+import { reviewsApi } from "./reviews";
 import { storageApi } from "./storage";
 
 /**
@@ -17,6 +18,7 @@ export const apiServices: Services = {
   products: productsApi,
   orders: ordersApi,
   follows: followsApi,
+  reviews: reviewsApi,
   favorites: favoritesApi,
   payments: paymentsApi,
   storage: storageApi,

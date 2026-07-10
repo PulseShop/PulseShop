@@ -16,7 +16,9 @@ export const followsApi: FollowService = {
       .order("created_at", { ascending: false });
     if (error) throw error;
     // Stats aren't shown on the discover list — skip the per-shop count queries.
-    return (data as MerchantRow[]).map((row) => toMerchant(row, { products: 0, orders: 0 }));
+    return (data as MerchantRow[]).map((row) =>
+      toMerchant(row, { products: 0, orders: 0, followers: 0 }),
+    );
   },
 
   async listFollowing(): Promise<string[]> {

@@ -62,7 +62,7 @@ export function toProduct(row: ProductRow): Product {
 
 export function toMerchant(
   row: MerchantRow,
-  stats: { products: number; orders: number },
+  stats: { products: number; orders: number; followers: number },
 ): Merchant {
   return {
     id: row.id,
@@ -73,7 +73,12 @@ export function toMerchant(
     avatarUrl: row.avatar_url || avatarFor(row.name),
     bannerUrl: row.banner_url ?? "",
     isOnline: row.is_online,
-    stats: { products: stats.products, orders: stats.orders, rating: Number(row.rating) },
+    stats: {
+      products: stats.products,
+      orders: stats.orders,
+      followers: stats.followers,
+      rating: Number(row.rating),
+    },
     contacts: {
       whatsapp: row.whatsapp ? toWhatsAppDigits(row.whatsapp) : "",
       instagram: row.instagram ? toSocialHandle(row.instagram) : "",

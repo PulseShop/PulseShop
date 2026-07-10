@@ -7,7 +7,7 @@ import { z } from "zod";
 import { Button } from "@/components/ui/Button";
 import { Input } from "@/components/ui/Input";
 import { Modal } from "@/components/ui/Modal";
-import { CATEGORIES } from "@/lib/constants";
+import { CATEGORY_GROUPS, categorySkuPrefix, isLegacyCategory } from "@/lib/constants";
 import { cn } from "@/lib/utils";
 import { services, type ProductInput } from "@/services";
 import type { Product } from "@/types";
@@ -25,9 +25,8 @@ const schema = z.object({
 type FormValues = z.infer<typeof schema>;
 
 function suggestSku(name: string, category: string) {
-  const cat = (category || "GEN").slice(0, 3).toUpperCase();
   const suffix = Math.floor(Math.random() * 900 + 100);
-  return name ? `${cat}-${suffix}` : "";
+  return name ? `${categorySkuPrefix(category)}-${suffix}` : "";
 }
 
 export function ProductModal({
@@ -87,6 +86,17 @@ export function ProductModal({
   const name = watch("name");
   const category = watch("category");
   const sku = watch("sku");
+
+  /**
+   * A product saved under the old taxonomy (e.g. "Tops") needs its <option> to
+   * exist *before* reset() assigns the select's value — an uncontrolled select
+   * silently falls back to "" when the value has no matching option, which would
+   * clear the category of every legacy product the merchant opened. Derived from
+   * the prop, not from watch("category"), because the prop is there on the first
+   * render and the form state only catches up in the effect above.
+   */
+  const legacyCategory =
+    product && isLegacyCategory(product.category) ? product.category : null;
 
   useEffect(() => {
     if (!product && name && !sku) setValue("sku", suggestSku(name, category));
@@ -232,10 +242,19 @@ export function ProductModal({
               {...register("category")}
             >
               <option value="">Select…</option>
-              {CATEGORIES.map((c) => (
-                <option key={c} value={c}>
-                  {c}
-                </option>
+              {legacyCategory && (
+                <optgroup label="Current">
+                  <option value={legacyCategory}>{legacyCategory}</option>
+                </optgroup>
+              )}
+              {CATEGORY_GROUPS.map(({ group, items }) => (
+                <optgroup key={group} label={group}>
+                  {items.map((c) => (
+                    <option key={c} value={c}>
+                      {c}
+                    </option>
+                  ))}
+                </optgroup>
               ))}
             </select>
             {errors.category && (

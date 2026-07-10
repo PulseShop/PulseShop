@@ -1,5 +1,14 @@
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { ImagePlus, Loader2, Package, Pencil, ShoppingCart, Star, Store } from "lucide-react";
+import {
+  ImagePlus,
+  Loader2,
+  Package,
+  Pencil,
+  ShoppingCart,
+  Star,
+  Store,
+  Users,
+} from "lucide-react";
 import { useEffect, useRef, useState } from "react";
 import { Link } from "react-router";
 import { DashboardShell } from "@/components/layout/DashboardShell";
@@ -78,10 +87,13 @@ export function DashboardOverviewPage() {
             </div>
 
             <div className="flex flex-col items-center px-6 pb-6 text-center">
+              {/* `relative` so it paints above the banner: the banner's wrapper
+                  is positioned, which would otherwise stack over this static
+                  sibling and slice the avatar's overhanging top half. */}
               <img
                 src={merchant.avatarUrl}
                 alt={merchant.name}
-                className="-mt-10 size-20 rounded-full object-cover ring-4 ring-card shadow-soft"
+                className="relative -mt-10 size-20 rounded-full object-cover ring-4 ring-card shadow-soft"
               />
               <h1 className="mt-3 text-2xl font-extrabold text-ink">{merchant.name}</h1>
               <p className="text-sm text-muted">
@@ -103,9 +115,14 @@ export function DashboardOverviewPage() {
 
         {/* quick stats */}
         {merchant && (
-          <div className="mt-6 grid grid-cols-3 gap-4">
+          <div className="mt-6 grid grid-cols-2 gap-4 xl:grid-cols-4">
             <StatCard icon={Package} label="Products" value={merchant.stats.products} />
             <StatCard icon={ShoppingCart} label="Orders" value={merchant.stats.orders} />
+            <StatCard
+              icon={Users}
+              label={merchant.stats.followers === 1 ? "Follower" : "Followers"}
+              value={merchant.stats.followers}
+            />
             <StatCard icon={Star} label="Rating" value={merchant.stats.rating} />
           </div>
         )}
@@ -188,7 +205,7 @@ function StatCard({
         <Icon className="size-5" />
       </div>
       <div>
-        <p className="text-2xl font-extrabold text-ink">{value}</p>
+        <p className="text-2xl font-extrabold text-ink">{value.toLocaleString()}</p>
         <p className="text-xs font-semibold text-muted">{label}</p>
       </div>
     </div>

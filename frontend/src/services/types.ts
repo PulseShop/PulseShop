@@ -114,6 +114,18 @@ export interface OrderService {
   updateOrderStatus(orderId: string, paymentStatus: PaymentStatus): Promise<void>;
 }
 
+/**
+ * Star ratings. One rating per user per product; re-rating replaces the old
+ * value. The product's average `rating` / `reviewCount` are recomputed
+ * server-side, so callers refetch the product rather than doing the maths.
+ */
+export interface ReviewService {
+  /** The signed-in user's rating for a product, or null if they haven't rated it. */
+  getMyRating(productId: string): Promise<number | null>;
+  /** Create or replace the signed-in user's rating. `stars` is 1–5. */
+  rateProduct(productId: string, stars: number): Promise<void>;
+}
+
 /** Instagram-style shop following for signed-in users. */
 export interface FollowService {
   /** Public: every shop on the platform, for the discover list. */
@@ -155,6 +167,7 @@ export interface Services {
   products: ProductService;
   orders: OrderService;
   follows: FollowService;
+  reviews: ReviewService;
   favorites: FavoritesService;
   payments: PaymentService;
   storage: StorageService;

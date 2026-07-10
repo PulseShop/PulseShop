@@ -1,4 +1,4 @@
-import { useQuery } from "@tanstack/react-query";
+import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { ArrowLeft, ArrowRight, ChevronRight, Heart, Share2, ShoppingBag } from "lucide-react";
 import { useEffect, useState } from "react";
 import { Link, useNavigate, useParams } from "react-router";
@@ -15,6 +15,7 @@ import { productInquiryLinks } from "@/lib/deeplinks";
 import { cn } from "@/lib/utils";
 import { services } from "@/services";
 import { useFavoriteToggle } from "@/hooks/useFavorites";
+import { useAuth } from "@/stores/auth";
 import { useCart } from "@/stores/cart";
 import { useFavorites } from "@/stores/favorites";
 import { useOrderStore } from "@/stores/order";
@@ -27,6 +28,8 @@ export function ProductDetailPage() {
   const push = useToasts((s) => s.push);
   const home = useShopHome();
   const setShopSlug = useShop((s) => s.setSlug);
+  const session = useAuth((s) => s.session);
+  const qc = useQueryClient();
 
   const productQ = useQuery({
     queryKey: ["product", id],
@@ -54,12 +57,40 @@ export function ProductDetailPage() {
   const [localSize, setLocalSize] = useState<string | null>(null);
 
   const merchant = merchantQ.data;
+  // A merchant can't rate their own product — the DB rejects it too.
+  const ownsProduct = Boolean(session && merchant && session.id === merchant.id);
+
+  const myRatingQ = useQuery({
+    queryKey: ["my-rating", id],
+    queryFn: () => services.reviews.getMyRating(id),
+    enabled: Boolean(session) && !ownsProduct,
+  });
+
+  const rateMut = useMutation({
+    mutationFn: (stars: number) => services.reviews.rateProduct(id, stars),
+    onSuccess: (_data, stars) => {
+      // The product's average is recomputed server-side — refetch, don't guess.
+      qc.invalidateQueries({ queryKey: ["product", id] });
+      qc.setQueryData(["my-rating", id], stars);
+      push(`You rated this ${stars} ${stars === 1 ? "star" : "stars"}`, "success");
+    },
+    onError: () => push("Couldn't save your rating — try again", "danger"),
+  });
+
+  const rate = (stars: number) => {
+    if (!session) {
+      push("Sign in to rate this product");
+      navigate("/login");
+      return;
+    }
+    rateMut.mutate(stars);
+  };
 
   if (productQ.isLoading) {
     return (
       <MobileShell homeTo={home}>
         <div className="space-y-4 p-4">
-          <Skeleton className="aspect-square w-full" />
+          <Skeleton className="h-[32dvh] min-h-40 max-h-80 w-full" />
           <Skeleton className="h-6 w-2/3 rounded" />
           <Skeleton className="h-5 w-1/3 rounded" />
           <Skeleton className="h-24 w-full" />
@@ -168,11 +199,20 @@ export function ProductDetailPage() {
         </div>
       </header>
 
-      <div className="space-y-5 px-4 pb-32 pt-2">
-        <Gallery images={product.images} alt={product.name} />
+      <div className="space-y-3.5 px-4 pb-24 pt-2">
+        {/* Capped against the viewport so the price, rating and CTA stay above
+            the fold on a phone instead of the square image pushing them off.
+            Thumbnails are off here — swipe + dots cover it, and the strip alone
+            was enough to push the page into scrolling. */}
+        <Gallery
+          images={product.images}
+          alt={product.name}
+          frameClassName="h-[32dvh] min-h-40 max-h-80"
+          thumbnails={false}
+        />
 
         {/* info block */}
-        <div className="space-y-2.5">
+        <div className="space-y-2">
           <nav className="flex items-center gap-1 text-xs font-medium text-muted">
             <Link to={home} className="hover:text-primary">
               Store
@@ -191,12 +231,18 @@ export function ProductDetailPage() {
             </div>
           </div>
 
-          <RatingRow rating={product.rating} reviewCount={product.reviewCount} />
+          <RatingRow
+            rating={product.rating}
+            reviewCount={product.reviewCount}
+            myRating={myRatingQ.data ?? null}
+            onRate={ownsProduct ? undefined : rate}
+            pending={rateMut.isPending}
+          />
           <StockBadge
             status={product.status}
             label={stockDetailLabel(product.status, product.stockQty)}
           />
-          <p className="text-sm leading-relaxed text-ink/80">{product.description}</p>
+          <p className="line-clamp-3 text-sm leading-relaxed text-ink/80">{product.description}</p>
         </div>
 
         {/* size selector */}
@@ -209,14 +255,14 @@ export function ProductDetailPage() {
 
         {/* contact icons row */}
         {links && (
-          <div className="space-y-2 text-center">
+          <div className="space-y-1.5 text-center">
             <div className="flex justify-center gap-4">
               <a
                 href={links.whatsapp}
                 target="_blank"
                 rel="noreferrer"
                 aria-label="Ask on WhatsApp"
-                className="flex size-12 items-center justify-center rounded-full bg-whatsapp text-white shadow-soft transition-transform active:scale-90"
+                className="flex size-11 items-center justify-center rounded-full bg-whatsapp text-white shadow-soft transition-transform active:scale-90"
               >
                 <WhatsAppIcon className="size-5" />
               </a>
@@ -225,7 +271,7 @@ export function ProductDetailPage() {
                 target="_blank"
                 rel="noreferrer"
                 aria-label="Ask on Instagram"
-                className="flex size-12 items-center justify-center rounded-full bg-instagram text-white shadow-soft transition-transform active:scale-90"
+                className="flex size-11 items-center justify-center rounded-full bg-instagram text-white shadow-soft transition-transform active:scale-90"
               >
                 <InstagramIcon className="size-5" />
               </a>
@@ -234,7 +280,7 @@ export function ProductDetailPage() {
                 target="_blank"
                 rel="noreferrer"
                 aria-label="Ask on Facebook"
-                className="flex size-12 items-center justify-center rounded-full bg-facebook text-white shadow-soft transition-transform active:scale-90"
+                className="flex size-11 items-center justify-center rounded-full bg-facebook text-white shadow-soft transition-transform active:scale-90"
               >
                 <FacebookIcon className="size-5" />
               </a>
@@ -242,17 +288,6 @@ export function ProductDetailPage() {
             <p className="text-xs font-medium text-muted">Ask about this product</p>
           </div>
         )}
-
-        {/* add to favorites */}
-        <Button
-          variant="outline"
-          size="lg"
-          className={cn("w-full", isFavorite && "border-favorite text-favorite")}
-          onClick={() => toggle(product.id)}
-        >
-          <Heart className={cn("size-5", isFavorite && "fill-favorite")} />
-          {isFavorite ? "Saved to Favorites ♥" : "Add to Favorites"}
-        </Button>
       </div>
 
       {/* primary CTA — floating glass bar echoing the nav pill */}
@@ -260,7 +295,7 @@ export function ProductDetailPage() {
         <Button
           variant="outline"
           size="lg"
-          className="flex-1 rounded-full border-white/60 bg-white/70"
+          className="flex-1 whitespace-nowrap rounded-full border-white/60 bg-white/70"
           disabled={soldOut}
           onClick={handleAddToCart}
         >
