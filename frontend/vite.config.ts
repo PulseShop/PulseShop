@@ -30,6 +30,7 @@ export default defineConfig({
       },
       workbox: {
         globPatterns: ["**/*.{js,css,html,svg,png,woff2}"],
+        globIgnores: ["logo-full.svg"],
         navigateFallback: "/index.html",
         runtimeCaching: [
           {
