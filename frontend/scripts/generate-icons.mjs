@@ -1,30 +1,24 @@
-// Renders the PulseShop logo SVG to the PWA icon set (192, 512, maskable).
-// Paths mirror src/components/common/Logo.tsx so the favicon/PWA icons match the in-app badge.
+// Renders the PulseShop logo image to the PWA icon set (192, 512, maskable).
+// Source mirrors src/components/common/Logo.tsx so the favicon/PWA icons match the in-app badge.
 import sharp from "sharp";
 import { mkdirSync } from "node:fs";
 
-const cartPath =
-  "M2.05 2.05h2l2.66 12.42a2 2 0 0 0 2 1.58h9.78a2 2 0 0 0 1.95-1.57l1.65-7.43H5.12";
-const pulsePath =
-  "M22 12h-2.48a2 2 0 0 0-1.93 1.46l-2.35 8.36a.25.25 0 0 1-.48 0L9.24 2.18a.25.25 0 0 0-.48 0l-2.35 8.36A2 2 0 0 1 4.49 12H2";
-
-const logo = (pad) => `
-<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24">
-  <rect width="24" height="24" rx="${pad ? 0 : 5}" fill="#0D9488"/>
-  <g transform="${pad ? "translate(2.4 2.4) scale(0.8)" : ""}">
-    <path d="${cartPath}" fill="none" stroke="#FFFFFF" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"/>
-    <circle cx="8" cy="21" r="1" fill="#FFFFFF"/>
-    <circle cx="19" cy="21" r="1" fill="#FFFFFF"/>
-    <g transform="translate(7.7 6.7) scale(0.4)">
-      <path d="${pulsePath}" fill="none" stroke="#FFFFFF" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
-    </g>
-  </g>
-</svg>`;
+const SRC = "src/assets/pulseshoplogo1.jpg";
+// Light-teal background sampled from the logo's own edge, so maskable padding blends in.
+const BG = { r: 166, g: 207, b: 212 };
 
 mkdirSync("public/icons", { recursive: true });
 
-await sharp(Buffer.from(logo(false))).resize(192, 192).png().toFile("public/icons/icon-192.png");
-await sharp(Buffer.from(logo(false))).resize(512, 512).png().toFile("public/icons/icon-512.png");
-await sharp(Buffer.from(logo(true))).resize(512, 512).png().toFile("public/icons/maskable-512.png");
+// Standard icons — the source already carries its own branded background, so full-bleed.
+await sharp(SRC).resize(192, 192).png().toFile("public/icons/icon-192.png");
+await sharp(SRC).resize(512, 512).png().toFile("public/icons/icon-512.png");
+
+// Maskable — inset the art to ~80% (the safe zone) so circular/rounded masks
+// don't clip the cart or the "PulseShop" wordmark.
+const inner = await sharp(SRC).resize(410, 410).toBuffer();
+await sharp({ create: { width: 512, height: 512, channels: 3, background: BG } })
+  .composite([{ input: inner, gravity: "center" }])
+  .png()
+  .toFile("public/icons/maskable-512.png");
 
 console.log("icons written to public/icons/");

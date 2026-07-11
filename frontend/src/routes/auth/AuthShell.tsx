@@ -16,8 +16,8 @@ export function AuthShell({
 }) {
   return (
     <div className="app-surface flex min-h-dvh flex-col items-center justify-center px-5 py-10">
-      <Link to="/welcome" className="mb-6 flex items-center gap-2 text-xl font-extrabold tracking-tight text-primary">
-        <Logo size={28} />
+      <Link to="/welcome" className="mb-6 flex items-center gap-2.5 text-2xl font-extrabold tracking-tight text-primary">
+        <Logo size={40} />
         PulseShop
       </Link>
       <div className="glass-strong w-full max-w-md rounded-modal p-6 sm:p-8">
