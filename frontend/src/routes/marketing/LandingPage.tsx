@@ -10,6 +10,7 @@ import {
 } from "lucide-react";
 import { Link } from "react-router";
 import { Button } from "@/components/ui/Button";
+import { Logo } from "@/components/common/Logo";
 import {
   FacebookIcon,
   InstagramIcon,
@@ -63,7 +64,8 @@ export function LandingPage() {
       {/* nav */}
       <header className="glass-header sticky top-0 z-30">
         <div className="mx-auto flex max-w-5xl items-center justify-between px-5 py-3">
-          <span className="text-lg font-extrabold tracking-tight text-primary">
+          <span className="flex items-center gap-2 text-lg font-extrabold tracking-tight text-primary">
+            <Logo size={30} />
             PulseShop
           </span>
           <div className="flex items-center gap-2">

@@ -6,6 +6,7 @@ import { useAuth } from "@/stores/auth";
 import { cartCount, useCart } from "@/stores/cart";
 import { useShop } from "@/stores/shop";
 import { MobileShell } from "@/components/layout/MobileShell";
+import { Logo } from "@/components/common/Logo";
 import { ProductCard } from "@/components/product/ProductCard";
 import { FollowButton } from "@/components/shop/FollowButton";
 import { SocialLinks } from "@/components/shop/SocialLinks";
@@ -151,7 +152,8 @@ export function StorefrontPage() {
               <ArrowLeft className="size-5" />
             </Link>
           )}
-          <span className="text-lg font-extrabold tracking-tight text-primary lg:hidden">
+          <span className="flex items-center gap-2 text-lg font-extrabold tracking-tight text-primary lg:hidden">
+            <Logo size={28} />
             PulseShop
           </span>
           {/* desktop: shop identity takes the wordmark's place, once loaded */}

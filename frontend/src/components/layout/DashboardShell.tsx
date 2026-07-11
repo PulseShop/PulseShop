@@ -13,6 +13,7 @@ import type { ReactNode } from "react";
 import { Link, NavLink } from "react-router";
 import { cn } from "@/lib/utils";
 import { services } from "@/services";
+import { Logo } from "@/components/common/Logo";
 
 const nav = [
   { to: "/dashboard", label: "Dashboard", icon: LayoutDashboard, end: true },
@@ -61,9 +62,7 @@ export function DashboardShell({ children }: { children: ReactNode }) {
         {/* sidebar */}
         <aside className="fixed inset-y-0 left-0 flex w-[230px] flex-col border-r border-stone-200 bg-card">
           <div className="flex items-center gap-2.5 px-5 py-5">
-            <div className="flex size-9 items-center justify-center rounded-xl bg-primary text-white">
-              <span className="text-lg font-extrabold">P</span>
-            </div>
+            <Logo size={36} />
             <div>
               <p className="text-sm font-extrabold leading-tight text-ink">PulseShop</p>
               <p className="text-[11px] text-muted">Merchant Studio</p>

@@ -13,6 +13,7 @@ import { slugify } from "@/lib/slug";
 import { useAuth } from "@/stores/auth";
 import { useToasts } from "@/stores/toast";
 import { cn } from "@/lib/utils";
+import { Logo } from "@/components/common/Logo";
 
 const schema = z.object(shopDetailsFields).superRefine(refineShopSocials);
 type FormValues = z.infer<typeof schema>;
@@ -116,7 +117,7 @@ export function ShopDetailsOnboardingPage() {
       {/* LEFT SIDEBAR */}
       <div className="flex w-80 flex-col border-r bg-white p-8">
         <div className="mb-10 flex items-center gap-3">
-          <div className="flex size-8 items-center justify-center rounded-lg bg-primary text-white font-bold">P</div>
+          <Logo size={32} className="rounded-lg" />
           <span className="text-xl font-extrabold text-ink">PulseShop</span>
         </div>
 

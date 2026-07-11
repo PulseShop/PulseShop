@@ -1,13 +1,24 @@
 // Renders the PulseShop logo SVG to the PWA icon set (192, 512, maskable).
+// Paths mirror src/components/common/Logo.tsx so the favicon/PWA icons match the in-app badge.
 import sharp from "sharp";
 import { mkdirSync } from "node:fs";
 
+const cartPath =
+  "M2.05 2.05h2l2.66 12.42a2 2 0 0 0 2 1.58h9.78a2 2 0 0 0 1.95-1.57l1.65-7.43H5.12";
+const pulsePath =
+  "M22 12h-2.48a2 2 0 0 0-1.93 1.46l-2.35 8.36a.25.25 0 0 1-.48 0L9.24 2.18a.25.25 0 0 0-.48 0l-2.35 8.36A2 2 0 0 1 4.49 12H2";
+
 const logo = (pad) => `
-<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512">
-  <rect width="512" height="512" rx="${pad ? 0 : 96}" fill="#0D9488"/>
-  <path d="M120 288 L 180 288 L 210 200 L 260 330 L 300 240 L 322 288 L 392 288"
-        fill="none" stroke="#FFFFFF" stroke-width="34" stroke-linecap="round" stroke-linejoin="round"
-        transform="${pad ? "translate(51.2 51.2) scale(0.8)" : ""}"/>
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24">
+  <rect width="24" height="24" rx="${pad ? 0 : 5}" fill="#0D9488"/>
+  <g transform="${pad ? "translate(2.4 2.4) scale(0.8)" : ""}">
+    <path d="${cartPath}" fill="none" stroke="#FFFFFF" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"/>
+    <circle cx="8" cy="21" r="1" fill="#FFFFFF"/>
+    <circle cx="19" cy="21" r="1" fill="#FFFFFF"/>
+    <g transform="translate(7.7 6.7) scale(0.4)">
+      <path d="${pulsePath}" fill="none" stroke="#FFFFFF" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
+    </g>
+  </g>
 </svg>`;
 
 mkdirSync("public/icons", { recursive: true });

@@ -1,5 +1,6 @@
 import type { ReactNode } from "react";
 import { Link } from "react-router";
+import { Logo } from "@/components/common/Logo";
 
 /** Centered glass card over the ambient surface — shared by login & signup. */
 export function AuthShell({
@@ -15,7 +16,8 @@ export function AuthShell({
 }) {
   return (
     <div className="app-surface flex min-h-dvh flex-col items-center justify-center px-5 py-10">
-      <Link to="/welcome" className="mb-6 text-xl font-extrabold tracking-tight text-primary">
+      <Link to="/welcome" className="mb-6 flex items-center gap-2 text-xl font-extrabold tracking-tight text-primary">
+        <Logo size={28} />
         PulseShop
       </Link>
       <div className="glass-strong w-full max-w-md rounded-modal p-6 sm:p-8">
