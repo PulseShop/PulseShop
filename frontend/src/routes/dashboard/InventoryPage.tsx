@@ -1,5 +1,5 @@
 import * as Popover from "@radix-ui/react-popover";
-import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
+import { keepPreviousData, useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import {
   AlertTriangle,
   Boxes,
@@ -13,7 +13,7 @@ import {
   Trash2,
   XCircle,
 } from "lucide-react";
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useState } from "react";
 import { DashboardShell } from "@/components/layout/DashboardShell";
 import { ProductImage } from "@/components/product/ProductImage";
 import { ShareMenu } from "@/components/product/ShareMenu";
@@ -25,7 +25,7 @@ import { Skeleton } from "@/components/ui/Skeleton";
 import { discountedPrice, formatKes } from "@/lib/currency";
 import { cn } from "@/lib/utils";
 import { services } from "@/services";
-import type { Product } from "@/types";
+import type { Paged, Product } from "@/types";
 import { useToasts } from "@/stores/toast";
 import { ProductModal } from "./ProductModal";
 
@@ -41,8 +41,6 @@ function daysAgoLabel(iso: string) {
 export function InventoryPage() {
   const qc = useQueryClient();
   const push = useToasts((s) => s.push);
-
-  const productsQ = useQuery({ queryKey: ["products"], queryFn: services.products.listProducts });
 
   const [searchInput, setSearchInput] = useState("");
   const [search, setSearch] = useState("");
@@ -64,91 +62,116 @@ export function InventoryPage() {
     return () => clearTimeout(t);
   }, [searchInput]);
 
-  const products = productsQ.data ?? [];
+  /**
+   * Search, filter and paging all run server-side (search_products, migration
+   * 0022). They used to run in the browser over the merchant's *entire*
+   * catalogue, fetched in full on every visit. Note this is not just a
+   * performance change: filtering on the client while paging on the server
+   * would silently filter only the page you happen to hold.
+   */
+  const query = { page, pageSize: PAGE_SIZE, search, category, status: statusFilter } as const;
+  const productsKey = ["products", query] as const;
 
-  const stats = useMemo(
-    () => ({
-      total: products.length,
-      inStock: products.filter((p) => p.status === "available").length,
-      low: products.filter((p) => p.status === "low").length,
-      out: products.filter((p) => p.status === "out").length,
-    }),
-    [products],
-  );
+  const productsQ = useQuery({
+    queryKey: productsKey,
+    queryFn: () => services.products.listProducts(query),
+    // Keep the current page on screen while the next one loads, instead of
+    // collapsing the table to skeletons on every keystroke.
+    placeholderData: keepPreviousData,
+  });
 
-  const filtered = useMemo(() => {
-    let list = products;
-    if (category !== "All") list = list.filter((p) => p.category === category);
-    if (statusFilter !== "all") list = list.filter((p) => p.status === statusFilter);
-    if (search.trim()) {
-      const q = search.trim().toLowerCase();
-      list = list.filter(
-        (p) =>
-          p.name.toLowerCase().includes(q) ||
-          p.sku.toLowerCase().includes(q) ||
-          p.category.toLowerCase().includes(q),
-      );
-    }
-    return list;
-  }, [products, category, statusFilter, search]);
+  // The category list and the stat cards are aggregates over the whole
+  // catalogue, so by definition they can't come from a page of rows.
+  const facetsQ = useQuery({
+    queryKey: ["product-facets"],
+    queryFn: () => services.products.getFacets(),
+  });
 
-  const totalPages = Math.max(1, Math.ceil(filtered.length / PAGE_SIZE));
+  const pageItems = productsQ.data?.items ?? [];
+  const total = productsQ.data?.total ?? 0;
+  const totalPages = Math.max(1, Math.ceil(total / PAGE_SIZE));
   const pageSafe = Math.min(page, totalPages);
-  const pageItems = filtered.slice((pageSafe - 1) * PAGE_SIZE, pageSafe * PAGE_SIZE);
-  const categories = ["All", ...new Set(products.map((p) => p.category))];
+
+  const facets = facetsQ.data;
+  const stats = {
+    total: facets?.total ?? 0,
+    inStock: facets?.available ?? 0,
+    low: facets?.low ?? 0,
+    out: facets?.out ?? 0,
+  };
+  const categories = ["All", ...(facets?.categories ?? [])];
+
+  /** Product writes change both the current page and the facet aggregates. */
+  const refreshProducts = () => {
+    qc.invalidateQueries({ queryKey: ["products"] });
+    qc.invalidateQueries({ queryKey: ["product-facets"] });
+  };
 
   const discountMut = useMutation({
     mutationFn: ({ id, pct }: { id: string; pct: number | null }) =>
       services.products.updateProduct(id, { discountPct: pct }),
     onMutate: async ({ id, pct }) => {
-      await qc.cancelQueries({ queryKey: ["products"] });
-      const prev = qc.getQueryData<Product[]>(["products"]);
-      qc.setQueryData<Product[]>(["products"], (old) =>
-        (old ?? []).map((p) => (p.id === id ? { ...p, discountPct: pct } : p)),
+      await qc.cancelQueries({ queryKey: productsKey });
+      const prev = qc.getQueryData<Paged<Product>>(productsKey);
+      qc.setQueryData<Paged<Product>>(productsKey, (old) =>
+        old
+          ? { ...old, items: old.items.map((p) => (p.id === id ? { ...p, discountPct: pct } : p)) }
+          : old,
       );
       return { prev };
     },
     onError: (_e, _v, ctx) => {
-      qc.setQueryData(["products"], ctx?.prev);
+      qc.setQueryData(productsKey, ctx?.prev);
       push("Couldn't update discount", "danger");
     },
-    onSettled: () => qc.invalidateQueries({ queryKey: ["products"] }),
+    onSettled: refreshProducts,
   });
 
   const deleteMut = useMutation({
     mutationFn: (id: string) => services.products.deleteProduct(id),
     onMutate: async (id) => {
-      await qc.cancelQueries({ queryKey: ["products"] });
-      const prev = qc.getQueryData<Product[]>(["products"]);
-      qc.setQueryData<Product[]>(["products"], (old) => (old ?? []).filter((p) => p.id !== id));
+      await qc.cancelQueries({ queryKey: productsKey });
+      const prev = qc.getQueryData<Paged<Product>>(productsKey);
+      qc.setQueryData<Paged<Product>>(productsKey, (old) =>
+        old
+          ? { items: old.items.filter((p) => p.id !== id), total: Math.max(0, old.total - 1) }
+          : old,
+      );
       return { prev };
     },
     onError: (_e, _v, ctx) => {
-      qc.setQueryData(["products"], ctx?.prev);
+      qc.setQueryData(productsKey, ctx?.prev);
       push("Couldn't delete product", "danger");
     },
     onSuccess: () => push("Product deleted", "success"),
-    onSettled: () => qc.invalidateQueries({ queryKey: ["products"] }),
+    onSettled: refreshProducts,
   });
 
   const bulkDeleteMut = useMutation({
     mutationFn: (ids: string[]) => Promise.all(ids.map((id) => services.products.deleteProduct(id))),
     onMutate: async (ids) => {
-      await qc.cancelQueries({ queryKey: ["products"] });
-      const prev = qc.getQueryData<Product[]>(["products"]);
+      await qc.cancelQueries({ queryKey: productsKey });
+      const prev = qc.getQueryData<Paged<Product>>(productsKey);
       const idSet = new Set(ids);
-      qc.setQueryData<Product[]>(["products"], (old) => (old ?? []).filter((p) => !idSet.has(p.id)));
+      qc.setQueryData<Paged<Product>>(productsKey, (old) =>
+        old
+          ? {
+              items: old.items.filter((p) => !idSet.has(p.id)),
+              total: Math.max(0, old.total - ids.length),
+            }
+          : old,
+      );
       return { prev };
     },
     onError: (_e, _v, ctx) => {
-      qc.setQueryData(["products"], ctx?.prev);
+      qc.setQueryData(productsKey, ctx?.prev);
       push("Couldn't delete the selected products", "danger");
     },
     onSuccess: (_data, ids) => {
       push(`${ids.length} product${ids.length === 1 ? "" : "s"} deleted`, "success");
       setSelected(new Set());
     },
-    onSettled: () => qc.invalidateQueries({ queryKey: ["products"] }),
+    onSettled: refreshProducts,
   });
 
   const toggleSelect = (id: string) =>
@@ -404,12 +427,13 @@ export function InventoryPage() {
           </table>
         )}
 
-        {/* pagination */}
-        {!productsQ.isLoading && filtered.length > 0 && (
+        {/* pagination — `total` is the size of the full filtered result set on
+            the server, not of the page currently on screen */}
+        {!productsQ.isLoading && total > 0 && (
           <div className="flex items-center justify-between border-t border-stone-100 px-4 py-3">
             <p className="text-xs font-medium text-muted">
-              Showing {(pageSafe - 1) * PAGE_SIZE + 1}–{Math.min(pageSafe * PAGE_SIZE, filtered.length)} of{" "}
-              {filtered.length}
+              Showing {(pageSafe - 1) * PAGE_SIZE + 1}–{Math.min(pageSafe * PAGE_SIZE, total)} of{" "}
+              {total}
             </p>
             <div className="flex items-center gap-1">
               <button

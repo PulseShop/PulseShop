@@ -2,6 +2,7 @@ import { useQuery } from "@tanstack/react-query";
 import { Package } from "lucide-react";
 import { Link } from "react-router";
 import { MobileShell } from "@/components/layout/MobileShell";
+import { QueryError } from "@/components/common/QueryError";
 import { DesktopQuickNav } from "@/components/layout/DesktopQuickNav";
 import { ProductImage } from "@/components/product/ProductImage";
 import { Badge } from "@/components/ui/Badge";
@@ -87,7 +88,21 @@ export function OrdersPage() {
       </header>
 
       <section className="space-y-3 px-4 py-4 lg:grid lg:grid-cols-2 lg:gap-4 lg:space-y-0 lg:px-6 xl:grid-cols-3">
-        {cards.length === 0 ? (
+        {/* A failed history fetch must not read as "you have no orders". Any
+            local guest orders still render underneath — this only says the
+            server-side history couldn't be reached. */}
+        {session && dbQ.isError && (
+          <div className="lg:col-span-full">
+            <QueryError
+              title="Couldn't load your order history"
+              message="Orders placed on this device are still shown below."
+              onRetry={() => dbQ.refetch()}
+              retrying={dbQ.isFetching}
+            />
+          </div>
+        )}
+
+        {cards.length === 0 && !(session && dbQ.isError) ? (
           <div className="flex min-h-[50dvh] flex-col items-center justify-center gap-4 text-center lg:col-span-full">
             <div className="flex size-20 items-center justify-center rounded-full bg-card shadow-soft">
               <Package className="size-9 text-stone-300" />

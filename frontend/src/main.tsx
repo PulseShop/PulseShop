@@ -22,6 +22,7 @@ import { ShopsPage } from "@/routes/shops/ShopsPage";
 import { CartPage } from "@/routes/cart/CartPage";
 import { CheckoutPage } from "@/routes/checkout/CheckoutPage";
 import { LandingPage } from "@/routes/marketing/LandingPage";
+import { NotFoundPage } from "@/routes/NotFoundPage";
 import { ComponentsPage } from "@/routes/dev/ComponentsPage";
 import { AnalyticsPage } from "@/routes/dashboard/AnalyticsPage";
 import { DashboardOverviewPage } from "@/routes/dashboard/DashboardOverviewPage";
@@ -93,8 +94,13 @@ createRoot(document.getElementById("root")!).render(
             <Route path="/dashboard/analytics" element={<RequireMerchant><AnalyticsPage /></RequireMerchant>} />
             <Route path="/dashboard/settings" element={<RequireMerchant><SettingsPage /></RequireMerchant>} />
             <Route path="/dev/components" element={<ComponentsPage />} />
-            {/* public shop by slug — keep LAST so static routes match first */}
+            {/* public shop by slug — keep LAST so static routes match first.
+                A single-segment miss (/nosuchshop) is genuinely ambiguous, so it
+                lands on the storefront's "Shop not found", which names the handle. */}
             <Route path="/:shopSlug" element={<StorefrontPage />} />
+            {/* everything else (multi-segment misses like /dashboard/typo) used to
+                match no route at all and render a blank page */}
+            <Route path="*" element={<NotFoundPage />} />
           </Routes>
           <Toaster />
           <InstallPrompt />

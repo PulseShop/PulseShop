@@ -17,6 +17,7 @@ import { discountedPrice, formatKes } from "@/lib/currency";
 import { merchantSocialLinks, productInquiryLinks } from "@/lib/deeplinks";
 import { cn } from "@/lib/utils";
 import { services } from "@/services";
+import type { Product } from "@/types";
 import { useFavoriteToggle } from "@/hooks/useFavorites";
 import { useAuth } from "@/stores/auth";
 import { cartCount, useCart } from "@/stores/cart";
@@ -84,21 +85,44 @@ export function ProductDetailPage() {
     if (firstAvailable) setDesktopChannel(firstAvailable.id);
   }, [merchant, desktopChannel]);
 
-  // Related products: same shop, same category first, other categories fill
-  // any remaining slots — sellers pick their own free-text categories, so
-  // there's no fixed taxonomy to map "Gaming Consoles" to "Electronics" against.
-  const shopProductsQ = useQuery({
-    queryKey: ["shop-products", shopSlug],
-    queryFn: () => services.products.listShopProducts(merchant!.id),
-    enabled: Boolean(merchant),
+  // Related products: same shop, same category first, other categories fill any
+  // remaining slots — sellers pick their own free-text categories, so there's no
+  // fixed taxonomy to map "Gaming Consoles" to "Electronics" against.
+  //
+  // Two *bounded* queries (7 rows each — one more than the 6 slots, so there's a
+  // spare once the product itself is filtered out) rather than the single
+  // unbounded fetch of the shop's whole catalogue this used to do just to pick
+  // six cards off the top.
+  const RELATED = 6;
+
+  const sameCategoryQ = useQuery({
+    queryKey: ["related", merchant?.id, product?.category],
+    queryFn: () =>
+      services.products.listShopProducts(merchant!.id, {
+        category: product!.category,
+        pageSize: RELATED + 1,
+      }),
+    enabled: Boolean(merchant && product),
   });
+
+  const shopFillQ = useQuery({
+    queryKey: ["related-fill", merchant?.id],
+    queryFn: () => services.products.listShopProducts(merchant!.id, { pageSize: RELATED + 1 }),
+    enabled: Boolean(merchant && product),
+  });
+
   const relatedProducts = useMemo(() => {
     if (!product) return [];
-    const others = (shopProductsQ.data ?? []).filter((p) => p.id !== product.id);
-    const sameCategory = others.filter((p) => p.category === product.category);
-    const rest = others.filter((p) => p.category !== product.category);
-    return [...sameCategory, ...rest].slice(0, 6);
-  }, [shopProductsQ.data, product]);
+    const seen = new Set([product.id]);
+    const out: Product[] = [];
+    for (const p of [...(sameCategoryQ.data?.items ?? []), ...(shopFillQ.data?.items ?? [])]) {
+      if (seen.has(p.id)) continue;
+      seen.add(p.id);
+      out.push(p);
+      if (out.length === RELATED) break;
+    }
+    return out;
+  }, [sameCategoryQ.data, shopFillQ.data, product]);
 
   const [searchOpen, setSearchOpen] = useState(false);
   const [searchQuery, setSearchQuery] = useState("");

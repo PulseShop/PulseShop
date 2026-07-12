@@ -1,24 +1,87 @@
-import type { Merchant } from "@/types";
-import type { FollowService } from "../types";
+import type { Merchant, Paged, ShopPreview } from "@/types";
+import type { FollowService, PageQuery } from "../types";
 import { requireUserId, supabase } from "./client";
-import { type MerchantRow, toMerchant } from "./mappers";
-import { merchantStats } from "./products";
+import { toSocialHandle, toWhatsAppDigits } from "@/lib/phone";
+
+/** One row from shop_directory() — a merchant plus its aggregated stats and
+ * embedded product previews. */
+interface DirectoryRow {
+  id: string;
+  name: string;
+  handle: string;
+  bio: string;
+  location: string;
+  avatar_url: string;
+  banner_url: string;
+  is_online: boolean;
+  whatsapp: string;
+  instagram: string;
+  facebook: string;
+  product_count: number;
+  order_count: number;
+  follower_count: number;
+  avg_rating: number;
+  previews: ShopPreview[];
+  total_count: number;
+}
+
+const avatarFor = (name: string) =>
+  `https://ui-avatars.com/api/?name=${encodeURIComponent(name)}&background=0d9488&color=fff&size=160`;
+
+function toDirectoryMerchant(row: DirectoryRow): Merchant {
+  return {
+    id: row.id,
+    name: row.name,
+    handle: row.handle,
+    bio: row.bio ?? "",
+    location: row.location ?? "",
+    avatarUrl: row.avatar_url || avatarFor(row.name),
+    bannerUrl: row.banner_url ?? "",
+    isOnline: row.is_online,
+    stats: {
+      products: Number(row.product_count ?? 0),
+      orders: Number(row.order_count ?? 0),
+      followers: Number(row.follower_count ?? 0),
+      rating: Number(row.avg_rating ?? 0),
+    },
+    contacts: {
+      whatsapp: row.whatsapp ? toWhatsAppDigits(row.whatsapp) : "",
+      instagram: row.instagram ? toSocialHandle(row.instagram) : "",
+      facebook: row.facebook ? toSocialHandle(row.facebook) : "",
+    },
+    previews: row.previews ?? [],
+  };
+}
+
+const DEFAULT_PAGE_SIZE = 20;
 
 /**
- * Shop discovery + follows. The shop list is public (merchants RLS allows
- * anyone to read); follow/unfollow require a signed-in user and RLS scopes
- * rows to that user.
+ * Shop discovery + follows.
+ *
+ * listShops() is one RPC call. It used to be 1 + 4N: a select of every merchant
+ * row (unpaginated), then four stat queries per shop. The page on top of it
+ * then fetched each shop's whole catalogue to show three thumbnails, taking the
+ * real cost to 5N+1 requests for a single view — ~15,000 requests at 3,000
+ * shops, which simply never completes. shop_directory() (0019) returns the
+ * stats and the previews already aggregated, one page at a time, so the cost is
+ * now flat in the number of shops.
  */
 export const followsApi: FollowService = {
-  async listShops(): Promise<Merchant[]> {
-    const { data, error } = await supabase
-      .from("merchants")
-      .select("*")
-      .order("created_at", { ascending: false });
+  async listShops(query?: PageQuery): Promise<Paged<Merchant>> {
+    const pageSize = query?.pageSize ?? DEFAULT_PAGE_SIZE;
+    const page = Math.max(1, query?.page ?? 1);
+
+    const { data, error } = await supabase.rpc("shop_directory", {
+      p_limit: pageSize,
+      p_offset: (page - 1) * pageSize,
+    });
     if (error) throw error;
-    const rows = data as MerchantRow[];
-    const stats = await Promise.all(rows.map((row) => merchantStats(row.id)));
-    return rows.map((row, i) => toMerchant(row, stats[i]));
+
+    const rows = (data ?? []) as DirectoryRow[];
+    return {
+      items: rows.map(toDirectoryMerchant),
+      total: Number(rows[0]?.total_count ?? 0),
+    };
   },
 
   async listFollowing(): Promise<string[]> {

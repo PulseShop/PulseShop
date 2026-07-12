@@ -15,11 +15,14 @@ import { useToasts } from "@/stores/toast";
 
 /** Storybook-style gallery of every primitive — Phase 1 acceptance route. */
 export function ComponentsPage() {
-  const productsQ = useQuery({ queryKey: ["products"], queryFn: services.products.listProducts });
+  const productsQ = useQuery({
+    queryKey: ["products", "gallery"],
+    queryFn: () => services.products.listProducts({ pageSize: 1 }),
+  });
   const [size, setSize] = useState<string | null>("M");
   const [modalOpen, setModalOpen] = useState(false);
   const push = useToasts((s) => s.push);
-  const sample = productsQ.data?.[0];
+  const sample = productsQ.data?.items[0];
 
   return (
     <div className="mx-auto max-w-4xl space-y-10 p-8">

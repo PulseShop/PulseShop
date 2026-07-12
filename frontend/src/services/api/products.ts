@@ -1,5 +1,5 @@
-import type { Merchant, Product } from "@/types";
-import type { ProductInput, ProductService } from "../types";
+import type { Merchant, Paged, Product, ShopFacets } from "@/types";
+import type { ProductInput, ProductQuery, ProductService } from "../types";
 import { requireUserId, supabase } from "./client";
 import type { MerchantUpdate } from "../types";
 import {
@@ -12,38 +12,71 @@ import {
 } from "./mappers";
 
 /**
- * Product, order, follower and rating stats for a merchant, used to populate
- * Merchant.stats. Orders, followers and the average rating all go through
- * security-definer/invoker RPCs rather than plain queries: RLS on `orders`
- * only exposes rows to the owning merchant, RLS on `follows` only exposes
- * rows to the *follower* (so direct counts silently read 0 for anyone else
- * viewing the storefront, or for the merchant reading their own shop), and
- * the rating average is a single server-side aggregate instead of fetching
- * every product's rating/review_count row to average client-side.
+ * Product, order, follower and rating stats for a merchant.
+ *
+ * One RPC, not four queries. These can't be plain counts from the client: RLS
+ * on `orders` only exposes rows to the owning merchant and RLS on `follows`
+ * only exposes rows to the *follower*, so counting either directly reads 0 for
+ * anyone browsing a storefront. merchant_stats() (0019) is security definer for
+ * exactly that reason and returns all four numbers in a single round trip.
  */
 export async function merchantStats(
   uid: string,
 ): Promise<{ products: number; orders: number; followers: number; rating: number }> {
-  const [{ count: products }, { data: orders }, { data: followers }, { data: rating }] =
-    await Promise.all([
-      supabase.from("products").select("*", { count: "exact", head: true }).eq("merchant_id", uid),
-      supabase.rpc("merchant_order_count", { p_merchant_id: uid }),
-      supabase.rpc("merchant_follower_count", { p_merchant_id: uid }),
-      supabase.rpc("merchant_avg_rating", { p_merchant_id: uid }),
-    ]);
+  const { data, error } = await supabase.rpc("merchant_stats", { p_merchant_id: uid });
+  if (error) throw error;
+
+  const row = (Array.isArray(data) ? data[0] : data) as
+    | { product_count: number; order_count: number; follower_count: number; avg_rating: number }
+    | undefined;
 
   return {
-    products: products ?? 0,
-    orders: Number(orders ?? 0),
-    followers: Number(followers ?? 0),
-    rating: Number(rating ?? 0),
+    products: Number(row?.product_count ?? 0),
+    orders: Number(row?.order_count ?? 0),
+    followers: Number(row?.follower_count ?? 0),
+    rating: Number(row?.avg_rating ?? 0),
+  };
+}
+
+/** A row from search_products() — a product row plus its shop handle and the
+ * size of the full (filtered) result set. */
+type SearchRow = ProductRow & { shop_handle: string | null; total_count: number };
+
+function toPagedProducts(rows: SearchRow[]): Paged<Product> {
+  return {
+    items: rows.map((row) => {
+      const product = toProduct(row);
+      product.shopSlug = row.shop_handle ?? undefined;
+      return product;
+    }),
+    // total_count is repeated on every row; absent when the page is empty.
+    total: Number(rows[0]?.total_count ?? 0),
+  };
+}
+
+const DEFAULT_PAGE_SIZE = 12;
+
+/** ProductQuery -> search_products() arguments. Bound parameters, never a
+ * filter string — see the note on ProductQuery in services/types.ts. */
+function searchArgs(merchantId: string, q: ProductQuery = {}) {
+  const pageSize = q.pageSize ?? DEFAULT_PAGE_SIZE;
+  const page = Math.max(1, q.page ?? 1);
+  return {
+    p_merchant_id: merchantId,
+    p_search: q.search?.trim() ?? "",
+    p_category: q.category && q.category !== "All" ? q.category : null,
+    p_status: q.status && q.status !== "all" ? q.status : null,
+    p_max_price: q.maxPrice ?? null,
+    p_sort: q.sort ?? "newest",
+    p_limit: pageSize,
+    p_offset: (page - 1) * pageSize,
   };
 }
 
 /**
- * Product + merchant reads/writes scoped to the signed-in merchant. RLS also
- * enforces this server-side; the explicit merchant_id filters keep the
- * dashboard showing only the owner's catalogue.
+ * Product + merchant reads/writes. Writes are scoped to the signed-in merchant
+ * by RLS server-side; the explicit merchant_id filters here keep the dashboard
+ * showing only the owner's catalogue.
  */
 export const productsApi: ProductService = {
   async getMerchant(): Promise<Merchant> {
@@ -71,19 +104,11 @@ export const productsApi: ProductService = {
     return toMerchant(data, await merchantStats(uid));
   },
 
-  async listProducts(): Promise<Product[]> {
+  async listProducts(query?: ProductQuery): Promise<Paged<Product>> {
     const uid = await requireUserId();
-    const { data, error } = await supabase
-      .from("products")
-      .select("*, merchants(handle)")
-      .eq("merchant_id", uid)
-      .order("created_at", { ascending: false });
+    const { data, error } = await supabase.rpc("search_products", searchArgs(uid, query));
     if (error) throw error;
-    return (data as (ProductRow & { merchants?: { handle?: string } })[]).map((row) => {
-      const product = toProduct(row);
-      product.shopSlug = row.merchants?.handle;
-      return product;
-    });
+    return toPagedProducts((data ?? []) as SearchRow[]);
   },
 
   async getProduct(id: string): Promise<Product | null> {
@@ -137,25 +162,24 @@ export const productsApi: ProductService = {
     return toMerchant(data, await merchantStats(data.id));
   },
 
-  async listShopProducts(merchantId: string): Promise<Product[]> {
-    // Public storefront grid (ProductCard) never renders description or
-    // merchant_id — description in particular can be the largest field on
-    // the row, and this query runs for every shop every buyer browses, so
-    // it's worth trimming. listProducts() (the merchant's own dashboard)
-    // keeps select("*") since it feeds the product edit form, which needs
-    // every field including description.
-    const { data, error } = await supabase
-      .from("products")
-      .select(
-        "id, name, sku, category, price_kes, discount_pct, stock_qty, status, images, sizes, rating, review_count, created_at, merchants(handle)",
-      )
-      .eq("merchant_id", merchantId)
-      .order("created_at", { ascending: false });
+  async listShopProducts(merchantId: string, query?: ProductQuery): Promise<Paged<Product>> {
+    const { data, error } = await supabase.rpc("search_products", searchArgs(merchantId, query));
     if (error) throw error;
-    return (data as (ProductRow & { merchants?: { handle?: string } })[]).map((row) => {
-      const product = toProduct(row);
-      product.shopSlug = row.merchants?.handle;
-      return product;
-    });
+    return toPagedProducts((data ?? []) as SearchRow[]);
+  },
+
+  async getFacets(merchantId?: string): Promise<ShopFacets> {
+    const uid = merchantId ?? (await requireUserId());
+    const { data, error } = await supabase.rpc("shop_facets", { p_merchant_id: uid });
+    if (error) throw error;
+    const f = (data ?? {}) as Partial<ShopFacets>;
+    return {
+      categories: f.categories ?? [],
+      priceCeiling: Number(f.priceCeiling ?? 0),
+      total: Number(f.total ?? 0),
+      available: Number(f.available ?? 0),
+      low: Number(f.low ?? 0),
+      out: Number(f.out ?? 0),
+    };
   },
 };

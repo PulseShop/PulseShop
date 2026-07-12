@@ -39,11 +39,12 @@ async function resolveAuthUser(user: User): Promise<AuthUser> {
  * trigger skips the merchant profile.
  */
 export const authApi: AuthService = {
-  async signup(input: SignupInput): Promise<AuthUser> {
+  async signup(input: SignupInput, captchaToken?: string): Promise<AuthUser> {
     const { data, error } = await supabase.auth.signUp({
       email: input.email,
       password: input.password,
       options: {
+        captchaToken,
         data: {
           account_type: "merchant",
           shop_name: input.shopName,
@@ -68,11 +69,12 @@ export const authApi: AuthService = {
     };
   },
 
-  async signupShopper(input: ShopperSignupInput): Promise<AuthUser> {
+  async signupShopper(input: ShopperSignupInput, captchaToken?: string): Promise<AuthUser> {
     const { data, error } = await supabase.auth.signUp({
       email: input.email,
       password: input.password,
       options: {
+        captchaToken,
         data: { account_type: "shopper", name: input.name },
       },
     });
@@ -89,8 +91,12 @@ export const authApi: AuthService = {
     };
   },
 
-  async login({ email, password }: Credentials): Promise<AuthUser> {
-    const { data, error } = await supabase.auth.signInWithPassword({ email, password });
+  async login({ email, password }: Credentials, captchaToken?: string): Promise<AuthUser> {
+    const { data, error } = await supabase.auth.signInWithPassword({
+      email,
+      password,
+      options: { captchaToken },
+    });
     if (error) throw error;
     const user = data.user;
     if (!user) throw new Error("Login did not return a user");
@@ -107,9 +113,13 @@ export const authApi: AuthService = {
     if (error) throw error;
   },
 
-  async resetPassword(email: string): Promise<void> {
+  async resetPassword(email: string, captchaToken?: string): Promise<void> {
     const { error } = await supabase.auth.resetPasswordForEmail(email, {
+      // Must be on the Supabase Auth "Redirect URLs" allowlist. That allowlist is
+      // a real origin control (unlike CORS on the REST API): it's what stops an
+      // attacker from having the recovery link deliver its token to their domain.
       redirectTo: `${window.location.origin}/login`,
+      captchaToken,
     });
     if (error) throw error;
   },

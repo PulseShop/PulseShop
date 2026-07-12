@@ -1,20 +1,26 @@
 import type {
+  Analytics,
   AuthUser,
   CartOrderDraft,
   Merchant,
   MerchantOrder,
   MyOrder,
+  OrderChannel,
   OrderDraft,
   OrderLine,
+  Paged,
   PaymentResult,
   PaymentStatus,
   PlacedOrderRef,
   Product,
+  ShopFacets,
 } from "@/types";
 import type {
   Credentials,
   MerchantUpdate,
+  PageQuery,
   ProductInput,
+  ProductQuery,
   Services,
   ShopperSignupInput,
   SignupInput,
@@ -35,6 +41,49 @@ const FAVORITES_KEY = "pulseshop-mock-server-favorites";
 const RATINGS_KEY = "pulseshop-mock-my-ratings";
 
 const delay = (ms = LATENCY) => new Promise((r) => setTimeout(r, ms));
+
+const DEFAULT_PRODUCT_PAGE = 12;
+const DEFAULT_LIST_PAGE = 20;
+
+/** Slice a full list the way the server's LIMIT/OFFSET would. */
+function paginate<T>(list: T[], page = 1, pageSize = DEFAULT_LIST_PAGE): Paged<T> {
+  const start = (Math.max(1, page) - 1) * pageSize;
+  return { items: structuredClone(list.slice(start, start + pageSize)), total: list.length };
+}
+
+/**
+ * The mock's stand-in for search_products() (migration 0022). Deliberately
+ * mirrors the server's filter/sort semantics — if the two drift, a bug will
+ * only show up against the real backend, which is the worst place to find it.
+ */
+function queryProducts(all: Product[], q: ProductQuery = {}): Paged<Product> {
+  let list = all;
+
+  const term = q.search?.trim().toLowerCase();
+  if (term) {
+    list = list.filter(
+      (p) =>
+        p.name.toLowerCase().includes(term) ||
+        p.sku.toLowerCase().includes(term) ||
+        p.category.toLowerCase().includes(term),
+    );
+  }
+  if (q.category && q.category !== "All") list = list.filter((p) => p.category === q.category);
+  if (q.status && q.status !== "all") {
+    list =
+      q.status === "in-stock"
+        ? list.filter((p) => p.status !== "out")
+        : list.filter((p) => p.status === q.status);
+  }
+  if (q.maxPrice != null) list = list.filter((p) => p.priceKes <= q.maxPrice!);
+
+  list = [...list];
+  if (q.sort === "price-asc") list.sort((a, b) => a.priceKes - b.priceKes);
+  else if (q.sort === "price-desc") list.sort((a, b) => b.priceKes - a.priceKes);
+  else list.sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime());
+
+  return paginate(list, q.page, q.pageSize ?? DEFAULT_PRODUCT_PAGE);
+}
 
 function loadMerchant(): Merchant {
   try {
@@ -297,9 +346,10 @@ export const mockServices: Services = {
       return { ...structuredClone(merchant), stats: merchantStats() };
     },
 
-    async listProducts(): Promise<Product[]> {
+    async listProducts(query?: ProductQuery): Promise<Paged<Product>> {
       await delay();
-      return structuredClone(products).map((p) => ({ ...p, shopSlug: merchant.handle }));
+      const page = queryProducts(products, query);
+      return { ...page, items: page.items.map((p) => ({ ...p, shopSlug: merchant.handle })) };
     },
 
     async getProduct(id: string): Promise<Product | null> {
@@ -346,9 +396,22 @@ export const mockServices: Services = {
       return { ...structuredClone(merchant), stats: merchantStats() };
     },
 
-    async listShopProducts(_merchantId: string): Promise<Product[]> {
+    async listShopProducts(_merchantId: string, query?: ProductQuery): Promise<Paged<Product>> {
       await delay();
-      return structuredClone(products).map((p) => ({ ...p, shopSlug: merchant.handle }));
+      const page = queryProducts(products, query);
+      return { ...page, items: page.items.map((p) => ({ ...p, shopSlug: merchant.handle })) };
+    },
+
+    async getFacets(_merchantId?: string): Promise<ShopFacets> {
+      await delay();
+      return {
+        categories: [...new Set(products.map((p) => p.category))].sort(),
+        priceCeiling: Math.max(0, ...products.map((p) => p.priceKes)),
+        total: products.length,
+        available: products.filter((p) => p.status === "available").length,
+        low: products.filter((p) => p.status === "low").length,
+        out: products.filter((p) => p.status === "out").length,
+      };
     },
   },
 
@@ -433,9 +496,9 @@ export const mockServices: Services = {
       return { reference, accessToken };
     },
 
-    async listOrders(): Promise<MerchantOrder[]> {
+    async listOrders(query?: PageQuery): Promise<Paged<MerchantOrder>> {
       await delay();
-      return structuredClone(ordersReceived);
+      return paginate(ordersReceived, query?.page, query?.pageSize);
     },
 
     async countPendingOrders(): Promise<number> {
@@ -467,11 +530,80 @@ export const mockServices: Services = {
     },
   },
 
+  analytics: {
+    // Mirrors merchant_analytics() (0020) over the mock's local orders.
+    async getAnalytics(tz: string, days = 7): Promise<Analytics> {
+      await delay();
+      const dayKey = (iso: string) =>
+        new Date(iso).toLocaleDateString("en-CA", { timeZone: tz });
+
+      const paid = ordersReceived.filter((o) => o.paymentStatus === "paid");
+      const revenue = paid.reduce((s, o) => s + o.totalKes, 0);
+
+      const byProduct = new Map<string, { units: number; revenue: number; image: string }>();
+      for (const o of ordersReceived) {
+        for (const it of o.items) {
+          const cur = byProduct.get(it.productName) ?? { units: 0, revenue: 0, image: it.image };
+          cur.units += it.qty;
+          cur.revenue += it.lineTotalKes;
+          if (!cur.image) cur.image = it.image;
+          byProduct.set(it.productName, cur);
+        }
+      }
+
+      const channels = { whatsapp: 0, instagram: 0, facebook: 0, direct: 0 } as Record<
+        OrderChannel,
+        number
+      >;
+      for (const o of ordersReceived) channels[o.channel] += 1;
+
+      const series: { date: string; total: number }[] = [];
+      for (let i = days - 1; i >= 0; i--) {
+        const d = new Date();
+        d.setDate(d.getDate() - i);
+        const key = d.toLocaleDateString("en-CA", { timeZone: tz });
+        series.push({
+          date: key,
+          total: paid
+            .filter((o) => dayKey(o.placedAt) === key)
+            .reduce((s, o) => s + o.totalKes, 0),
+        });
+      }
+
+      const lowStock = products.filter((p) => p.status !== "available");
+
+      return {
+        revenue,
+        aov: paid.length ? Math.round(revenue / paid.length) : 0,
+        orderCount: ordersReceived.length,
+        paidCount: paid.length,
+        pendingCount: ordersReceived.filter((o) => o.paymentStatus === "pending").length,
+        topProducts: [...byProduct.entries()]
+          .map(([name, v]) => ({ name, ...v }))
+          .sort((a, b) => b.units - a.units)
+          .slice(0, 5),
+        channels,
+        days: series,
+        lowStock: lowStock
+          .slice(0, 8)
+          .map((p) => ({ id: p.id, name: p.name, stockQty: p.stockQty, status: p.status })),
+        lowStockCount: lowStock.length,
+      };
+    },
+  },
+
   follows: {
     // Single demo shop in mock mode; follows persist per browser.
-    async listShops(): Promise<Merchant[]> {
+    async listShops(query?: PageQuery): Promise<Paged<Merchant>> {
       await delay();
-      return [{ ...structuredClone(merchant), stats: merchantStats() }];
+      const shop: Merchant = {
+        ...structuredClone(merchant),
+        stats: merchantStats(),
+        previews: structuredClone(products)
+          .slice(0, 3)
+          .map((p) => ({ id: p.id, name: p.name, image: productImageSrc(p.images) })),
+      };
+      return paginate([shop], query?.page, query?.pageSize);
     },
 
     async listFollowing(): Promise<string[]> {

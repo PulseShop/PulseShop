@@ -1,6 +1,6 @@
-import { useQuery } from "@tanstack/react-query";
+import { keepPreviousData, useInfiniteQuery, useQuery } from "@tanstack/react-query";
 import { AlertTriangle, ArrowLeft, Check, Heart, Package, Search, ShoppingBag, Star, Store } from "lucide-react";
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useState } from "react";
 import { Link, useParams, useSearchParams } from "react-router";
 import { useAuth } from "@/stores/auth";
 import { cartCount, useCart } from "@/stores/cart";
@@ -8,6 +8,7 @@ import { useShop } from "@/stores/shop";
 import { MobileShell } from "@/components/layout/MobileShell";
 import { Logo } from "@/components/common/Logo";
 import { ProductCard } from "@/components/product/ProductCard";
+import { QueryError } from "@/components/common/QueryError";
 import { FollowButton } from "@/components/shop/FollowButton";
 import { SocialLinks } from "@/components/shop/SocialLinks";
 import { ProductCardSkeleton, Skeleton } from "@/components/ui/Skeleton";
@@ -17,6 +18,8 @@ import { cn } from "@/lib/utils";
 import { services } from "@/services";
 
 type SortOrder = "newest" | "price-asc" | "price-desc";
+
+const PAGE_SIZE = 12;
 
 export function StorefrontPage() {
   // When a :shopSlug is in the URL we're on a public shop (pulseshop.space/<slug>);
@@ -55,42 +58,53 @@ export function StorefrontPage() {
   });
   const merchant = merchantQ.data;
 
-  const productsQ = useQuery({
-    queryKey: shopSlug ? ["shop-products", shopSlug] : ["products"],
-    queryFn: () =>
+  /**
+   * The grid is server-filtered, server-sorted and paged (search_products,
+   * migration 0022). It used to fetch the shop's entire catalogue and do all of
+   * this in the browser — which meant a 3,000-product shop shipped 3,000 rows
+   * and rendered 3,000 cards on first paint. Filtering has to move server-side
+   * along with the paging, or a filter would only ever search the loaded page.
+   */
+  const productQuery = {
+    search,
+    category,
+    status: availableOnly ? ("in-stock" as const) : ("all" as const),
+    maxPrice,
+    sort,
+    pageSize: PAGE_SIZE,
+  };
+
+  // Keyed on the slug, not merchant.id: on the merchant's own /shop preview the
+  // id arrives a tick after the first render, and keying on it would throw away
+  // the in-flight page and refetch the moment it landed.
+  const productsQ = useInfiniteQuery({
+    queryKey: ["shop-products", shopSlug ?? "self", productQuery],
+    queryFn: ({ pageParam }) =>
       shopSlug
-        ? services.products.listShopProducts(merchant!.id)
-        : services.products.listProducts(),
+        ? services.products.listShopProducts(merchant!.id, { ...productQuery, page: pageParam })
+        : services.products.listProducts({ ...productQuery, page: pageParam }),
+    initialPageParam: 1,
+    getNextPageParam: (last, all) => {
+      const loaded = all.reduce((n, p) => n + p.items.length, 0);
+      return loaded < last.total ? all.length + 1 : undefined;
+    },
+    enabled: shopSlug ? Boolean(merchant) : true,
+    placeholderData: keepPreviousData,
+  });
+
+  const filtered = productsQ.data?.pages.flatMap((p) => p.items) ?? [];
+  const totalMatches = productsQ.data?.pages[0]?.total ?? 0;
+
+  // Category pills and the price-slider ceiling are aggregates over the whole
+  // catalogue, so they can't be derived from a page of it.
+  const facetsQ = useQuery({
+    queryKey: ["shop-facets", shopSlug ?? "self"],
+    queryFn: () => services.products.getFacets(shopSlug ? merchant!.id : undefined),
     enabled: shopSlug ? Boolean(merchant) : true,
   });
 
-  const categories = useMemo(() => {
-    const cats = new Set((productsQ.data ?? []).map((p) => p.category));
-    return ["All", ...cats];
-  }, [productsQ.data]);
-
-  const priceCeiling = useMemo(
-    () => Math.max(0, ...(productsQ.data ?? []).map((p) => p.priceKes)),
-    [productsQ.data],
-  );
-
-  const filtered = useMemo(() => {
-    let list = productsQ.data ?? [];
-    if (category !== "All") list = list.filter((p) => p.category === category);
-    if (search.trim()) {
-      const q = search.trim().toLowerCase();
-      list = list.filter((p) => p.name.toLowerCase().includes(q));
-    }
-    if (availableOnly) list = list.filter((p) => p.status !== "out");
-    if (maxPrice != null) list = list.filter((p) => p.priceKes <= maxPrice);
-
-    list = [...list];
-    if (sort === "price-asc") list.sort((a, b) => a.priceKes - b.priceKes);
-    else if (sort === "price-desc") list.sort((a, b) => b.priceKes - a.priceKes);
-    else list.sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime());
-
-    return list;
-  }, [productsQ.data, category, search, availableOnly, maxPrice, sort]);
+  const categories = ["All", ...(facetsQ.data?.categories ?? [])];
+  const priceCeiling = facetsQ.data?.priceCeiling ?? 0;
 
   // Merchant fetch failed (DB down, offline) -> explicit retry instead of an
   // infinite skeleton — the `merchant ? … : <Skeleton>` branch below can't
@@ -371,7 +385,8 @@ export function StorefrontPage() {
         <section className="flex-1">
           {!productsQ.isLoading && !productsQ.isError && (
             <div className="mb-3 hidden items-center justify-between lg:flex">
-              <p className="text-sm text-muted">{filtered.length} products found</p>
+              {/* the full match count from the server, not just what's loaded */}
+              <p className="text-sm text-muted">{totalMatches} products found</p>
               <label className="flex items-center gap-2 text-sm text-muted">
                 Sort by
                 <select
@@ -394,30 +409,42 @@ export function StorefrontPage() {
               ))}
             </div>
           ) : productsQ.isError ? (
-            <div className="rounded-card bg-card p-8 text-center shadow-soft">
-              <p className="font-semibold text-ink">Couldn't load products</p>
-              <button
-                type="button"
-                onClick={() => productsQ.refetch()}
-                className="mt-3 rounded-btn bg-primary px-4 py-2 text-sm font-semibold text-white focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary focus-visible:ring-offset-2"
-              >
-                Try again
-              </button>
-            </div>
+            <QueryError
+              title="Couldn't load products"
+              onRetry={() => productsQ.refetch()}
+              retrying={productsQ.isFetching}
+            />
           ) : filtered.length === 0 ? (
             <div className="rounded-card bg-card p-8 text-center shadow-soft">
               <p className="font-semibold text-ink">No products found</p>
               <p className="mt-1 text-sm text-muted">Try a different category or search.</p>
             </div>
           ) : (
-            <div
-              key={`${category}-${search}-${sort}-${availableOnly}-${maxPrice}`}
-              className="grid grid-cols-2 gap-3 animate-grid-fade lg:grid-cols-3 xl:grid-cols-4"
-            >
-              {filtered.map((p) => (
-                <ProductCard key={p.id} product={p} />
-              ))}
-            </div>
+            <>
+              <div
+                key={`${category}-${search}-${sort}-${availableOnly}-${maxPrice}`}
+                className="grid grid-cols-2 gap-3 animate-grid-fade lg:grid-cols-3 xl:grid-cols-4"
+              >
+                {filtered.map((p) => (
+                  <ProductCard key={p.id} product={p} />
+                ))}
+              </div>
+
+              {productsQ.hasNextPage && (
+                <div className="mt-4 flex justify-center">
+                  <button
+                    type="button"
+                    onClick={() => productsQ.fetchNextPage()}
+                    disabled={productsQ.isFetchingNextPage}
+                    className="w-full rounded-btn border border-stone-200 bg-card px-6 py-3 text-sm font-bold text-ink shadow-soft disabled:opacity-60 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary focus-visible:ring-offset-2 lg:w-auto"
+                  >
+                    {productsQ.isFetchingNextPage
+                      ? "Loading…"
+                      : `Load more (${totalMatches - filtered.length} left)`}
+                  </button>
+                </div>
+              )}
+            </>
           )}
         </section>
       </div>

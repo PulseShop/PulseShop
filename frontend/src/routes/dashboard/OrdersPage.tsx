@@ -1,8 +1,14 @@
-import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
+import {
+  type InfiniteData,
+  useInfiniteQuery,
+  useMutation,
+  useQuery,
+  useQueryClient,
+} from "@tanstack/react-query";
 import { CheckCircle2, Clock, Loader2, Package, ShoppingCart } from "lucide-react";
-import { useMemo } from "react";
 import { DashboardShell } from "@/components/layout/DashboardShell";
 import { ProductImage } from "@/components/product/ProductImage";
+import { QueryError } from "@/components/common/QueryError";
 import { Button } from "@/components/ui/Button";
 import { WhatsAppIcon } from "@/components/ui/BrandIcons";
 import { Skeleton } from "@/components/ui/Skeleton";
@@ -10,8 +16,14 @@ import { formatKes } from "@/lib/currency";
 import { toWhatsAppDigits } from "@/lib/phone";
 import { cn } from "@/lib/utils";
 import { services } from "@/services";
-import type { MerchantOrder, OrderChannel, PaymentStatus } from "@/types";
+import type { MerchantOrder, OrderChannel, Paged, PaymentStatus } from "@/types";
 import { useToasts } from "@/stores/toast";
+
+const PAGE_SIZE = 20;
+
+/** The merchant's own timezone, so the shared analytics aggregate buckets by
+ * their calendar day (see AnalyticsPage). */
+const TZ = Intl.DateTimeFormat().resolvedOptions().timeZone || "UTC";
 
 const CHANNEL_LABEL: Record<OrderChannel, string> = {
   whatsapp: "WhatsApp",
@@ -41,26 +53,58 @@ export function OrdersDashboardPage() {
   const qc = useQueryClient();
   const push = useToasts((s) => s.push);
 
-  const ordersQ = useQuery({ queryKey: ["orders-received"], queryFn: services.orders.listOrders });
-  const orders = ordersQ.data ?? [];
+  /**
+   * Paged, newest first. This list grows for the life of the shop — it used to
+   * fetch every order ever received, with every line item nested, on each visit.
+   */
+  const ordersQ = useInfiniteQuery({
+    queryKey: ["orders-received"],
+    queryFn: ({ pageParam }) =>
+      services.orders.listOrders({ page: pageParam, pageSize: PAGE_SIZE }),
+    initialPageParam: 1,
+    getNextPageParam: (last, all) => {
+      const loaded = all.reduce((n, p) => n + p.items.length, 0);
+      return loaded < last.total ? all.length + 1 : undefined;
+    },
+  });
 
-  const stats = useMemo(
-    () => ({
-      total: orders.length,
-      paid: orders.filter((o) => o.paymentStatus === "paid").length,
-      pending: orders.filter((o) => o.paymentStatus === "pending").length,
-    }),
-    [orders],
-  );
+  const orders = ordersQ.data?.pages.flatMap((p) => p.items) ?? [];
+
+  /**
+   * The three stat cards count *all* orders, not the pages loaded so far, so
+   * they have to be a server-side aggregate. merchant_analytics already returns
+   * exactly these three numbers, and react-query shares the cached result with
+   * the analytics dashboard rather than issuing a second query for them.
+   */
+  const statsQ = useQuery({
+    queryKey: ["analytics", TZ],
+    queryFn: () => services.analytics.getAnalytics(TZ, 7),
+  });
+
+  const stats = {
+    total: statsQ.data?.orderCount ?? 0,
+    paid: statsQ.data?.paidCount ?? 0,
+    pending: statsQ.data?.pendingCount ?? 0,
+  };
 
   const statusMut = useMutation({
     mutationFn: ({ id, status }: { id: string; status: PaymentStatus }) =>
       services.orders.updateOrderStatus(id, status),
     onMutate: async ({ id, status }) => {
       await qc.cancelQueries({ queryKey: ["orders-received"] });
-      const prev = qc.getQueryData<MerchantOrder[]>(["orders-received"]);
-      qc.setQueryData<MerchantOrder[]>(["orders-received"], (old) =>
-        (old ?? []).map((o) => (o.id === id ? { ...o, paymentStatus: status } : o)),
+      const prev = qc.getQueryData<InfiniteData<Paged<MerchantOrder>>>(["orders-received"]);
+      qc.setQueryData<InfiniteData<Paged<MerchantOrder>>>(["orders-received"], (old) =>
+        old
+          ? {
+              ...old,
+              pages: old.pages.map((page) => ({
+                ...page,
+                items: page.items.map((o) =>
+                  o.id === id ? { ...o, paymentStatus: status } : o,
+                ),
+              })),
+            }
+          : old,
       );
       return { prev };
     },
@@ -74,6 +118,8 @@ export function OrdersDashboardPage() {
       // Keeps the DashboardShell sidebar's pending-count badge in sync — it
       // reads a lighter count query instead of this page's full order list.
       qc.invalidateQueries({ queryKey: ["orders-pending-count"] });
+      // The paid/pending stat cards are a server aggregate, so they move too.
+      qc.invalidateQueries({ queryKey: ["analytics"] });
     },
   });
 
@@ -99,12 +145,11 @@ export function OrdersDashboardPage() {
             ))}
           </div>
         ) : ordersQ.isError ? (
-          <div className="rounded-card bg-card p-8 text-center shadow-soft">
-            <p className="font-semibold text-ink">Couldn't load orders</p>
-            <Button className="mt-3" onClick={() => ordersQ.refetch()}>
-              Try again
-            </Button>
-          </div>
+          <QueryError
+            title="Couldn't load orders"
+            onRetry={() => ordersQ.refetch()}
+            retrying={ordersQ.isFetching}
+          />
         ) : orders.length === 0 ? (
           <div className="flex flex-col items-center gap-3 rounded-card bg-card p-12 text-center shadow-soft">
             <div className="flex size-14 items-center justify-center rounded-full bg-primary/10">
@@ -196,6 +241,18 @@ export function OrdersDashboardPage() {
                 </div>
               </article>
             ))}
+
+            {ordersQ.hasNextPage && (
+              <div className="flex justify-center pt-2">
+                <Button
+                  variant="outline"
+                  onClick={() => ordersQ.fetchNextPage()}
+                  disabled={ordersQ.isFetchingNextPage}
+                >
+                  {ordersQ.isFetchingNextPage ? "Loading…" : "Load more orders"}
+                </Button>
+              </div>
+            )}
           </div>
         )}
       </div>

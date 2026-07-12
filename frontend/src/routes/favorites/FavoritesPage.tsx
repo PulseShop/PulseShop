@@ -3,6 +3,7 @@ import { Heart } from "lucide-react";
 import { useState } from "react";
 import { Link } from "react-router";
 import { MobileShell } from "@/components/layout/MobileShell";
+import { QueryError } from "@/components/common/QueryError";
 import { DesktopQuickNav } from "@/components/layout/DesktopQuickNav";
 import { ProductCard } from "@/components/product/ProductCard";
 import { ProductCardSkeleton } from "@/components/ui/Skeleton";
@@ -54,6 +55,14 @@ export function FavoritesPage() {
               <ProductCardSkeleton key={i} />
             ))}
           </div>
+        ) : productsQ.isError ? (
+          // You have favorites, we just couldn't fetch them — don't render that
+          // as the "No favorites yet" empty state.
+          <QueryError
+            title="Couldn't load your favorites"
+            onRetry={() => productsQ.refetch()}
+            retrying={productsQ.isFetching}
+          />
         ) : items.length === 0 ? (
           <div className="flex min-h-[50dvh] flex-col items-center justify-center gap-4 text-center">
             <div className="flex size-20 items-center justify-center rounded-full bg-card shadow-soft">

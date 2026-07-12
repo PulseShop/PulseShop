@@ -1,16 +1,15 @@
 import { useQuery } from "@tanstack/react-query";
 import { AlertTriangle, DollarSign, Receipt, TrendingUp } from "lucide-react";
-import { useMemo } from "react";
 import { Link } from "react-router";
 import { DashboardShell } from "@/components/layout/DashboardShell";
 import { ProductImage } from "@/components/product/ProductImage";
+import { QueryError } from "@/components/common/QueryError";
 import { Skeleton } from "@/components/ui/Skeleton";
 import { formatKes } from "@/lib/currency";
 import { cn } from "@/lib/utils";
 import { services } from "@/services";
-import type { MerchantOrder, OrderChannel } from "@/types";
+import type { OrderChannel } from "@/types";
 
-// Import your new Recharts component!
 import { RevenueChart } from "./RevenueChart";
 
 const CHANNEL_LABEL: Record<OrderChannel, string> = {
@@ -20,65 +19,32 @@ const CHANNEL_LABEL: Record<OrderChannel, string> = {
   direct: "Direct",
 };
 
-// Local calendar date (YYYY-MM-DD), not UTC
-const dayKey = (iso: string) => new Date(iso).toLocaleDateString("en-CA");
+/** The merchant's own timezone — revenue is bucketed by *their* calendar day,
+ * so a 01:00 Nairobi sale doesn't get counted against the previous day. */
+const TZ = Intl.DateTimeFormat().resolvedOptions().timeZone || "UTC";
 
-function computeAnalytics(orders: MerchantOrder[]) {
-  const paid = orders.filter((o) => o.paymentStatus === "paid");
-  const revenue = paid.reduce((s, o) => s + o.totalKes, 0);
-  const aov = paid.length ? Math.round(revenue / paid.length) : 0;
+/** "2026-07-11" -> "Sat". The server returns calendar days; the weekday label
+ * is presentation, so it stays here. Parsed as local noon to dodge the
+ * off-by-one an ISO date string parsed as UTC midnight would cause. */
+const weekdayLabel = (isoDate: string) => {
+  const [y, m, d] = isoDate.split("-").map(Number);
+  return new Date(y, m - 1, d, 12).toLocaleDateString("en-KE", { weekday: "short" });
+};
 
-  const byProduct = new Map<string, { units: number; revenue: number; image: string }>();
-  for (const o of orders) {
-    for (const it of o.items) {
-      const cur = byProduct.get(it.productName) ?? { units: 0, revenue: 0, image: it.image };
-      cur.units += it.qty;
-      cur.revenue += it.lineTotalKes;
-      if (!cur.image) cur.image = it.image;
-      byProduct.set(it.productName, cur);
-    }
-  }
-  const topProducts = [...byProduct.entries()]
-    .map(([name, v]) => ({ name, ...v }))
-    .sort((a, b) => b.units - a.units)
-    .slice(0, 5);
-
-  const channels = { whatsapp: 0, instagram: 0, facebook: 0, direct: 0 } as Record<
-    OrderChannel,
-    number
-  >;
-  for (const o of orders) channels[o.channel] += 1;
-
-  const days: { label: string; total: number }[] = [];
-  for (let i = 6; i >= 0; i--) {
-    const d = new Date();
-    d.setDate(d.getDate() - i);
-    const key = d.toLocaleDateString("en-CA");
-    const total = paid.filter((o) => dayKey(o.placedAt) === key).reduce((s, o) => s + o.totalKes, 0);
-    days.push({ label: d.toLocaleDateString("en-KE", { weekday: "short" }), total });
-  }
-
-  return {
-    revenue,
-    aov,
-    orderCount: orders.length,
-    paidCount: paid.length,
-    pendingCount: orders.filter((o) => o.paymentStatus === "pending").length,
-    topProducts,
-    channels,
-    days,
-  };
-}
-
+/**
+ * Every number on this page comes from one server-side aggregate
+ * (merchant_analytics, migration 0020). It used to download every order the
+ * shop had ever received — with every line item — plus the entire product
+ * catalogue, and reduce all of it in the browser. That payload only ever grew.
+ */
 export function AnalyticsPage() {
-  const ordersQ = useQuery({ queryKey: ["orders-received"], queryFn: services.orders.listOrders });
-  const productsQ = useQuery({ queryKey: ["products"], queryFn: services.products.listProducts });
+  const analyticsQ = useQuery({
+    queryKey: ["analytics", TZ],
+    queryFn: () => services.analytics.getAnalytics(TZ, 7),
+  });
 
-  const a = useMemo(() => computeAnalytics(ordersQ.data ?? []), [ordersQ.data]);
-  const lowStock = (productsQ.data ?? []).filter((p) => p.status !== "available");
-  const totalChannelOrders = Math.max(1, a.orderCount);
-
-  const loading = ordersQ.isLoading || productsQ.isLoading;
+  const a = analyticsQ.data;
+  const totalChannelOrders = Math.max(1, a?.orderCount ?? 0);
 
   return (
     <DashboardShell>
@@ -88,7 +54,13 @@ export function AnalyticsPage() {
           <h1 className="text-2xl font-extrabold text-ink">Analytics</h1>
         </div>
 
-        {loading ? (
+        {analyticsQ.isError ? (
+          <QueryError
+            title="Couldn't load analytics"
+            onRetry={() => analyticsQ.refetch()}
+            retrying={analyticsQ.isFetching}
+          />
+        ) : analyticsQ.isLoading || !a ? (
           <div className="space-y-6">
             <Skeleton className="h-24 w-full rounded-card" />
             <Skeleton className="h-64 w-full rounded-card" />
@@ -100,7 +72,7 @@ export function AnalyticsPage() {
               <Kpi icon={DollarSign} label="Revenue (paid)" value={formatKes(a.revenue)} tone="text-success bg-success/10" />
               <Kpi icon={Receipt} label="Orders" value={String(a.orderCount)} tone="text-primary bg-primary/10" />
               <Kpi icon={TrendingUp} label="Avg order" value={formatKes(a.aov)} tone="text-primary bg-primary/10" />
-              <Kpi icon={AlertTriangle} label="Low / out of stock" value={String(lowStock.length)} tone="text-warning bg-warning/10" />
+              <Kpi icon={AlertTriangle} label="Low / out of stock" value={String(a.lowStockCount)} tone="text-warning bg-warning/10" />
             </div>
 
             <div className="grid grid-cols-1 gap-6 lg:grid-cols-2">
@@ -109,8 +81,8 @@ export function AnalyticsPage() {
                 <h2 className="text-lg font-extrabold text-ink">Revenue · last 7 days</h2>
                 {/* Recharts automatically fills the container width/height you give it */}
                 <div className="-ml-5 mt-4 h-80 w-full flex-1">
-                  <RevenueChart 
-                    data={a.days.map(d => ({ name: d.label, total: d.total }))} 
+                  <RevenueChart
+                    data={a.days.map((d) => ({ name: weekdayLabel(d.date), total: d.total }))}
                   />
                 </div>
               </section>
@@ -160,14 +132,14 @@ export function AnalyticsPage() {
               )}
             </section>
 
-            {/* low stock alert */}
-            {lowStock.length > 0 && (
+            {/* low stock alert — the server returns the worst 8 plus the full count */}
+            {a.lowStockCount > 0 && (
               <section className="rounded-card border border-warning/30 bg-warning/5 p-6">
                 <div className="flex items-center justify-between">
                   <div className="flex items-center gap-2">
                     <AlertTriangle className="size-5 text-warning" />
                     <h2 className="text-base font-extrabold text-ink">
-                      {lowStock.length} product{lowStock.length === 1 ? "" : "s"} need restocking
+                      {a.lowStockCount} product{a.lowStockCount === 1 ? "" : "s"} need restocking
                     </h2>
                   </div>
                   <Link to="/dashboard/inventory" className="text-sm font-bold text-primary">
@@ -175,7 +147,7 @@ export function AnalyticsPage() {
                   </Link>
                 </div>
                 <div className="mt-3 flex flex-wrap gap-2">
-                  {lowStock.slice(0, 8).map((p) => (
+                  {a.lowStock.map((p) => (
                     <span
                       key={p.id}
                       className={cn(
@@ -186,6 +158,11 @@ export function AnalyticsPage() {
                       {p.name} · {p.stockQty}
                     </span>
                   ))}
+                  {a.lowStockCount > a.lowStock.length && (
+                    <span className="rounded-full bg-stone-100 px-3 py-1 text-xs font-bold text-muted">
+                      +{a.lowStockCount - a.lowStock.length} more
+                    </span>
+                  )}
                 </div>
               </section>
             )}

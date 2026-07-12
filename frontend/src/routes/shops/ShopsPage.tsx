@@ -1,4 +1,4 @@
-import { useQueries, useQuery } from "@tanstack/react-query";
+import { useInfiniteQuery } from "@tanstack/react-query";
 import { Package, ShoppingCart, Store, Users } from "lucide-react";
 import { Link } from "react-router";
 import { MobileShell } from "@/components/layout/MobileShell";
@@ -9,25 +9,31 @@ import { ProductImage } from "@/components/product/ProductImage";
 import { Skeleton } from "@/components/ui/Skeleton";
 import { services } from "@/services";
 
+const PAGE_SIZE = 20;
+
 /**
- * Instagram-style shop discovery: every shop on the platform in a simple list,
- * with a Follow/Following button per row. Anyone can browse; following needs
- * a signed-in account.
+ * Instagram-style shop discovery, with a Follow/Following button per row.
+ * Anyone can browse; following needs a signed-in account.
+ *
+ * One request per page of shops, flat in the number of shops on the platform.
+ * This page used to cost 5N+1 requests: listShops() fetched every merchant row
+ * with no limit and then fired four stat queries per shop, and the page fired a
+ * *further* query per shop that pulled that shop's entire catalogue just to
+ * show three thumbnails. shop_directory() (0019) returns the stats and the
+ * previews inline, so both fan-outs are gone.
  */
 export function ShopsPage() {
-  const shopsQ = useQuery({ queryKey: ["shops"], queryFn: services.follows.listShops });
-  const shops = shopsQ.data ?? [];
-
-  // A few recent-product thumbnails per shop, so buyers see what's on offer
-  // before tapping in — skipped for shops with nothing listed yet.
-  const previewQueries = useQueries({
-    queries: shops.map((shop) => ({
-      queryKey: ["shop-products-preview", shop.id],
-      queryFn: () => services.products.listShopProducts(shop.id),
-      enabled: shop.stats.products > 0,
-      staleTime: 60_000,
-    })),
+  const shopsQ = useInfiniteQuery({
+    queryKey: ["shops"],
+    queryFn: ({ pageParam }) => services.follows.listShops({ page: pageParam, pageSize: PAGE_SIZE }),
+    initialPageParam: 1,
+    getNextPageParam: (last, all) => {
+      const loaded = all.reduce((n, p) => n + p.items.length, 0);
+      return loaded < last.total ? all.length + 1 : undefined;
+    },
   });
+
+  const shops = shopsQ.data?.pages.flatMap((p) => p.items) ?? [];
 
   return (
     <MobileShell wide>
@@ -67,7 +73,7 @@ export function ShopsPage() {
               Try again
             </button>
           </div>
-        ) : (shopsQ.data ?? []).length === 0 ? (
+        ) : shops.length === 0 ? (
           <div className="flex flex-col items-center gap-3 rounded-card bg-card p-8 text-center shadow-soft lg:col-span-full">
             <div className="flex size-14 items-center justify-center rounded-full bg-stone-100">
               <Store className="size-7 text-muted" />
@@ -76,9 +82,8 @@ export function ShopsPage() {
             <p className="text-sm text-muted">Be the first — create your shop on PulseShop.</p>
           </div>
         ) : (
-          shops.map((shop, i) => {
-            const previewQ = previewQueries[i];
-            const preview = (previewQ?.data ?? []).slice(0, 3);
+          shops.map((shop) => {
+            const preview = shop.previews ?? [];
             return (
             <div key={shop.id} className="rounded-card bg-card p-3 shadow-soft">
               <div className="flex items-center gap-3">
@@ -111,21 +116,17 @@ export function ShopsPage() {
                 <p className="mt-2.5 line-clamp-2 text-xs text-muted">{shop.bio}</p>
               )}
 
-              {shop.stats.products > 0 && (
+              {preview.length > 0 && (
                 <div className="mt-2.5 flex gap-2">
-                  {previewQ?.isLoading
-                    ? Array.from({ length: Math.min(shop.stats.products, 3) }).map((_, k) => (
-                        <Skeleton key={k} className="size-14 shrink-0 rounded-lg" />
-                      ))
-                    : preview.map((p) => (
-                        <Link key={p.id} to={`/product/${p.id}`} className="shrink-0">
-                          <ProductImage
-                            src={p.images[0]}
-                            alt={p.name}
-                            className="size-14 rounded-lg object-cover"
-                          />
-                        </Link>
-                      ))}
+                  {preview.map((p) => (
+                    <Link key={p.id} to={`/product/${p.id}`} className="shrink-0">
+                      <ProductImage
+                        src={p.image}
+                        alt={p.name}
+                        className="size-14 rounded-lg object-cover"
+                      />
+                    </Link>
+                  ))}
                 </div>
               )}
 
@@ -146,6 +147,19 @@ export function ShopsPage() {
             </div>
             );
           })
+        )}
+
+        {shopsQ.hasNextPage && (
+          <div className="pt-2 lg:col-span-full lg:flex lg:justify-center">
+            <button
+              type="button"
+              onClick={() => shopsQ.fetchNextPage()}
+              disabled={shopsQ.isFetchingNextPage}
+              className="w-full rounded-btn border border-stone-200 bg-card px-4 py-3 text-sm font-bold text-ink shadow-soft disabled:opacity-60 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary focus-visible:ring-offset-2 lg:w-auto lg:px-8"
+            >
+              {shopsQ.isFetchingNextPage ? "Loading…" : "Load more shops"}
+            </button>
+          </div>
         )}
       </div>
     </MobileShell>

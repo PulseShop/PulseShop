@@ -19,6 +19,13 @@ export interface Product {
   shopSlug?: string;
 }
 
+/** A product thumbnail carried inline on a shop-directory row. */
+export interface ShopPreview {
+  id: string;
+  name: string;
+  image: string;
+}
+
 export interface Merchant {
   id: string;
   name: string;
@@ -30,6 +37,47 @@ export interface Merchant {
   isOnline: boolean;
   stats: { products: number; orders: number; followers: number; rating: number };
   contacts: { whatsapp: string; instagram: string; facebook: string };
+  /**
+   * Up to 3 recent products, present only on rows from the shop directory. The
+   * discover list used to fetch each shop's ENTIRE catalogue just to render
+   * these three thumbnails; the directory RPC now embeds them.
+   */
+  previews?: ShopPreview[];
+}
+
+/**
+ * One page of a server-paginated list. `total` is the size of the full result
+ * set (after filtering), not of `items` — it's what drives "page 3 of 12" and
+ * the load-more cutoff.
+ */
+export interface Paged<T> {
+  items: T[];
+  total: number;
+}
+
+/** The filter aggregates a product list needs but can't derive from one page. */
+export interface ShopFacets {
+  categories: string[];
+  priceCeiling: number;
+  total: number;
+  available: number;
+  low: number;
+  out: number;
+}
+
+/** The merchant analytics dashboard, computed server-side by merchant_analytics(). */
+export interface Analytics {
+  revenue: number;
+  aov: number;
+  orderCount: number;
+  paidCount: number;
+  pendingCount: number;
+  topProducts: { name: string; units: number; revenue: number; image: string }[];
+  channels: Record<OrderChannel, number>;
+  /** `date` is an ISO calendar day in the caller's timezone. */
+  days: { date: string; total: number }[];
+  lowStock: { id: string; name: string; stockQty: number; status: StockStatus }[];
+  lowStockCount: number;
 }
 
 export type OrderChannel = "whatsapp" | "instagram" | "facebook" | "direct";

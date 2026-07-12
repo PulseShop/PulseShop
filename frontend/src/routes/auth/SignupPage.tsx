@@ -4,6 +4,8 @@ import { useEffect, useState } from "react";
 import { useForm } from "react-hook-form";
 import { Link, useNavigate } from "react-router";
 import { z } from "zod";
+import { Captcha } from "@/components/auth/Captcha";
+import { useCaptcha } from "@/hooks/useCaptcha";
 import { Button } from "@/components/ui/Button";
 import { FacebookIcon, InstagramIcon, WhatsAppIcon } from "@/components/ui/BrandIcons";
 import { Input } from "@/components/ui/Input";
@@ -44,6 +46,8 @@ export function SignupPage() {
     defaultValues: { shopName: "", slug: "", email: "", password: "", city: "", whatsapp: "" },
   });
 
+  const captcha = useCaptcha();
+
   const shopName = watch("shopName");
   const slug = watch("slug");
 
@@ -54,18 +58,21 @@ export function SignupPage() {
 
   const onSubmit = handleSubmit(async (data) => {
     try {
-      const user = await services.auth.signup({
-        shopName: data.shopName,
-        shopSlug: data.slug,
-        email: data.email,
-        password: data.password,
-        city: data.city,
-        socials: {
-          whatsapp: data.whatsapp,
-          instagram: data.instagram ?? "",
-          facebook: data.facebook ?? "",
+      const user = await services.auth.signup(
+        {
+          shopName: data.shopName,
+          shopSlug: data.slug,
+          email: data.email,
+          password: data.password,
+          city: data.city,
+          socials: {
+            whatsapp: data.whatsapp,
+            instagram: data.instagram ?? "",
+            facebook: data.facebook ?? "",
+          },
         },
-      });
+        captcha.token,
+      );
       setSession(user);
       push(`${user.shopName} is live 🎉`, "success");
       navigate("/dashboard/inventory");
@@ -76,6 +83,8 @@ export function SignupPage() {
         return;
       }
       push(authErrorMessage(err, "signup"), "danger");
+      // The captcha token is single-use — reissue for the retry.
+      captcha.reset();
     }
   });
 
@@ -177,7 +186,17 @@ export function SignupPage() {
           </div>
         </div>
 
-        <Button type="submit" size="lg" className="w-full rounded-full" disabled={isSubmitting}>
+        <Captcha
+          key={captcha.nonce}
+          onToken={captcha.setToken}
+          onExpire={() => captcha.setToken(undefined)}
+        />
+        <Button
+          type="submit"
+          size="lg"
+          className="w-full rounded-full"
+          disabled={isSubmitting || !captcha.ready}
+        >
           {isSubmitting ? <Loader2 className="size-5 animate-spin" /> : <ArrowRight className="size-5" />}
           Create shop
         </Button>

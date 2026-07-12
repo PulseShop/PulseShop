@@ -5,13 +5,16 @@ import type {
   OrderChannel,
   OrderDraft,
   OrderLine,
+  Paged,
   PaymentMethod,
   PaymentStatus,
   PlacedOrderRef,
 } from "@/types";
-import type { OrderService } from "../types";
+import type { OrderService, PageQuery } from "../types";
 import { productImageSrc } from "@/lib/productImage";
 import { requireUserId, supabase } from "./client";
+
+const ORDERS_PAGE_SIZE = 20;
 
 interface OrderItemRow {
   product_name: string;
@@ -155,15 +158,29 @@ export const ordersApi: OrderService = {
     return placeOrder(draft.customer, draft.channel, draft.payment, draft.items);
   },
 
-  async listOrders(): Promise<MerchantOrder[]> {
+  /**
+   * One page of the merchant's received orders. This list grows forever — it
+   * used to fetch every order the shop had ever taken, with every line item
+   * nested, on each visit to the dashboard.
+   */
+  async listOrders(query?: PageQuery): Promise<Paged<MerchantOrder>> {
     const uid = await requireUserId();
-    const { data, error } = await supabase
+    const pageSize = query?.pageSize ?? ORDERS_PAGE_SIZE;
+    const page = Math.max(1, query?.page ?? 1);
+    const from = (page - 1) * pageSize;
+
+    const { data, error, count } = await supabase
       .from("orders")
-      .select("*, order_items(*)")
+      .select("*, order_items(*)", { count: "exact" })
       .eq("merchant_id", uid)
-      .order("placed_at", { ascending: false });
+      .order("placed_at", { ascending: false })
+      .range(from, from + pageSize - 1);
     if (error) throw error;
-    return (data as OrderRow[]).map(toMerchantOrder);
+
+    return {
+      items: (data as OrderRow[]).map(toMerchantOrder),
+      total: count ?? 0,
+    };
   },
 
   async countPendingOrders(): Promise<number> {

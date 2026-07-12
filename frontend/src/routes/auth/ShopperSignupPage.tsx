@@ -3,8 +3,10 @@ import { ArrowRight, Loader2 } from "lucide-react";
 import { useForm } from "react-hook-form";
 import { Link, useNavigate } from "react-router";
 import { z } from "zod";
+import { Captcha } from "@/components/auth/Captcha";
 import { Button } from "@/components/ui/Button";
 import { Input } from "@/components/ui/Input";
+import { useCaptcha } from "@/hooks/useCaptcha";
 import { authErrorMessage } from "@/lib/authErrors";
 import { services } from "@/services";
 import { EmailConfirmationRequiredError } from "@/services/types";
@@ -32,10 +34,11 @@ export function ShopperSignupPage() {
     handleSubmit,
     formState: { errors, isSubmitting },
   } = useForm<FormValues>({ resolver: zodResolver(schema) });
+  const captcha = useCaptcha();
 
   const onSubmit = handleSubmit(async (data) => {
     try {
-      const user = await services.auth.signupShopper(data);
+      const user = await services.auth.signupShopper(data, captcha.token);
       setSession(user);
       push("Welcome to PulseShop 🎉", "success");
       navigate("/shops");
@@ -46,6 +49,8 @@ export function ShopperSignupPage() {
         return;
       }
       push(authErrorMessage(err, "signup"), "danger");
+      // The captcha token is single-use — reissue for the retry.
+      captcha.reset();
     }
   });
 
@@ -86,7 +91,17 @@ export function ShopperSignupPage() {
           error={errors.password?.message}
           {...register("password")}
         />
-        <Button type="submit" size="lg" className="w-full rounded-full" disabled={isSubmitting}>
+        <Captcha
+          key={captcha.nonce}
+          onToken={captcha.setToken}
+          onExpire={() => captcha.setToken(undefined)}
+        />
+        <Button
+          type="submit"
+          size="lg"
+          className="w-full rounded-full"
+          disabled={isSubmitting || !captcha.ready}
+        >
           {isSubmitting ? <Loader2 className="size-5 animate-spin" /> : <ArrowRight className="size-5" />}
           Create account
         </Button>

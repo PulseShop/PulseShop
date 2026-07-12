@@ -4,8 +4,10 @@ import { useState } from "react";
 import { useForm } from "react-hook-form";
 import { Link, useNavigate } from "react-router";
 import { z } from "zod";
+import { Captcha } from "@/components/auth/Captcha";
 import { Button } from "@/components/ui/Button";
 import { Input } from "@/components/ui/Input";
+import { useCaptcha } from "@/hooks/useCaptcha";
 import { authErrorMessage } from "@/lib/authErrors";
 import { services } from "@/services";
 import { useAuth } from "@/stores/auth";
@@ -35,6 +37,7 @@ export function LoginPage() {
   // Which button was pressed — drives the per-button spinner. The account's
   // real type still governs where we land; a mismatch just gets a short note.
   const [pendingRole, setPendingRole] = useState<"shopper" | "merchant" | null>(null);
+  const captcha = useCaptcha();
 
   const onForgotPassword = async () => {
     const email = getValues("email")?.trim();
@@ -44,11 +47,13 @@ export function LoginPage() {
     }
     setResetting(true);
     try {
-      await services.auth.resetPassword(email);
+      await services.auth.resetPassword(email, captcha.token);
       push("Check your inbox for a password reset link", "success");
     } catch {
       push("Couldn't send the reset email — try again", "danger");
     } finally {
+      // The token is spent either way — a retry needs a fresh challenge.
+      captcha.reset();
       setResetting(false);
     }
   };
@@ -61,7 +66,7 @@ export function LoginPage() {
     handleSubmit(async (data) => {
       setPendingRole(intended);
       try {
-        const user = await services.auth.login(data);
+        const user = await services.auth.login(data, captcha.token);
         setSession(user);
         if (user.accountType === "merchant") {
           push(
@@ -82,6 +87,9 @@ export function LoginPage() {
         }
       } catch (err) {
         push(authErrorMessage(err, "login"), "danger");
+        // Spent token — the retry needs a fresh challenge, or it would fail on
+        // the captcha instead of on the password the user actually got wrong.
+        captcha.reset();
       } finally {
         setPendingRole(null);
       }
@@ -136,13 +144,19 @@ export function LoginPage() {
             </button>
           </div>
         </div>
+        <Captcha
+          key={captcha.nonce}
+          onToken={captcha.setToken}
+          onExpire={() => captcha.setToken(undefined)}
+        />
+
         <div className="grid grid-cols-2 gap-3">
           <Button
             type="submit"
             variant="outline"
             size="lg"
             className="rounded-full px-2 text-sm"
-            disabled={isSubmitting}
+            disabled={isSubmitting || !captcha.ready}
           >
             {pendingRole === "shopper" ? (
               <Loader2 className="size-5 animate-spin" />
@@ -156,7 +170,7 @@ export function LoginPage() {
             size="lg"
             className="rounded-full px-2 text-sm"
             onClick={submitAs("merchant")}
-            disabled={isSubmitting}
+            disabled={isSubmitting || !captcha.ready}
           >
             {pendingRole === "merchant" ? (
               <Loader2 className="size-5 animate-spin" />
