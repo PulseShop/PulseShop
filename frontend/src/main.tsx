@@ -16,6 +16,7 @@ import { isSupabaseConfigured, supabase } from "@/services/api/client";
 import { useAuth } from "@/stores/auth";
 import { useToasts } from "@/stores/toast";
 import { LoginPage } from "@/routes/auth/LoginPage";
+import { ResetPasswordPage } from "@/routes/auth/ResetPasswordPage";
 import { ShopperSignupPage } from "@/routes/auth/ShopperSignupPage";
 import { SignupPage } from "@/routes/auth/SignupPage";
 import { ShopsPage } from "@/routes/shops/ShopsPage";
@@ -81,6 +82,9 @@ createRoot(document.getElementById("root")!).render(
             <Route path="/login" element={<LoginPage />} />
             <Route path="/signup" element={<SignupPage />} />
             <Route path="/signup/shopper" element={<ShopperSignupPage />} />
+            {/* where the emailed recovery link lands — must be on Supabase's
+                Auth "Redirect URLs" allowlist */}
+            <Route path="/reset-password" element={<ResetPasswordPage />} />
             <Route path="/shops" element={<ShopsPage />} />
             <Route path="/product/:id" element={<ProductDetailPage />} />
             <Route path="/favorites" element={<FavoritesPage />} />

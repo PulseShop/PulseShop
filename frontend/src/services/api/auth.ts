@@ -115,12 +115,24 @@ export const authApi: AuthService = {
 
   async resetPassword(email: string, captchaToken?: string): Promise<void> {
     const { error } = await supabase.auth.resetPasswordForEmail(email, {
+      // Points at the page that can actually SET a password. This used to send
+      // people to /login, which has no such field — the emailed link established
+      // a recovery session and then dropped the user on a form with nowhere to
+      // type a new password, so the whole flow dead-ended.
+      //
       // Must be on the Supabase Auth "Redirect URLs" allowlist. That allowlist is
       // a real origin control (unlike CORS on the REST API): it's what stops an
       // attacker from having the recovery link deliver its token to their domain.
-      redirectTo: `${window.location.origin}/login`,
+      redirectTo: `${window.location.origin}/reset-password`,
       captchaToken,
     });
+    if (error) throw error;
+  },
+
+  async updatePassword(password: string): Promise<void> {
+    // Authorised by whatever session is current — which, arriving from a
+    // recovery link, is the short-lived one Supabase minted for it.
+    const { error } = await supabase.auth.updateUser({ password });
     if (error) throw error;
   },
 };

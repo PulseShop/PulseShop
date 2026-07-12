@@ -17,7 +17,7 @@
  * user needs to know to log in instead); tighten it later if enumeration
  * resistance is required there too.
  */
-export type AuthContext = "login" | "signup";
+export type AuthContext = "login" | "signup" | "reset";
 
 function authProps(err: unknown): { code?: string; status?: number; message: string } {
   const e = err as { code?: unknown; status?: unknown; message?: unknown };
@@ -59,6 +59,30 @@ export function authErrorMessage(err: unknown, context: AuthContext): string {
       return "Incorrect email or password.";
     }
     return "Couldn't sign you in. Please try again.";
+  }
+
+  // Setting a new password from a recovery link.
+  if (context === "reset") {
+    if (code === "same_password" || /should be different from the old password/i.test(message)) {
+      return "That's already your current password — choose a different one.";
+    }
+    if (
+      code === "weak_password" ||
+      (/password/i.test(message) && /weak|breach|pwned|compromis|leaked/i.test(message))
+    ) {
+      return message || "That password is too weak. Please choose a stronger one.";
+    }
+    // The recovery session expired mid-form (the link has a short TTL), so the
+    // update lands unauthenticated. Say so plainly — retrying the form can't fix
+    // it; they need a fresh link.
+    if (
+      status === 401 ||
+      code === "session_not_found" ||
+      /session|jwt|token/i.test(message)
+    ) {
+      return "This reset link has expired. Request a new one from the login page.";
+    }
+    return "Couldn't update your password. Please try again.";
   }
 
   // signup

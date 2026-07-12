@@ -322,6 +322,10 @@ export const mockServices: Services = {
     async resetPassword(_email: string): Promise<void> {
       await delay();
     },
+
+    async updatePassword(_password: string): Promise<void> {
+      await delay();
+    },
   },
 
   products: {

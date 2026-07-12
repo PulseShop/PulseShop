@@ -72,6 +72,12 @@ export interface AuthService {
   /** Sends a password-reset email. Captcha-gated too — an un-gated reset
    * endpoint is a free way to burn a project's email quota. */
   resetPassword(email: string, captchaToken?: string): Promise<void>;
+  /**
+   * Sets a new password for the current session. The recovery link from
+   * resetPassword() establishes that session, so this is what actually completes
+   * the forgot-password flow — without it the emailed link leads nowhere.
+   */
+  updatePassword(password: string): Promise<void>;
 }
 
 /** Editable merchant/shop profile fields. All optional — patch semantics. */
