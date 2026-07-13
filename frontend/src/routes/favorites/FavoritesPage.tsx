@@ -38,7 +38,7 @@ export function FavoritesPage() {
 
   return (
     <MobileShell homeTo={home} wide>
-      <header className="flex items-center justify-between px-4 pt-5 lg:px-6 lg:pt-6">
+      <header className="pt-safe flex items-center justify-between px-4 lg:px-6">
         <div>
           <h1 className="text-xl font-extrabold text-ink lg:text-2xl">Favorites</h1>
           <p className="text-sm text-muted">

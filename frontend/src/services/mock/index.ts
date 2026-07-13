@@ -23,6 +23,7 @@ import type {
   ProductQuery,
   Services,
   ShopQuery,
+  ShopperProfile,
   ShopperSignupInput,
   SignupInput,
 } from "../types";
@@ -40,6 +41,7 @@ const MY_ORDERS_KEY = "pulseshop-mock-my-orders";
 const FOLLOWS_KEY = "pulseshop-mock-follows";
 const FAVORITES_KEY = "pulseshop-mock-server-favorites";
 const RATINGS_KEY = "pulseshop-mock-my-ratings";
+const PROFILE_KEY = "pulseshop-mock-profile";
 
 const delay = (ms = LATENCY) => new Promise((r) => setTimeout(r, ms));
 
@@ -329,6 +331,26 @@ export const mockServices: Services = {
 
     async updatePassword(_password: string): Promise<void> {
       await delay();
+    },
+
+    async getProfile(): Promise<ShopperProfile> {
+      await delay();
+      try {
+        const raw = localStorage.getItem(PROFILE_KEY);
+        if (raw) return { name: "", phone: "", address: "", ...JSON.parse(raw) };
+      } catch {
+        /* fall through to empty */
+      }
+      return { name: "", phone: "", address: "" };
+    },
+
+    async updateProfile(profile: ShopperProfile): Promise<void> {
+      await delay();
+      try {
+        localStorage.setItem(PROFILE_KEY, JSON.stringify(profile));
+      } catch {
+        /* storage full/unavailable — nothing to do */
+      }
     },
   },
 

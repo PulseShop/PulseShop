@@ -54,6 +54,21 @@ export interface ShopperSignupInput {
 }
 
 /**
+ * The buyer's personal profile — the details checkout asks for every time,
+ * kept on the account so they only get typed once. Lives in auth user
+ * metadata, NOT the merchants table: shoppers have no row there, and this is
+ * private to the account (metadata is only readable with the user's own JWT),
+ * unlike a merchant profile which is deliberately public.
+ */
+export interface ShopperProfile {
+  name: string;
+  phone: string;
+  /** Free-text delivery address — landmark directions are the norm here, so
+   * no structured fields. */
+  address: string;
+}
+
+/**
  * Auth for both account types. The mock accepts anything and fabricates a
  * session; the real adapter (services/api/auth) wires these to Supabase Auth.
  *
@@ -78,6 +93,10 @@ export interface AuthService {
    * the forgot-password flow — without it the emailed link leads nowhere.
    */
   updatePassword(password: string): Promise<void>;
+  /** The signed-in user's personal profile (name/phone/address). */
+  getProfile(): Promise<ShopperProfile>;
+  /** Replace the signed-in user's personal profile. */
+  updateProfile(profile: ShopperProfile): Promise<void>;
 }
 
 /** Editable merchant/shop profile fields. All optional — patch semantics. */

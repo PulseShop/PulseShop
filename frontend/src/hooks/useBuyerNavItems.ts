@@ -1,4 +1,4 @@
-import { Heart, Home, Package, ShoppingBag, Store } from "lucide-react";
+import { Heart, Home, ShoppingBag, Store, UserRound } from "lucide-react";
 import { useFavorites } from "@/stores/favorites";
 import { cartCount, useCart } from "@/stores/cart";
 import { useShopHome } from "@/stores/shop";
@@ -23,7 +23,9 @@ export function useBuyerNavItems(homeTo?: string) {
     { to: "/shops", label: "Shops", icon: Store },
     { to: "/favorites", label: "Favorites", icon: Heart },
     { to: "/cart", label: "Cart", icon: ShoppingBag },
-    { to: "/orders", label: "Orders", icon: Package },
+    // Orders lives inside Account now — the tab a buyer reaches for to sign
+    // out, edit delivery details, or find their history.
+    { to: "/account", label: "Account", icon: UserRound },
   ];
 
   const badgeFor = (label: string) =>

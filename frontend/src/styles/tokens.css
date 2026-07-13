@@ -71,12 +71,29 @@
 }
 
 /* Sticky header glass — frosted with only a bottom hairline so it reads as a
-   ledge over the content, not a floating box. */
+   ledge over the content, not a floating box.
+
+   The transparent border-top is the notch/status-bar spacer for the installed
+   PWA: index.html sets viewport-fit=cover and the manifest is standalone, so
+   these headers stick at the very top of the screen — under the clock — on a
+   notched phone. A border (not padding) because every page sizes the header
+   with its own py-* utility, which would override a padding-top set here; the
+   glass background paints through the border area, so the status-bar strip
+   frosts over instead of showing raw page content. In a browser tab the env()
+   is 0 and this line is a no-op. */
 .glass-header {
   background: var(--glass-bg-strong);
   backdrop-filter: blur(var(--glass-blur)) saturate(180%);
   -webkit-backdrop-filter: blur(var(--glass-blur)) saturate(180%);
   border-bottom: 1px solid rgba(255, 255, 255, 0.6);
+  border-top: env(safe-area-inset-top, 0px) solid transparent;
+}
+
+/* Top padding for pages whose header is in normal flow (Favorites, Orders,
+   Account) — same job as the header spacer above, for content that would
+   otherwise start under the status bar in the installed app. */
+.pt-safe {
+  padding-top: calc(env(safe-area-inset-top, 0px) + 1.25rem);
 }
 
 /* Floating tab bar — the signature element. Deeper float shadow + a specular

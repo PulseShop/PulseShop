@@ -30,6 +30,7 @@ import { DashboardOverviewPage } from "@/routes/dashboard/DashboardOverviewPage"
 import { InventoryPage } from "@/routes/dashboard/InventoryPage";
 import { OrdersDashboardPage } from "@/routes/dashboard/OrdersPage";
 import { SettingsPage } from "@/routes/dashboard/SettingsPage";
+import { AccountPage } from "@/routes/account/AccountPage";
 import { FavoritesPage } from "@/routes/favorites/FavoritesPage";
 import { OrderPage } from "@/routes/order/OrderPage";
 import { OrdersPage } from "@/routes/order/OrdersPage";
@@ -92,6 +93,7 @@ createRoot(document.getElementById("root")!).render(
             <Route path="/checkout" element={<CheckoutPage />} />
             <Route path="/order/:id" element={<OrderPage />} />
             <Route path="/orders" element={<OrdersPage />} />
+            <Route path="/account" element={<AccountPage />} />
             <Route path="/dashboard" element={<RequireMerchant><DashboardOverviewPage /></RequireMerchant>} />
             <Route path="/dashboard/inventory" element={<RequireMerchant><InventoryPage /></RequireMerchant>} />
             <Route path="/dashboard/orders" element={<RequireMerchant><OrdersDashboardPage /></RequireMerchant>} />

@@ -6,6 +6,7 @@ import {
   type AuthService,
   type Credentials,
   type ShopDetailsInput,
+  type ShopperProfile,
   type ShopperSignupInput,
   type SignupInput,
 } from "../types";
@@ -133,6 +134,28 @@ export const authApi: AuthService = {
     // Authorised by whatever session is current — which, arriving from a
     // recovery link, is the short-lived one Supabase minted for it.
     const { error } = await supabase.auth.updateUser({ password });
+    if (error) throw error;
+  },
+
+  async getProfile(): Promise<ShopperProfile> {
+    const { data, error } = await supabase.auth.getUser();
+    if (error) throw error;
+    const meta = (data.user?.user_metadata ?? {}) as Record<string, unknown>;
+    return {
+      // Shopper signup stores `name`; Google OAuth users arrive with
+      // `full_name` from their Google profile instead.
+      name: String(meta.name ?? meta.full_name ?? ""),
+      phone: String(meta.phone ?? ""),
+      address: String(meta.address ?? ""),
+    };
+  },
+
+  async updateProfile(profile: ShopperProfile): Promise<void> {
+    // updateUser merges metadata shallowly, so account_type/shop keys set at
+    // signup survive this write untouched.
+    const { error } = await supabase.auth.updateUser({
+      data: { name: profile.name, phone: profile.phone, address: profile.address },
+    });
     if (error) throw error;
   },
 };
