@@ -6,7 +6,7 @@ export function Toaster() {
   const dismiss = useToasts((s) => s.dismiss);
 
   return (
-    <div className="fixed-stable pointer-events-none fixed bottom-24 left-1/2 z-[60] flex w-full max-w-[380px] -translate-x-1/2 flex-col gap-2 px-4">
+    <div className="above-bar-2 fixed-stable pointer-events-none fixed bottom-24 left-1/2 z-[60] flex w-full max-w-[380px] -translate-x-1/2 flex-col gap-2 px-4">
       {toasts.map((t) => (
         <button
           key={t.id}

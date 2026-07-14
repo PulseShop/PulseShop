@@ -2,13 +2,22 @@ import { NavLink } from "react-router";
 import { cn } from "@/lib/utils";
 import { useBuyerNavItems } from "@/hooks/useBuyerNavItems";
 
-/** Floating mobile tab bar — desktop pages replace it with header icons instead. */
+/**
+ * Mobile tab bar, anchored edge-to-edge at the bottom of the screen. Desktop
+ * pages replace it with header icons instead.
+ *
+ * It used to be a floating pill inset from the edges. Now it's a ledge the
+ * content scrolls beneath and stays visible through — the blur is doing real
+ * work, so the bar has to be flush and full-bleed for anything to pass under it.
+ */
 export function BottomNav({ homeTo }: { homeTo?: string }) {
   const { home, items, badgeFor } = useBuyerNavItems(homeTo);
 
   return (
-    <nav className="fixed-stable fixed bottom-[max(1rem,env(safe-area-inset-bottom))] left-1/2 z-40 w-[calc(100%-2rem)] max-w-[398px] -translate-x-1/2 lg:hidden">
-      <div className="glass-nav flex rounded-full p-1.5">
+    <nav className="glass-bar fixed-stable fixed inset-x-0 bottom-0 z-40 lg:hidden">
+      {/* The bar spans the screen; the tabs stay in the phone-width column, so
+          they don't sprawl on a wide phone or a small tablet. */}
+      <div className="mx-auto flex h-[var(--bottom-bar-h)] max-w-[430px] items-center px-2">
         {items.map(({ to, label, icon: Icon }) => {
           const badge = badgeFor(label);
           return (

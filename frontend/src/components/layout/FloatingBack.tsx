@@ -32,7 +32,7 @@ export function FloatingBack({ homeTo }: { homeTo?: string }) {
       type="button"
       aria-label="Go back"
       onClick={() => (canGoBack ? navigate(-1) : navigate(home))}
-      className="glass fixed-stable fixed bottom-[calc(max(1rem,env(safe-area-inset-bottom))+5.25rem)] left-4 z-40 flex size-11 items-center justify-center rounded-full text-ink transition-transform active:scale-90 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary lg:hidden"
+      className="glass above-bar fixed-stable fixed left-4 z-40 flex size-11 items-center justify-center rounded-full text-ink transition-transform active:scale-90 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary lg:hidden"
     >
       <ArrowLeft className="size-5" />
     </button>

@@ -96,23 +96,62 @@
   padding-top: calc(env(safe-area-inset-top, 0px) + 1.25rem);
 }
 
-/* Floating tab bar — the signature element. Deeper float shadow + a specular
-   sheen across the top edge so it reads as a solid pane of liquid glass. */
-.glass-nav {
-  position: relative;
+/* ---------------------------------------------------------------------------
+   The bottom furniture: one bar anchored to the bottom edge, and the things
+   that float above it.
+
+   These four rules share `--bottom-bar-h` on purpose. The bar's height decides
+   where the back button sits, where a toast or the install banner sits, and how
+   deep the content floor has to be — so it is declared once and everything else
+   is derived from it. Left as four independent magic numbers, changing the bar's
+   height silently parks the back button on top of it.
+   --------------------------------------------------------------------------- */
+:root {
+  /* The bar's content row. The safe-area inset is added on top of this, not
+     included in it — that's the home-bar strip on a notched phone. */
+  --bottom-bar-h: 4.75rem;
+  --safe-b: env(safe-area-inset-bottom, 0px);
+}
+
+/* Edge-to-edge tab bar, flush with the bottom of the screen. Content scrolls
+   UNDER it and stays visible through the blur — that's the whole point of the
+   glass, and it's why the bar is translucent rather than a solid slab. Only a
+   top hairline + an upward shadow, so it reads as a ledge the content passes
+   beneath rather than a floating card. */
+.glass-bar {
+  /* Deliberately sets no `position`: this rule is declared after Tailwind's
+     utilities, so a `position: relative` here (inherited from the old floating
+     pill, which needed it for a ::before sheen) silently outranks the `fixed`
+     class on the element and drops the bar back into the document flow. */
   background: var(--glass-bg);
   backdrop-filter: blur(24px) saturate(190%);
   -webkit-backdrop-filter: blur(24px) saturate(190%);
-  border: 1px solid var(--glass-border);
-  box-shadow: var(--shadow-float), var(--glass-highlight);
+  border-top: 1px solid var(--glass-border);
+  box-shadow: 0 -8px 30px rgba(28, 25, 23, 0.1), var(--glass-highlight);
+  padding-bottom: var(--safe-b);
 }
-.glass-nav::before {
-  content: "";
-  position: absolute;
-  inset: 0;
-  border-radius: inherit;
-  background: linear-gradient(180deg, rgba(255, 255, 255, 0.55), transparent 46%);
-  pointer-events: none;
+
+/* Scoped to phones: the bar only exists below lg, and these rules are declared
+   after Tailwind's utilities — unscoped, they would outrank `lg:bottom-6` and
+   drag the desktop install banner out of its corner. */
+@media (max-width: 1023px) {
+  /* Sits just above the bar (the floating back button). */
+  .above-bar {
+    bottom: calc(var(--safe-b) + var(--bottom-bar-h) + 0.75rem);
+  }
+
+  /* Sits above THAT (toasts, the install banner) so the three never stack. */
+  .above-bar-2 {
+    bottom: calc(var(--safe-b) + var(--bottom-bar-h) + 4rem);
+  }
+
+  /* The content floor: deep enough that the last card can always be scrolled
+     clear of both the bar and the back button. Content still slides under both
+     on the way there — the floor only governs where it comes to REST, so nothing
+     ends up permanently parked underneath and unreadable. */
+  .pb-bottom-bar {
+    padding-bottom: calc(var(--safe-b) + var(--bottom-bar-h) + 4.25rem);
+  }
 }
 
 /* Fallback for browsers without backdrop-filter: lean opaque so nothing washes out. */

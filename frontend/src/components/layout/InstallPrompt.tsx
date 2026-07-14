@@ -78,7 +78,7 @@ export function InstallPrompt() {
     <div
       role="dialog"
       aria-label="Install PulseShop"
-      className="fixed-stable fixed bottom-[calc(max(1rem,env(safe-area-inset-bottom))+9.5rem)] left-1/2 z-50 w-[calc(100%-1.5rem)] max-w-[398px] -translate-x-1/2 rounded-card bg-ink p-3.5 text-white shadow-modal animate-toast-in sm:w-[calc(100%-2rem)] lg:bottom-6 lg:left-auto lg:right-6 lg:w-80 lg:translate-x-0"
+      className="above-bar-2 fixed-stable fixed left-1/2 z-50 w-[calc(100%-1.5rem)] max-w-[398px] -translate-x-1/2 rounded-card bg-ink p-3.5 text-white shadow-modal animate-toast-in sm:w-[calc(100%-2rem)] lg:bottom-6 lg:left-auto lg:right-6 lg:w-80 lg:translate-x-0"
     >
       <div className="flex items-start gap-3">
         <span className="flex size-10 shrink-0 items-center justify-center rounded-xl bg-white/10">

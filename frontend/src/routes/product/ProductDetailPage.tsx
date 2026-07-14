@@ -499,34 +499,37 @@ export function ProductDetailPage() {
         )}
       </div>
 
-      {/* primary CTA — floating glass bar echoing the nav pill; desktop uses
-          the inline order panel above instead */}
-      <div className="glass fixed-stable fixed bottom-[max(1rem,env(safe-area-inset-bottom))] left-1/2 z-40 flex w-[calc(100%-2rem)] max-w-[398px] -translate-x-1/2 items-center gap-1.5 rounded-full p-1.5 lg:hidden">
-        <button
-          type="button"
-          aria-label={isFavorite ? "Remove from favorites" : "Add to favorites"}
-          onClick={() => toggle(product.id)}
-          className="flex size-10 shrink-0 items-center justify-center rounded-full border border-white/60 bg-white/70 text-ink"
-        >
-          <Heart className={cn("size-4.5", isFavorite ? "fill-favorite text-favorite" : "text-ink")} />
-        </button>
-        <ShareMenu
-          product={product}
-          triggerClassName="flex size-10 shrink-0 items-center justify-center rounded-full border border-white/60 bg-white/70 text-ink"
-        />
-        <Button
-          variant="outline"
-          size="md"
-          className="flex-1 whitespace-nowrap rounded-full border-white/60 bg-white/70 px-2"
-          disabled={soldOut}
-          onClick={handleAddToCart}
-        >
-          <ShoppingBag className="size-4.5" />
-          Add
-        </Button>
-        <Button size="md" className="flex-1 whitespace-nowrap rounded-full px-2" disabled={soldOut} onClick={orderNow}>
-          {soldOut ? "Sold Out" : "Buy Now"}
-        </Button>
+      {/* primary CTA — the same flush glass ledge the tab bar uses (this page has
+          no tab bar), so the product images scroll under it. Desktop uses the
+          inline order panel above instead. */}
+      <div className="glass-bar fixed-stable fixed inset-x-0 bottom-0 z-40 lg:hidden">
+        <div className="mx-auto flex max-w-[430px] items-center gap-1.5 px-3 py-2.5">
+          <button
+            type="button"
+            aria-label={isFavorite ? "Remove from favorites" : "Add to favorites"}
+            onClick={() => toggle(product.id)}
+            className="flex size-10 shrink-0 items-center justify-center rounded-full border border-white/60 bg-white/70 text-ink"
+          >
+            <Heart className={cn("size-4.5", isFavorite ? "fill-favorite text-favorite" : "text-ink")} />
+          </button>
+          <ShareMenu
+            product={product}
+            triggerClassName="flex size-10 shrink-0 items-center justify-center rounded-full border border-white/60 bg-white/70 text-ink"
+          />
+          <Button
+            variant="outline"
+            size="md"
+            className="flex-1 whitespace-nowrap rounded-full border-white/60 bg-white/70 px-2"
+            disabled={soldOut}
+            onClick={handleAddToCart}
+          >
+            <ShoppingBag className="size-4.5" />
+            Add
+          </Button>
+          <Button size="md" className="flex-1 whitespace-nowrap rounded-full px-2" disabled={soldOut} onClick={orderNow}>
+            {soldOut ? "Sold Out" : "Buy Now"}
+          </Button>
+        </div>
       </div>
     </MobileShell>
   );

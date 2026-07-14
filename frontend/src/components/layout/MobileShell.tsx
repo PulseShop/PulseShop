@@ -26,11 +26,14 @@ export function MobileShell({
         wide && "lg:max-w-[1180px]",
       )}
     >
-      {/* Mobile gets a deeper floor than the nav pill alone needs: the floating
-          back button sits above the pill, and content scrolled to the very
-          bottom would otherwise end up underneath it — including, on checkout,
-          the submit button, whose left edge the button would silently eat. */}
-      <div className={cn(nav && "pb-28", "max-lg:pb-40")}>{children}</div>
+      {/* Content scrolls UNDER the bottom bar and the back button — that's the
+          point of the glass. This floor only decides where it comes to REST:
+          deep enough that the last card clears both, so nothing is left parked
+          underneath where it can't be read or tapped (on checkout, that would be
+          the submit button, whose left edge the back button would silently eat).
+          Derived from --bottom-bar-h, and phone-only — desktop hides the bar and
+          the back button, so it needs no floor at all. See tokens.css. */}
+      <div className="pb-bottom-bar">{children}</div>
       <FloatingBack homeTo={homeTo} />
       {nav && <BottomNav homeTo={homeTo} />}
     </div>
