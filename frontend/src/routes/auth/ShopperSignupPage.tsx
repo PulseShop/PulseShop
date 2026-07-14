@@ -8,6 +8,7 @@ import { Captcha } from "@/components/auth/Captcha";
 import { PasswordRequirements } from "@/components/auth/PasswordRequirements";
 import { Button } from "@/components/ui/Button";
 import { Input } from "@/components/ui/Input";
+import { PasswordInput } from "@/components/ui/PasswordInput";
 import { useCaptcha } from "@/hooks/useCaptcha";
 import { authErrorMessage } from "@/lib/authErrors";
 import { passwordSchema } from "@/lib/password";
@@ -96,19 +97,19 @@ export function ShopperSignupPage() {
           onFocus={() => setPasswordFocused(true)}
           onBlur={() => setPasswordFocused(false)}
         >
-          <Input
+          <PasswordInput
             label="Password"
-            type="password"
             placeholder="••••••••"
             autoComplete="new-password"
-            // The checklist below already spells out every rule; repeating the
-            // first unmet one as a red error underneath is just noise.
+            // The checklist below names every rule that failed; repeating the
+            // first one as a red error underneath is just noise.
             error={undefined}
             {...register("password")}
           />
           <PasswordRequirements
             value={password ?? ""}
             show={passwordFocused || Boolean(password)}
+            invalid={Boolean(errors.password)}
           />
         </div>
         <Captcha

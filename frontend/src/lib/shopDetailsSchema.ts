@@ -22,6 +22,17 @@ interface ShopSocialsValue {
   facebook?: string;
 }
 
+/**
+ * Raised when a seller tries to open a shop with no contact channel at all.
+ *
+ * It lands on the `whatsapp` path because zod issues need a field to attach to,
+ * but it isn't *about* WhatsApp — it's about the group. The forms match on this
+ * exact string to lift it out of the WhatsApp field and show it against the
+ * whole socials panel, so keep the two in step: see SignupPage and
+ * ShopDetailsOnboardingPage.
+ */
+export const NO_SOCIALS_MESSAGE = "Please give at least one social";
+
 /** At least one contact method is required so orders have somewhere to land;
  * WhatsApp, when given, must be a valid phone number (any country). */
 export function refineShopSocials(val: ShopSocialsValue, ctx: z.RefinementCtx) {
@@ -33,7 +44,7 @@ export function refineShopSocials(val: ShopSocialsValue, ctx: z.RefinementCtx) {
     ctx.addIssue({
       code: z.ZodIssueCode.custom,
       path: ["whatsapp"],
-      message: "Link at least one — WhatsApp, Instagram or Facebook",
+      message: NO_SOCIALS_MESSAGE,
     });
   }
   if (whatsapp && !isValidPhone(whatsapp)) {

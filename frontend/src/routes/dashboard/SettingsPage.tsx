@@ -9,13 +9,9 @@ import { Skeleton } from "@/components/ui/Skeleton";
 import { services } from "@/services";
 import type { MerchantUpdate } from "@/services";
 import { slugError, slugify } from "@/lib/slug";
+import { isUniqueViolation } from "@/lib/utils";
 import { useAuth } from "@/stores/auth";
 import { useToasts } from "@/stores/toast";
-
-/** PostgREST surfaces a Postgres unique_violation as error.code "23505". */
-function isUniqueViolation(err: unknown): boolean {
-  return typeof err === "object" && err !== null && (err as { code?: string }).code === "23505";
-}
 
 export function SettingsPage() {
   const qc = useQueryClient();

@@ -99,9 +99,3 @@ const SIZED_CATEGORIES: readonly string[] = [
 ];
 
 export const categoryHasSizes = (category: string) => SIZED_CATEGORIES.includes(category);
-
-/** SKU prefix for a category — first 3 letters of the last significant word. */
-export function categorySkuPrefix(category: string) {
-  const word = category.split(/[\s&,]+/).filter(Boolean)[0] ?? "GEN";
-  return word.replace(/[^a-z]/gi, "").slice(0, 3).toUpperCase() || "GEN";
-}

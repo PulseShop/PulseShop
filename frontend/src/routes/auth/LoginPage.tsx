@@ -7,6 +7,7 @@ import { z } from "zod";
 import { Captcha } from "@/components/auth/Captcha";
 import { Button } from "@/components/ui/Button";
 import { Input } from "@/components/ui/Input";
+import { PasswordInput } from "@/components/ui/PasswordInput";
 import { useCaptcha } from "@/hooks/useCaptcha";
 import { authErrorMessage } from "@/lib/authErrors";
 import { services } from "@/services";
@@ -130,9 +131,8 @@ export function LoginPage() {
           {...register("email")}
         />
         <div className="space-y-1.5">
-          <Input
+          <PasswordInput
             label="Password"
-            type="password"
             placeholder="••••••••"
             autoComplete="current-password"
             error={errors.password?.message}

@@ -19,11 +19,12 @@ import { PasswordRequirements } from "@/components/auth/PasswordRequirements";
 import { QueryError } from "@/components/common/QueryError";
 import { Button } from "@/components/ui/Button";
 import { Input, Textarea } from "@/components/ui/Input";
+import { PasswordInput } from "@/components/ui/PasswordInput";
 import { Sheet } from "@/components/ui/Modal";
 import { Skeleton } from "@/components/ui/Skeleton";
 import { authErrorMessage } from "@/lib/authErrors";
 import { isValidPhone } from "@/lib/phone";
-import { isPasswordValid, passwordSchema } from "@/lib/password";
+import { isPasswordValid } from "@/lib/password";
 import { services } from "@/services";
 import { useAuth } from "@/stores/auth";
 import { useOrderStore } from "@/stores/order";
@@ -299,22 +300,26 @@ function ChangePasswordRow() {
   const [password, setPassword] = useState("");
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [attempted, setAttempted] = useState(false);
 
   const submit = async () => {
-    setSaving(true);
+    setAttempted(true);
     setError(null);
+
+    // The button stays live on a weak password rather than sitting disabled: a
+    // dead button says "no" without saying why, so let the press through and let
+    // the checklist name the rules that failed.
+    if (!isPasswordValid(password)) return;
+
+    setSaving(true);
     try {
-      passwordSchema.parse(password);
       await services.auth.updatePassword(password);
       setOpen(false);
       setPassword("");
+      setAttempted(false);
       push("Password updated", "success");
     } catch (err) {
-      setError(
-        err instanceof z.ZodError
-          ? err.issues[0]?.message ?? "Choose a stronger password"
-          : authErrorMessage(err, "reset"),
-      );
+      setError(authErrorMessage(err, "reset"));
     } finally {
       setSaving(false);
     }
@@ -344,30 +349,31 @@ function ChangePasswordRow() {
           if (!v) {
             setPassword("");
             setError(null);
+            setAttempted(false);
           }
         }}
         title="Change password"
       >
         <div className="space-y-3">
-          <Input
+          <PasswordInput
             label="New password"
             // Input derives the label's htmlFor from name/id — without one the
             // label isn't associated with the field at all.
             name="new-password"
-            type="password"
             autoComplete="new-password"
             autoFocus
             value={password}
             onChange={(e) => setPassword(e.target.value)}
+            // Server-side refusals only ("same as your old password"); the rules
+            // the password breaks are named by the checklist below.
             error={error ?? undefined}
           />
-          <PasswordRequirements value={password} show={password.length > 0} />
-          <Button
-            size="lg"
-            className="w-full"
-            disabled={!isPasswordValid(password) || saving}
-            onClick={submit}
-          >
+          <PasswordRequirements
+            value={password}
+            show={password.length > 0}
+            invalid={attempted && !isPasswordValid(password)}
+          />
+          <Button size="lg" className="w-full" disabled={saving} onClick={submit}>
             {saving ? "Updating…" : "Update password"}
           </Button>
         </div>

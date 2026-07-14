@@ -1,5 +1,5 @@
 import { zodResolver } from "@hookform/resolvers/zod";
-import { ArrowRight, ArrowLeft, Loader2, Check, Image as ImageIcon } from "lucide-react";
+import { AlertCircle, ArrowRight, ArrowLeft, Loader2, Check, Image as ImageIcon } from "lucide-react";
 import { useEffect, useState } from "react";
 import { useForm } from "react-hook-form";
 import { useLocation, useNavigate } from "react-router";
@@ -8,7 +8,7 @@ import { Button } from "@/components/ui/Button";
 import { FacebookIcon, InstagramIcon, WhatsAppIcon } from "@/components/ui/BrandIcons";
 import { Input } from "@/components/ui/Input";
 import { completeMerchantOnboarding, getCurrentUser } from "@/services/api/auth";
-import { refineShopSocials, shopDetailsFields } from "@/lib/shopDetailsSchema";
+import { NO_SOCIALS_MESSAGE, refineShopSocials, shopDetailsFields } from "@/lib/shopDetailsSchema";
 import { slugify } from "@/lib/slug";
 import { useAuth } from "@/stores/auth";
 import { useToasts } from "@/stores/toast";
@@ -50,6 +50,22 @@ export function ShopDetailsOnboardingPage() {
 
   const shopName = watch("shopName");
   const slug = watch("slug");
+
+  // "No socials at all" is a fault of the whole panel, not of the WhatsApp box
+  // the zod issue happens to be attached to — so it's shown against the panel,
+  // and only a genuinely malformed number reddens the WhatsApp field itself.
+  const noSocials = errors.whatsapp?.message === NO_SOCIALS_MESSAGE;
+  const whatsappError = noSocials ? undefined : errors.whatsapp?.message;
+
+  /**
+   * Any one of the three satisfies the rule, but the issue is filed against
+   * `whatsapp` — and react-hook-form only revalidates the field that changed, so
+   * without this an Instagram handle typed after a failed Continue would leave
+   * the error stranded on WhatsApp with a social sitting filled in below it.
+   */
+  const recheckSocials = () => {
+    if (noSocials) void trigger("whatsapp");
+  };
 
   useEffect(() => {
     if (!slugEdited) setValue("slug", slugify(shopName));
@@ -194,26 +210,40 @@ export function ShopDetailsOnboardingPage() {
               <div className="animate-in fade-in slide-in-from-right-4 duration-500">
                 <h1 className="text-2xl font-extrabold text-ink">Link Your Socials</h1>
                 <p className="mt-2 text-sm text-muted mb-8">Orders are routed here. Link at least one — all three are welcome.</p>
-                
-                <div className="space-y-5 rounded-xl border border-stone-100 bg-white p-6 shadow-sm">
+
+                <div
+                  className={cn(
+                    "space-y-5 rounded-xl border bg-white p-6 shadow-sm",
+                    noSocials ? "border-danger/40 bg-danger/5" : "border-stone-100",
+                  )}
+                >
+                  {noSocials && (
+                    <p
+                      className="flex items-center gap-1.5 text-sm font-bold text-danger"
+                      aria-live="polite"
+                    >
+                      <AlertCircle className="size-4 shrink-0" aria-hidden />
+                      {NO_SOCIALS_MESSAGE}
+                    </p>
+                  )}
                   <label className="flex items-center gap-4">
                     <span className="flex size-10 shrink-0 items-center justify-center rounded-full bg-whatsapp text-white"><WhatsAppIcon className="size-5" /></span>
                     <div className="flex-1">
-                      <Input aria-label="WhatsApp number" placeholder="+254 712 345 678" inputMode="tel" error={errors.whatsapp?.message} {...register("whatsapp")} />
+                      <Input aria-label="WhatsApp number" placeholder="+254 712 345 678" inputMode="tel" error={whatsappError} {...register("whatsapp")} />
                     </div>
                   </label>
-                  
+
                   <label className="flex items-center gap-4">
                     <span className="flex size-10 shrink-0 items-center justify-center rounded-full bg-instagram text-white"><InstagramIcon className="size-5" /></span>
                     <div className="flex-1">
-                      <Input aria-label="Instagram handle" placeholder="@yourhandle" error={errors.instagram?.message} {...register("instagram")} />
+                      <Input aria-label="Instagram handle" placeholder="@yourhandle" error={errors.instagram?.message} {...register("instagram", { onChange: recheckSocials })} />
                     </div>
                   </label>
                   
                   <label className="flex items-center gap-4">
                     <span className="flex size-10 shrink-0 items-center justify-center rounded-full bg-facebook text-white"><FacebookIcon className="size-5" /></span>
                     <div className="flex-1">
-                      <Input aria-label="Facebook page" placeholder="yourpage" error={errors.facebook?.message} {...register("facebook")} />
+                      <Input aria-label="Facebook page" placeholder="yourpage" error={errors.facebook?.message} {...register("facebook", { onChange: recheckSocials })} />
                     </div>
                   </label>
                 </div>

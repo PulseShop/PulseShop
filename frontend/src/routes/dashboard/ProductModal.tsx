@@ -1,6 +1,6 @@
 import { zodResolver } from "@hookform/resolvers/zod";
 import { useMutation, useQueryClient } from "@tanstack/react-query";
-import { Database, ImagePlus, Loader2, Minus, Plus, X } from "lucide-react";
+import { Database, ImagePlus, KeyRound, Loader2, Minus, Plus, X } from "lucide-react";
 import { useCallback, useEffect, useRef, useState } from "react";
 import { useForm } from "react-hook-form";
 import { z } from "zod";
@@ -8,15 +8,17 @@ import { ProductImage } from "@/components/product/ProductImage";
 import { Button } from "@/components/ui/Button";
 import { Input, Textarea } from "@/components/ui/Input";
 import { Modal } from "@/components/ui/Modal";
-import { CATEGORY_GROUPS, categoryHasSizes, categorySkuPrefix, isLegacyCategory } from "@/lib/constants";
-import { cn } from "@/lib/utils";
+import { CATEGORY_GROUPS, categoryHasSizes, isLegacyCategory } from "@/lib/constants";
+import { generateProductKey } from "@/lib/productKey";
+import { cn, isUniqueViolation } from "@/lib/utils";
 import { services, type ProductInput } from "@/services";
 import type { Product } from "@/types";
 import { useToasts } from "@/stores/toast";
 
+// The product key isn't here: it's generated, not entered, so there's nothing
+// for the user to get wrong and nothing to validate. See lib/productKey.ts.
 const schema = z.object({
   name: z.string().min(2, "Name is required"),
-  sku: z.string().min(2, "SKU is required"),
   category: z.string().min(1, "Pick a category"),
   priceKes: z.coerce.number().positive("Price must be above 0"),
   discountPct: z.coerce.number().min(0).max(90).nullable(),
@@ -25,9 +27,32 @@ const schema = z.object({
 
 type FormValues = z.infer<typeof schema>;
 
-function suggestSku(name: string, category: string) {
-  const suffix = Math.floor(Math.random() * 900 + 100);
-  return name ? `${categorySkuPrefix(category)}-${suffix}` : "";
+/** How many fresh keys to try before giving up and surfacing the error. */
+const KEY_COLLISION_RETRIES = 4;
+
+/**
+ * Create the product, minting a new key if the one we generated is somehow
+ * already taken. Keys are random out of ~850 billion, so this practically never
+ * fires — but `products` has a unique index on (merchant_id, sku), and without
+ * this a one-in-a-billion clash would reach the merchant as "Couldn't save
+ * product" on a form they can't fix, because they don't control the key.
+ */
+async function createWithUniqueKey(
+  input: ProductInput,
+  onNewKey: (key: string) => void,
+): Promise<Product> {
+  let candidate = input;
+
+  for (let attempt = 0; ; attempt++) {
+    try {
+      return await services.products.createProduct(candidate);
+    } catch (err) {
+      if (attempt >= KEY_COLLISION_RETRIES || !isUniqueViolation(err)) throw err;
+      const key = generateProductKey();
+      onNewKey(key);
+      candidate = { ...candidate, sku: key };
+    }
+  }
 }
 
 export function ProductModal({
@@ -45,7 +70,11 @@ export function ProductModal({
   const [images, setImages] = useState<string[]>([]);
   const [sizes, setSizes] = useState<string[]>([]);
   const [sizeInput, setSizeInput] = useState("");
-  const [stockQty, setStockQty] = useState(0);
+  // Kept as text, not a number: a merchant restocking 240 units types over the
+  // field, and a numeric state would force the intermediate empty string back to
+  // 0 mid-keystroke. Parsed once, on submit.
+  const [stockQty, setStockQty] = useState("0");
+  const [productKey, setProductKey] = useState("");
   const [dragOver, setDragOver] = useState(false);
   const [uploading, setUploading] = useState(false);
   const fileInput = useRef<HTMLInputElement>(null);
@@ -54,12 +83,11 @@ export function ProductModal({
     register,
     handleSubmit,
     reset,
-    setValue,
     watch,
     formState: { errors, isSubmitting },
   } = useForm<FormValues>({
     resolver: zodResolver(schema) as never,
-    defaultValues: { name: "", sku: "", category: "", priceKes: 0, discountPct: null, description: "" },
+    defaultValues: { name: "", category: "", priceKes: 0, discountPct: null, description: "" },
   });
 
   useEffect(() => {
@@ -67,7 +95,6 @@ export function ProductModal({
     if (product) {
       reset({
         name: product.name,
-        sku: product.sku,
         category: product.category,
         priceKes: product.priceKes,
         discountPct: product.discountPct,
@@ -75,18 +102,20 @@ export function ProductModal({
       });
       setImages(product.images);
       setSizes(product.sizes ?? []);
-      setStockQty(product.stockQty);
+      setStockQty(String(product.stockQty));
+      // An existing product keeps the key it was created with — it's already on
+      // the buyer's order messages and the merchant's own records.
+      setProductKey(product.sku);
     } else {
-      reset({ name: "", sku: "", category: "", priceKes: 0, discountPct: null, description: "" });
+      reset({ name: "", category: "", priceKes: 0, discountPct: null, description: "" });
       setImages([]);
       setSizes([]);
-      setStockQty(0);
+      setStockQty("0");
+      setProductKey(generateProductKey());
     }
   }, [open, product, reset]);
 
-  const name = watch("name");
   const category = watch("category");
-  const sku = watch("sku");
 
   /**
    * A product saved under the old taxonomy (e.g. "Tops") needs its <option> to
@@ -99,11 +128,8 @@ export function ProductModal({
   const legacyCategory =
     product && isLegacyCategory(product.category) ? product.category : null;
 
-  useEffect(() => {
-    if (!product && name && !sku) setValue("sku", suggestSku(name, category));
-  }, [name, category, sku, product, setValue]);
-
-  const bumpStock = (delta: number) => setStockQty((q) => Math.max(0, q + delta));
+  const stockNumber = Number(stockQty) || 0;
+  const bumpStock = (delta: number) => setStockQty(String(Math.max(0, stockNumber + delta)));
 
   const addFiles = useCallback(
     async (files: FileList | null) => {
@@ -135,7 +161,7 @@ export function ProductModal({
     mutationFn: (input: ProductInput) =>
       product
         ? services.products.updateProduct(product.id, input)
-        : services.products.createProduct(input),
+        : createWithUniqueKey(input, setProductKey),
     onSuccess: () => {
       qc.invalidateQueries({ queryKey: ["products"] });
       push("Product saved", "success");
@@ -147,11 +173,11 @@ export function ProductModal({
   const onSubmit = handleSubmit((data) => {
     mutation.mutate({
       name: data.name,
-      sku: data.sku,
+      sku: productKey,
       category: data.category,
       priceKes: data.priceKes,
       discountPct: data.discountPct || null,
-      stockQty,
+      stockQty: stockNumber,
       images,
       sizes: categoryHasSizes(data.category) && sizes.length ? sizes : null,
       description: data.description ?? "",
@@ -241,7 +267,30 @@ export function ProductModal({
               {...register("description")}
             />
           </div>
-          <Input label="SKU" placeholder="TOP-001" error={errors.sku?.message} {...register("sku")} />
+          {/* Product key — generated, never typed. Read-only rather than
+              disabled so it stays selectable (and copyable) and is still read
+              out by a screen reader. */}
+          <div className="flex flex-col gap-1.5">
+            <label htmlFor="product-key" className="text-sm font-semibold text-ink">
+              Product key
+            </label>
+            <div className="relative">
+              <KeyRound
+                className="pointer-events-none absolute left-3 top-1/2 size-4 -translate-y-1/2 text-muted"
+                aria-hidden
+              />
+              <input
+                id="product-key"
+                value={productKey}
+                readOnly
+                aria-describedby="product-key-hint"
+                className="h-11 w-full cursor-default rounded-btn border border-stone-200 bg-stone-50 pl-9 pr-3.5 font-mono text-sm font-bold tracking-widest text-ink outline-none focus:border-primary focus:ring-2 focus:ring-primary/20"
+              />
+            </div>
+            <p id="product-key-hint" className="text-xs text-muted">
+              Generated automatically — unique to this product.
+            </p>
+          </div>
           <div className="flex flex-col gap-1.5">
             <label htmlFor="category" className="text-sm font-semibold text-ink">
               Category
@@ -329,20 +378,40 @@ export function ProductModal({
             </div>
           )}
 
-          {/* stock counter + DB sync indicator */}
+          {/* stock counter + DB sync indicator. The +/- buttons are for nudging a
+              number that's nearly right; the field between them is typeable, so
+              stocking 240 units doesn't mean 240 clicks. */}
           <div className="col-span-2 flex items-end justify-between gap-4 rounded-card bg-stone-50 p-4">
             <div className="flex flex-col gap-2">
-              <span className="text-sm font-semibold text-ink">Stock quantity</span>
+              <label htmlFor="stock-qty" className="text-sm font-semibold text-ink">
+                Stock quantity
+              </label>
               <div className="flex items-center gap-3">
                 <button
                   type="button"
                   aria-label="Decrease stock"
                   onClick={() => bumpStock(-1)}
-                  className="flex size-9 items-center justify-center rounded-full bg-card shadow-soft transition-transform active:scale-90"
+                  disabled={stockNumber === 0}
+                  className="flex size-9 items-center justify-center rounded-full bg-card shadow-soft transition-transform active:scale-90 disabled:pointer-events-none disabled:opacity-40"
                 >
                   <Minus className="size-4" />
                 </button>
-                <span className="w-12 text-center text-xl font-extrabold text-ink">{stockQty}</span>
+                <input
+                  id="stock-qty"
+                  // text + inputMode, not type="number": this keeps the mobile
+                  // numeric keypad but hands us the raw string, so the digit
+                  // filter below actually sees (and can reject) a stray "-" or
+                  // "e" instead of type="number" silently reporting "".
+                  type="text"
+                  inputMode="numeric"
+                  autoComplete="off"
+                  value={stockQty}
+                  onChange={(e) => setStockQty(e.target.value.replace(/\D/g, ""))}
+                  // Emptying the field is a legitimate way to retype it; it just
+                  // can't be left that way.
+                  onBlur={() => setStockQty(String(stockNumber))}
+                  className="h-11 w-24 rounded-btn border border-stone-200 bg-card text-center text-xl font-extrabold text-ink outline-none transition-colors focus:border-primary focus:ring-2 focus:ring-primary/20"
+                />
                 <button
                   type="button"
                   aria-label="Increase stock"

@@ -6,7 +6,7 @@ import { Link, useNavigate } from "react-router";
 import { z } from "zod";
 import { PasswordRequirements } from "@/components/auth/PasswordRequirements";
 import { Button } from "@/components/ui/Button";
-import { Input } from "@/components/ui/Input";
+import { PasswordInput } from "@/components/ui/PasswordInput";
 import { authErrorMessage } from "@/lib/authErrors";
 import { passwordSchema } from "@/lib/password";
 import { services } from "@/services";
@@ -170,24 +170,23 @@ export function ResetPasswordPage() {
           onFocus={() => setPasswordFocused(true)}
           onBlur={() => setPasswordFocused(false)}
         >
-          <Input
+          <PasswordInput
             label="New password"
-            type="password"
             placeholder="••••••••"
             autoComplete="new-password"
-            // The checklist below already spells out every rule.
+            // The checklist below names every rule that failed.
             error={undefined}
             {...register("password")}
           />
           <PasswordRequirements
             value={password ?? ""}
             show={passwordFocused || Boolean(password)}
+            invalid={Boolean(errors.password)}
           />
         </div>
 
-        <Input
+        <PasswordInput
           label="Confirm new password"
-          type="password"
           placeholder="••••••••"
           autoComplete="new-password"
           error={errors.confirm?.message}

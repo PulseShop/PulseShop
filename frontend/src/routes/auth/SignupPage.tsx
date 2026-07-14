@@ -1,5 +1,5 @@
 import { zodResolver } from "@hookform/resolvers/zod";
-import { ArrowRight, Loader2 } from "lucide-react";
+import { AlertCircle, ArrowRight, Loader2 } from "lucide-react";
 import { useEffect, useState } from "react";
 import { useForm } from "react-hook-form";
 import { Link, useNavigate } from "react-router";
@@ -11,11 +11,13 @@ import { passwordSchema } from "@/lib/password";
 import { Button } from "@/components/ui/Button";
 import { FacebookIcon, InstagramIcon, WhatsAppIcon } from "@/components/ui/BrandIcons";
 import { Input } from "@/components/ui/Input";
+import { PasswordInput } from "@/components/ui/PasswordInput";
 import { services } from "@/services";
 import { EmailConfirmationRequiredError } from "@/services/types";
 import { authErrorMessage } from "@/lib/authErrors";
-import { refineShopSocials, shopDetailsFields } from "@/lib/shopDetailsSchema";
+import { NO_SOCIALS_MESSAGE, refineShopSocials, shopDetailsFields } from "@/lib/shopDetailsSchema";
 import { slugify } from "@/lib/slug";
+import { cn } from "@/lib/utils";
 import { useAuth } from "@/stores/auth";
 import { useToasts } from "@/stores/toast";
 import { AuthShell } from "./AuthShell";
@@ -42,6 +44,7 @@ export function SignupPage() {
     handleSubmit,
     watch,
     setValue,
+    trigger,
     formState: { errors, isSubmitting },
   } = useForm<FormValues>({
     resolver: zodResolver(schema),
@@ -54,6 +57,23 @@ export function SignupPage() {
   const slug = watch("slug");
   const password = watch("password");
   const [passwordFocused, setPasswordFocused] = useState(false);
+
+  // "No socials at all" is a fault of the whole panel, not of the WhatsApp box
+  // it happens to be attached to — so it's shown against the panel, and only a
+  // genuinely malformed number reddens the WhatsApp field itself.
+  const noSocials = errors.whatsapp?.message === NO_SOCIALS_MESSAGE;
+  const whatsappError = noSocials ? undefined : errors.whatsapp?.message;
+
+  /**
+   * Any one of the three socials satisfies the rule, but the issue is filed
+   * against `whatsapp` — and react-hook-form only revalidates the field that
+   * actually changed. Typing an Instagram handle would otherwise leave the error
+   * stranded on WhatsApp until the next submit, telling the seller they've given
+   * no socials while one sits filled in right below it.
+   */
+  const recheckSocials = () => {
+    if (noSocials) void trigger("whatsapp");
+  };
 
   // Auto-fill the link from the shop name until the seller edits it themselves.
   useEffect(() => {
@@ -154,27 +174,41 @@ export function SignupPage() {
           onFocus={() => setPasswordFocused(true)}
           onBlur={() => setPasswordFocused(false)}
         >
-          <Input
+          <PasswordInput
             label="Password"
-            type="password"
             placeholder="••••••••"
             autoComplete="new-password"
-            // The checklist below already spells out every rule; repeating the
-            // first unmet one as a red error underneath is just noise.
+            // The checklist below names every rule that failed; repeating the
+            // first one as a red error underneath is just noise.
             error={undefined}
             {...register("password")}
           />
           <PasswordRequirements
             value={password ?? ""}
             show={passwordFocused || Boolean(password)}
+            invalid={Boolean(errors.password)}
           />
         </div>
 
-        <div className="rounded-card border border-white/60 bg-white/50 p-4">
+        <div
+          className={cn(
+            "rounded-card border p-4",
+            noSocials ? "border-danger/40 bg-danger/5" : "border-white/60 bg-white/50",
+          )}
+        >
           <p className="text-sm font-bold text-ink">Link your socials</p>
           <p className="mb-3 mt-0.5 text-xs text-muted">
             Orders are routed here. Link at least one — all three are welcome.
           </p>
+          {noSocials && (
+            <p
+              className="mb-3 flex items-center gap-1.5 text-xs font-bold text-danger"
+              aria-live="polite"
+            >
+              <AlertCircle className="size-3.5 shrink-0" aria-hidden />
+              {NO_SOCIALS_MESSAGE}
+            </p>
+          )}
           <div className="space-y-3">
             <label className="flex items-center gap-2.5">
               <span className="flex size-9 shrink-0 items-center justify-center rounded-full bg-whatsapp text-white">
@@ -184,7 +218,7 @@ export function SignupPage() {
                 aria-label="WhatsApp number"
                 placeholder="+254 712 345 678"
                 inputMode="tel"
-                error={errors.whatsapp?.message}
+                error={whatsappError}
                 {...register("whatsapp")}
               />
             </label>
@@ -192,13 +226,21 @@ export function SignupPage() {
               <span className="flex size-9 shrink-0 items-center justify-center rounded-full bg-instagram text-white">
                 <InstagramIcon className="size-4" />
               </span>
-              <Input aria-label="Instagram handle" placeholder="@yourhandle" {...register("instagram")} />
+              <Input
+                aria-label="Instagram handle"
+                placeholder="@yourhandle"
+                {...register("instagram", { onChange: recheckSocials })}
+              />
             </label>
             <label className="flex items-center gap-2.5">
               <span className="flex size-9 shrink-0 items-center justify-center rounded-full bg-facebook text-white">
                 <FacebookIcon className="size-4" />
               </span>
-              <Input aria-label="Facebook page" placeholder="yourpage" {...register("facebook")} />
+              <Input
+                aria-label="Facebook page"
+                placeholder="yourpage"
+                {...register("facebook", { onChange: recheckSocials })}
+              />
             </label>
           </div>
         </div>
