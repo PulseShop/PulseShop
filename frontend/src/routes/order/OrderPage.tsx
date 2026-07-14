@@ -1,10 +1,13 @@
 import { zodResolver } from "@hookform/resolvers/zod";
 import { useQuery } from "@tanstack/react-query";
-import { ArrowLeft, Minus, Pencil, Plus } from "lucide-react";
+import { ArrowLeft, Loader2, Minus, Pencil, Plus } from "lucide-react";
 import { useEffect, useState } from "react";
 import { useForm } from "react-hook-form";
 import { Link, useNavigate, useParams } from "react-router";
 import { z } from "zod";
+import { Captcha } from "@/components/auth/Captcha";
+import { useCaptcha } from "@/hooks/useCaptcha";
+import { orderErrorMessage } from "@/lib/orderErrors";
 import { MobileShell } from "@/components/layout/MobileShell";
 import { FacebookIcon, InstagramIcon, WhatsAppIcon } from "@/components/ui/BrandIcons";
 import { Button } from "@/components/ui/Button";
@@ -71,8 +74,15 @@ export function OrderPage() {
   // here — respect it instead of always starting on WhatsApp.
   const [channel, setChannel] = useState<Channel>(preferredChannel ?? "whatsapp");
   const [payOpen, setPayOpen] = useState(false);
+  const [placing, setPlacing] = useState(false);
   const [pendingReference, setPendingReference] = useState<string | null>(null);
   const [pendingToken, setPendingToken] = useState<string | null>(null);
+
+  const captcha = useCaptcha();
+
+  // One key per order attempt, reused across retries — see CheckoutPage for why
+  // it must not be regenerated when an attempt fails.
+  const [idempotencyKey] = useState(() => crypto.randomUUID());
   const [pendingNotify, setPendingNotify] = useState<{
     channel: Channel;
     label: string;
@@ -172,9 +182,15 @@ export function OrderPage() {
       customer: { name: data.name, phone: data.phone, notes: data.notes ?? "" },
       channel: ch,
       payment: null,
+      idempotencyKey,
+      captchaToken: captcha.token,
     });
 
   const openPayment = async () => {
+    // A double-tap on this async handler used to place two orders and take
+    // stock twice.
+    if (placing) return;
+
     const valid = await trigger();
     if (!valid) {
       push("Fill in your details first");
@@ -182,6 +198,7 @@ export function OrderPage() {
     }
     const data = getValues();
     saveCustomer({ name: data.name, phone: data.phone, notes: data.notes ?? "" });
+    setPlacing(true);
     try {
       const { reference, accessToken } = await createOrder(data, "direct");
       setPendingReference(reference);
@@ -198,8 +215,14 @@ export function OrderPage() {
       );
       setPendingNotify({ channel, label: CHANNEL_LABEL[channel], url, message });
       setPayOpen(true);
-    } catch {
-      push("Couldn't start checkout — check your connection and try again", "danger");
+    } catch (err) {
+      push(orderErrorMessage(err), "danger");
+      // Single-use token — reissue, or the retry fails on the captcha instead
+      // of on whatever actually went wrong. The idempotency key is kept (see
+      // CheckoutPage): a retry must be able to replay a lost-but-committed order.
+      captcha.reset();
+    } finally {
+      setPlacing(false);
     }
   };
 
@@ -331,8 +354,28 @@ export function OrderPage() {
           </p>
         </div>
 
-        <Button variant="dark" size="lg" className="w-full" onClick={openPayment}>
-          COMPLETE ORDER — PAY NOW
+        {/* Captcha-gated: placing an order takes stock before payment. */}
+        <Captcha
+          key={captcha.nonce}
+          onToken={captcha.setToken}
+          onExpire={() => captcha.setToken(undefined)}
+        />
+
+        <Button
+          variant="dark"
+          size="lg"
+          className="w-full"
+          onClick={openPayment}
+          disabled={placing || !captcha.ready}
+        >
+          {placing ? (
+            <>
+              <Loader2 className="size-5 animate-spin" />
+              PLACING ORDER…
+            </>
+          ) : (
+            "COMPLETE ORDER — PAY NOW"
+          )}
         </Button>
       </div>
 

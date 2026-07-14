@@ -117,45 +117,100 @@ function tokenPayloadToMyOrder(p: OrderTokenPayload): MyOrder {
 }
 
 /**
- * Order placement for shoppers. Delegates to the `place_order` Postgres
- * function (migration 0005), which — in one transaction — validates every
- * line belongs to the same shop, locks and decrements stock, recomputes
- * prices from the DB, and generates a collision-checked reference. Orders are
- * always created 'pending'; only the owning merchant or a future payment
- * webhook can flip payment_status to 'paid'.
+ * Order placement for shoppers.
+ *
+ * Goes through the `place-order` Edge Function, NOT the RPC directly: migration
+ * 0024 revoked EXECUTE on place_order() from anon/authenticated, because it
+ * decrements stock for an order nobody has paid for yet and was callable by
+ * anyone with the (public, bundled) anon key. Two unauthenticated curl calls
+ * took a live product from 23 units to 21 — a script could have set every shop
+ * to "Sold Out". The Edge Function verifies a Turnstile token with Cloudflare
+ * before it touches the service-role key.
+ *
+ * Behind the captcha the RPC still does what it did: in one transaction it
+ * validates every line belongs to the same shop, locks and decrements stock,
+ * recomputes prices from the DB (never from the cart), and generates a
+ * collision-checked reference. Orders are always created 'pending'; only the
+ * owning merchant or a future payment webhook can flip payment_status.
+ *
+ * `idempotencyKey` is what makes a retry safe: the same key replays to the SAME
+ * order instead of buying twice. It must be minted once per checkout ATTEMPT by
+ * the caller (not here) — generating it inside this function would hand every
+ * retry a fresh key and defeat the entire mechanism.
  */
 async function placeOrder(
   customer: { name: string; phone: string; notes?: string },
   channel: OrderChannel,
   payment: { method: PaymentMethod; status: PaymentStatus } | null,
   items: { productId: string; size: string | null; qty: number }[],
+  idempotencyKey: string,
+  captchaToken?: string,
 ): Promise<PlacedOrderRef> {
-  const { data, error } = await supabase.rpc("place_order", {
-    p_customer_name: customer.name,
-    p_customer_phone: customer.phone,
-    p_customer_notes: customer.notes ?? "",
-    p_channel: channel,
-    p_payment_method: payment?.method ?? null,
-    p_items: items.map((i) => ({ product_id: i.productId, size: i.size, qty: i.qty })),
+  const { data, error } = await supabase.functions.invoke<{
+    reference?: string;
+    access_token?: string;
+    error?: string;
+  }>("place-order", {
+    body: {
+      captcha_token: captchaToken,
+      idempotency_key: idempotencyKey,
+      customer_name: customer.name,
+      customer_phone: customer.phone,
+      customer_notes: customer.notes ?? "",
+      channel,
+      payment_method: payment?.method ?? null,
+      items: items.map((i) => ({ product_id: i.productId, size: i.size, qty: i.qty })),
+    },
   });
-  if (error) throw error;
-  // place_order() returns one row: (order_id, reference, access_token).
-  const row = (Array.isArray(data) ? data[0] : data) as
-    | { reference: string; access_token: string }
-    | undefined;
-  if (!row?.reference || !row?.access_token) throw new Error("Order was not created");
-  return { reference: row.reference, accessToken: row.access_token };
+
+  // A non-2xx from the function surfaces as FunctionsHttpError, whose useful
+  // detail (out of stock, captcha_failed) is in the JSON body — not in
+  // error.message, which is only ever "Edge Function returned a non-2xx status
+  // code". Dig the real reason out so the shopper is told what actually went
+  // wrong.
+  if (error) {
+    const detail = await readFunctionError(error);
+    throw new Error(detail ?? error.message);
+  }
+  if (!data?.reference || !data?.access_token) {
+    throw new Error(data?.error ?? "Order was not created");
+  }
+  return { reference: data.reference, accessToken: data.access_token };
+}
+
+/** Pulls the server's message out of a supabase-js FunctionsHttpError. */
+async function readFunctionError(error: unknown): Promise<string | null> {
+  const res = (error as { context?: Response }).context;
+  if (!res || typeof res.json !== "function") return null;
+  try {
+    const body = (await res.json()) as { error?: string };
+    return body?.error ?? null;
+  } catch {
+    return null;
+  }
 }
 
 export const ordersApi: OrderService = {
   async submitOrder(draft: OrderDraft): Promise<PlacedOrderRef> {
-    return placeOrder(draft.customer, draft.channel, draft.payment, [
-      { productId: draft.productId, size: draft.size, qty: draft.qty },
-    ]);
+    return placeOrder(
+      draft.customer,
+      draft.channel,
+      draft.payment,
+      [{ productId: draft.productId, size: draft.size, qty: draft.qty }],
+      draft.idempotencyKey,
+      draft.captchaToken,
+    );
   },
 
   async submitCartOrder(draft: CartOrderDraft): Promise<PlacedOrderRef> {
-    return placeOrder(draft.customer, draft.channel, draft.payment, draft.items);
+    return placeOrder(
+      draft.customer,
+      draft.channel,
+      draft.payment,
+      draft.items,
+      draft.idempotencyKey,
+      draft.captchaToken,
+    );
   },
 
   /**

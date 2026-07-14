@@ -48,6 +48,22 @@ const delay = (ms = LATENCY) => new Promise((r) => setTimeout(r, ms));
 const DEFAULT_PRODUCT_PAGE = 12;
 const DEFAULT_LIST_PAGE = 20;
 
+/**
+ * Idempotent order replay, mirroring the partial unique index on
+ * orders.idempotency_key (migration 0024): a key we have already placed returns
+ * the SAME order rather than buying twice. In-memory is enough here — the mock
+ * has no other tab or device to race with.
+ */
+const placedByKey = new Map<string, PlacedOrderRef>();
+
+const replayOrder = (key: string | undefined): PlacedOrderRef | null =>
+  (key && placedByKey.get(key)) || null;
+
+function rememberOrder(key: string | undefined, ref: PlacedOrderRef): PlacedOrderRef {
+  if (key) placedByKey.set(key, ref);
+  return ref;
+}
+
 /** Slice a full list the way the server's LIMIT/OFFSET would. */
 function paginate<T>(list: T[], page = 1, pageSize = DEFAULT_LIST_PAGE): Paged<T> {
   const start = (Math.max(1, page) - 1) * pageSize;
@@ -458,6 +474,8 @@ export const mockServices: Services = {
   orders: {
     async submitOrder(draft: OrderDraft): Promise<PlacedOrderRef> {
       await delay();
+      const replay = replayOrder(draft.idempotencyKey);
+      if (replay) return replay;
       const reference = makeRef();
       const p = products.find((x) => x.id === draft.productId);
       const items: OrderLine[] = p
@@ -494,11 +512,13 @@ export const mockServices: Services = {
         saveOrders(ordersReceived);
       }
       const accessToken = recordMyOrder(reference, items, draft);
-      return { reference, accessToken };
+      return rememberOrder(draft.idempotencyKey, { reference, accessToken });
     },
 
     async submitCartOrder(draft: CartOrderDraft): Promise<PlacedOrderRef> {
       await delay();
+      const replay = replayOrder(draft.idempotencyKey);
+      if (replay) return replay;
       const reference = makeRef();
       const items: OrderLine[] = draft.items.flatMap((item) => {
         const p = products.find((x) => x.id === item.productId);
@@ -533,7 +553,7 @@ export const mockServices: Services = {
       ];
       saveOrders(ordersReceived);
       const accessToken = recordMyOrder(reference, items, draft);
-      return { reference, accessToken };
+      return rememberOrder(draft.idempotencyKey, { reference, accessToken });
     },
 
     async listOrders(query?: PageQuery): Promise<Paged<MerchantOrder>> {

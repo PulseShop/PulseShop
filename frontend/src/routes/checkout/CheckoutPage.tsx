@@ -1,10 +1,13 @@
 import { zodResolver } from "@hookform/resolvers/zod";
 import { useQuery } from "@tanstack/react-query";
-import { ArrowLeft } from "lucide-react";
+import { ArrowLeft, Loader2 } from "lucide-react";
 import { useEffect, useState } from "react";
 import { useForm } from "react-hook-form";
 import { Navigate, useNavigate } from "react-router";
 import { z } from "zod";
+import { Captcha } from "@/components/auth/Captcha";
+import { useCaptcha } from "@/hooks/useCaptcha";
+import { orderErrorMessage } from "@/lib/orderErrors";
 import { MobileShell } from "@/components/layout/MobileShell";
 import { ProductImage } from "@/components/product/ProductImage";
 import { FacebookIcon, InstagramIcon, WhatsAppIcon } from "@/components/ui/BrandIcons";
@@ -68,8 +71,17 @@ export function CheckoutPage() {
   });
   const [channel, setChannel] = useState<Channel>("whatsapp");
   const [payOpen, setPayOpen] = useState(false);
+  const [placing, setPlacing] = useState(false);
   const [pendingReference, setPendingReference] = useState<string | null>(null);
   const [pendingToken, setPendingToken] = useState<string | null>(null);
+
+  const captcha = useCaptcha();
+
+  // One key per checkout attempt, minted when the page mounts and reused across
+  // retries — see the catch block in openPayment for why it must NOT be
+  // regenerated on failure. useState's initialiser, not a plain call: a fresh
+  // key on every render would make every retry look like a new order.
+  const [idempotencyKey] = useState(() => crypto.randomUUID());
   const [pendingNotify, setPendingNotify] = useState<{
     channel: Channel;
     label: string;
@@ -153,9 +165,16 @@ export function CheckoutPage() {
       customer: { name: data.name, phone: data.phone, notes: data.notes ?? "" },
       channel: ch,
       payment: null,
+      idempotencyKey,
+      captchaToken: captcha.token,
     });
 
   const openPayment = async () => {
+    // Guard the whole submit, not just the button: an async handler fired twice
+    // by a double-tap used to place two orders and decrement stock twice (the
+    // idempotency key below makes the server side of that safe too).
+    if (placing) return;
+
     const valid = await trigger();
     if (!valid) {
       push("Fill in your details first");
@@ -163,6 +182,7 @@ export function CheckoutPage() {
     }
     const data = getValues();
     saveCustomer({ name: data.name, phone: data.phone, notes: data.notes ?? "" });
+    setPlacing(true);
     try {
       const { reference, accessToken } = await createOrder(data, "direct");
       setPendingReference(reference);
@@ -179,8 +199,22 @@ export function CheckoutPage() {
       );
       setPendingNotify({ channel, label: CHANNEL_LABEL[channel], url, message });
       setPayOpen(true);
-    } catch {
-      push("Couldn't start checkout — check your connection and try again", "danger");
+    } catch (err) {
+      // The server's reason is the useful one ("insufficient stock for X",
+      // "captcha_failed") — a generic connection message would send the shopper
+      // to retry something that will never succeed.
+      push(orderErrorMessage(err), "danger");
+      // Turnstile tokens are single-use; a spent one must be reissued or the
+      // retry fails on the captcha instead of on whatever actually broke.
+      captcha.reset();
+      // The idempotency key is deliberately NOT regenerated here. The server
+      // records it only when the order commits, so retrying with the same key
+      // is right either way: if the order never happened, the retry places it;
+      // if it DID happen and we merely lost the response (dropped connection —
+      // the common case on a phone), the retry replays that same order instead
+      // of buying a second one. A fresh key would turn that into a double order.
+    } finally {
+      setPlacing(false);
     }
   };
 
@@ -287,8 +321,30 @@ export function CheckoutPage() {
           </p>
         </div>
 
-        <Button variant="dark" size="lg" className="w-full" onClick={openPayment}>
-          COMPLETE ORDER — PAY NOW
+        {/* Order placement decrements stock before anyone has paid, so it is
+            captcha-gated like the auth forms. Renders nothing when no site key
+            is set (dev/mock), and the button stays enabled in that case. */}
+        <Captcha
+          key={captcha.nonce}
+          onToken={captcha.setToken}
+          onExpire={() => captcha.setToken(undefined)}
+        />
+
+        <Button
+          variant="dark"
+          size="lg"
+          className="w-full"
+          onClick={openPayment}
+          disabled={placing || !captcha.ready}
+        >
+          {placing ? (
+            <>
+              <Loader2 className="size-5 animate-spin" />
+              PLACING ORDER…
+            </>
+          ) : (
+            "COMPLETE ORDER — PAY NOW"
+          )}
         </Button>
       </div>
 

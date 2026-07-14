@@ -84,7 +84,26 @@ export type OrderChannel = "whatsapp" | "instagram" | "facebook" | "direct";
 export type PaymentMethod = "mpesa" | "paypal";
 export type PaymentStatus = "idle" | "pending" | "paid" | "failed";
 
-export interface OrderDraft {
+/**
+ * What every order submission must carry, on top of the order itself.
+ *
+ * `idempotencyKey` is minted once per checkout ATTEMPT and replayed on retry:
+ * the server returns the ORIGINAL order for a key it has already seen, so a
+ * double-tap or an auto-retry cannot buy the same thing twice. (Before this,
+ * two identical requests produced two orders and two stock decrements.) Mint it
+ * where the attempt begins — a fresh key per request would defeat the point.
+ *
+ * `captchaToken` is a Turnstile token. Order placement is captcha-gated because
+ * placing an order decrements stock before anyone has paid, and the endpoint is
+ * reachable by anyone holding the (public) anon key. Undefined when no site key
+ * is configured, exactly as on the auth forms.
+ */
+export interface OrderSubmission {
+  idempotencyKey: string;
+  captchaToken?: string;
+}
+
+export interface OrderDraft extends OrderSubmission {
   productId: string;
   size: string | null;
   qty: number;
@@ -94,7 +113,7 @@ export interface OrderDraft {
 }
 
 /** A multi-item order from the cart checkout. All items belong to one shop. */
-export interface CartOrderDraft {
+export interface CartOrderDraft extends OrderSubmission {
   shopSlug: string;
   items: { productId: string; size: string | null; qty: number }[];
   customer: { name: string; phone: string; notes: string };
