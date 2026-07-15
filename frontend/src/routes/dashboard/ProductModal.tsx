@@ -22,6 +22,7 @@ const schema = z.object({
   category: z.string().min(1, "Pick a category"),
   priceKes: z.coerce.number().positive("Price must be above 0"),
   discountPct: z.coerce.number().min(0).max(90).nullable(),
+  summary: z.string().max(160, "Keep it under 160 characters").default(""),
   description: z.string().default(""),
 });
 
@@ -87,7 +88,7 @@ export function ProductModal({
     formState: { errors, isSubmitting },
   } = useForm<FormValues>({
     resolver: zodResolver(schema) as never,
-    defaultValues: { name: "", category: "", priceKes: 0, discountPct: null, description: "" },
+    defaultValues: { name: "", category: "", priceKes: 0, discountPct: null, summary: "", description: "" },
   });
 
   useEffect(() => {
@@ -98,6 +99,7 @@ export function ProductModal({
         category: product.category,
         priceKes: product.priceKes,
         discountPct: product.discountPct,
+        summary: product.summary ?? "",
         description: product.description,
       });
       setImages(product.images);
@@ -107,7 +109,7 @@ export function ProductModal({
       // the buyer's order messages and the merchant's own records.
       setProductKey(product.sku);
     } else {
-      reset({ name: "", category: "", priceKes: 0, discountPct: null, description: "" });
+      reset({ name: "", category: "", priceKes: 0, discountPct: null, summary: "", description: "" });
       setImages([]);
       setSizes([]);
       setStockQty("0");
@@ -180,6 +182,7 @@ export function ProductModal({
       stockQty: stockNumber,
       images,
       sizes: categoryHasSizes(data.category) && sizes.length ? sizes : null,
+      summary: data.summary || null,
       description: data.description ?? "",
     });
   });
@@ -257,6 +260,14 @@ export function ProductModal({
         <div className="grid grid-cols-2 gap-4">
           <div className="col-span-2">
             <Input label="Product Name" placeholder="Classic White Tee" error={errors.name?.message} {...register("name")} />
+          </div>
+          <div className="col-span-2">
+            <Input
+              label="Short summary"
+              placeholder="e.g. Thinnest iPhone ever, A19 Pro chip, all-day battery"
+              error={errors.summary?.message}
+              {...register("summary")}
+            />
           </div>
           <div className="col-span-2">
             <Textarea

@@ -13,8 +13,10 @@ export interface Product {
   sizes: string[] | null;
   rating: number;
   reviewCount: number;
+  summary: string | null;
   description: string;
   createdAt: string;
+
   /** Handle of the shop that owns this product (for public consumer routing). */
   shopSlug?: string;
 }

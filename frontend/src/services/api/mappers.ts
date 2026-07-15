@@ -23,6 +23,7 @@ export interface ProductRow {
   sizes: string[] | null;
   rating: number | string;
   review_count: number;
+  summary?: string | null;
   description?: string | null;
   created_at: string;
 }
@@ -61,6 +62,7 @@ export function toProduct(row: ProductRow): Product {
     sizes: row.sizes,
     rating: Number(row.rating),
     reviewCount: row.review_count,
+    summary: row.summary ?? null,
     description: row.description ?? "",
     createdAt: row.created_at,
   };
@@ -104,6 +106,7 @@ export function productInputToRow(patch: Partial<ProductInput>): Record<string, 
   if (patch.stockQty !== undefined) row.stock_qty = patch.stockQty;
   if (patch.images !== undefined) row.images = patch.images;
   if (patch.sizes !== undefined) row.sizes = patch.sizes;
+  if (patch.summary !== undefined) row.summary = patch.summary;
   if (patch.description !== undefined) row.description = patch.description;
   return row;
 }

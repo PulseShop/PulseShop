@@ -122,6 +122,7 @@ export interface ProductInput {
   stockQty: number;
   images: string[];
   sizes: string[] | null;
+  summary: string | null;
   description: string;
 }
 
