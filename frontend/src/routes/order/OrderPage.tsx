@@ -15,6 +15,7 @@ import { Input, Textarea } from "@/components/ui/Input";
 import { Skeleton } from "@/components/ui/Skeleton";
 import { formatKes, variantPrice } from "@/lib/currency";
 import { variantLabel } from "@/lib/variant";
+import { productHref } from "@/lib/productUrl";
 import { orderLink } from "@/lib/deeplinks";
 import { isValidPhone } from "@/lib/phone";
 import { productImageSrc } from "@/lib/productImage";
@@ -272,7 +273,7 @@ export function OrderPage() {
                 </p>
               </div>
               <Link
-                to={`/product/${product.id}`}
+                to={productHref(product)}
                 aria-label="Edit selection"
                 className="flex size-8 items-center justify-center rounded-full text-muted hover:bg-stone-100"
               >

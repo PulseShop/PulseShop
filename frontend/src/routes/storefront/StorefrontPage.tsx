@@ -1,6 +1,6 @@
 import { keepPreviousData, useInfiniteQuery, useQuery } from "@tanstack/react-query";
 import { AlertTriangle, ArrowLeft, Check, Heart, Package, Search, ShoppingBag, SlidersHorizontal, Star, Store } from "lucide-react";
-import { useEffect, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { Link, useParams, useSearchParams } from "react-router";
 import { useAuth } from "@/stores/auth";
 import { cartCount, useCart } from "@/stores/cart";
@@ -16,6 +16,9 @@ import { ProductCardSkeleton, Skeleton } from "@/components/ui/Skeleton";
 import { colorHex, sortSizes } from "@/lib/constants";
 import { formatKes } from "@/lib/currency";
 import { merchantSocialLinks } from "@/lib/deeplinks";
+import { shopSeo } from "@/lib/seo";
+import { seoShopFrom } from "@/lib/seoFrom";
+import { useSeo } from "@/hooks/useSeo";
 import { cn } from "@/lib/utils";
 import { services } from "@/services";
 
@@ -78,6 +81,7 @@ export function StorefrontPage() {
   });
   const merchant = merchantQ.data;
 
+
   /**
    * The grid is server-filtered, server-sorted and paged (search_products,
    * migration 0022). It used to fetch the shop's entire catalogue and do all of
@@ -131,6 +135,22 @@ export function StorefrontPage() {
   // return nothing is worse than offering none.
   const sizeOptions = sortSizes(facetsQ.data?.sizes ?? []);
   const colorOptions = facetsQ.data?.colors ?? [];
+
+  /**
+   * Only the PUBLIC storefront gets indexable tags. `/shop` is the same
+   * component in the merchant's own preview mode — one seller's private view of
+   * their catalogue — so it stays noindex and never claims the canonical URL
+   * that `/{handle}` owns. Two URLs asserting the same canonical is how a page
+   * gets dropped from the index.
+   */
+  useSeo(
+    useMemo(
+      () => (isPublic && merchant
+          ? shopSeo(seoShopFrom(merchant, facetsQ.data?.categories ?? []), window.location.origin)
+          : null),
+      [isPublic, merchant, facetsQ.data?.categories],
+    ),
+  );
 
   /** Size, colour, price and availability — rendered in the desktop sidebar and,
    * identically, inside the mobile filter sheet. */

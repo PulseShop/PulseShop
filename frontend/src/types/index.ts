@@ -3,6 +3,15 @@ export type StockStatus = "available" | "low" | "out";
 export interface Product {
   id: string;
   name: string;
+  /**
+   * URL segment under the shop handle — `/gaminghq/30-inch-gaming-monitor`.
+   *
+   * Generated from the name on insert and then FROZEN: renaming a product must
+   * not change its URL, because by then that URL is in WhatsApp threads, search
+   * results and order confirmations. The seller can change it deliberately, and
+   * the UI warns them what that costs. See migration 0028.
+   */
+  slug: string;
   sku: string;
   category: string;
   priceKes: number;
@@ -25,6 +34,9 @@ export interface Product {
   reviewCount: number;
   summary: string | null;
   description: string;
+  /** Seller-authored search-result snippet. Null/empty means lib/seo.ts
+   * generates one from the summary, description or price. */
+  metaDescription: string | null;
   createdAt: string;
 
   /** Handle of the shop that owns this product (for public consumer routing). */
@@ -35,6 +47,7 @@ export interface Product {
 export interface ShopPreview {
   id: string;
   name: string;
+  slug: string;
   image: string;
 }
 
@@ -47,6 +60,10 @@ export interface Merchant {
   avatarUrl: string;
   bannerUrl: string;
   isOnline: boolean;
+  /** Search & sharing, set by the seller. Both may be empty, in which case
+   * lib/seo.ts generates a title/description from the shop's own data. */
+  tagline: string;
+  metaDescription: string;
   stats: { products: number; orders: number; followers: number; rating: number };
   contacts: { whatsapp: string; instagram: string; facebook: string };
   /**

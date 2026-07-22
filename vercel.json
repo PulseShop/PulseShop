@@ -3,8 +3,19 @@
   "installCommand": "cd frontend && npm install",
   "buildCommand": "cd frontend && npm run build",
   "outputDirectory": "frontend/dist",
+  "trailingSlash": false,
   "rewrites": [
-    { "source": "/(.*)", "destination": "/index.html" }
+    { "source": "/sitemap.xml", "destination": "/api/sitemap" },
+    { "source": "/sitemap-static.xml", "destination": "/api/sitemap?kind=static" },
+    {
+      "source": "/sitemap-shops-:page(\\d+).xml",
+      "destination": "/api/sitemap?kind=shops&page=:page"
+    },
+    {
+      "source": "/sitemap-products-:page(\\d+).xml",
+      "destination": "/api/sitemap?kind=products&page=:page"
+    },
+    { "source": "/((?!api/).*)", "destination": "/api/render" }
   ],
   "headers": [
     {

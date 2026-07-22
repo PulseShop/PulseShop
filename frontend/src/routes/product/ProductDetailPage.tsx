@@ -22,6 +22,9 @@ import {
   variantPrice,
 } from "@/lib/currency";
 import { merchantSocialLinks, productInquiryLinks } from "@/lib/deeplinks";
+import { productSeo } from "@/lib/seo";
+import { seoProductFrom } from "@/lib/seoFrom";
+import { useSeo } from "@/hooks/useSeo";
 import { cn } from "@/lib/utils";
 import { services } from "@/services";
 import type { Product } from "@/types";
@@ -43,7 +46,10 @@ const CHANNELS: { id: Channel; label: string; icon: typeof WhatsAppIcon }[] = [
 ];
 
 export function ProductDetailPage() {
-  const { id = "" } = useParams();
+  // Two routes land here: the canonical `/:shopSlug/:productSlug` and the
+  // legacy `/product/:id`, which is still reachable from links shared before
+  // slugs existed.
+  const { id: legacyId, shopSlug: shopParam, productSlug } = useParams();
   const navigate = useNavigate();
   const push = useToasts((s) => s.push);
   const home = useShopHome();
@@ -53,10 +59,31 @@ export function ProductDetailPage() {
  
 
   const productQ = useQuery({
-    queryKey: ["product", id],
-    queryFn: () => services.products.getProduct(id),
+    queryKey: legacyId ? ["product", legacyId] : ["product-by-slug", shopParam, productSlug],
+    queryFn: () =>
+      legacyId
+        ? services.products.getProduct(legacyId)
+        : services.products.getProductBySlug(shopParam!, productSlug!),
   });
   const product = productQ.data;
+  // Everything downstream keys off the loaded product rather than a URL param,
+  // so it no longer matters which of the two routes we arrived by.
+  const id = product?.id ?? "";
+
+  /**
+   * Collapse a legacy URL onto the canonical one.
+   *
+   * `replace` rather than `push`: the shopper pressed back to leave the page
+   * they came from, not to bounce between two spellings of this one. A hard
+   * load of the same URL is 301'd server-side before React ever runs — this
+   * only covers navigation inside the app.
+   */
+  const canonicalPath = product?.shopSlug && product.slug
+    ? `/${product.shopSlug}/${product.slug}`
+    : null;
+  useEffect(() => {
+    if (legacyId && canonicalPath) navigate(canonicalPath, { replace: true });
+  }, [legacyId, canonicalPath, navigate]);
 
   // The product carries its owning shop's handle — use it to load the right
   // merchant (for contact/order routing) and remember it as the active shop.
@@ -157,6 +184,20 @@ export function ProductDetailPage() {
   
 
   const [searchOpen, setSearchOpen] = useState(false);
+  // Title/OG/JSON-LD for an in-app navigation. A cold load already arrived with
+  // these baked in by api/render.ts; this keeps them right once React Router is
+  // driving. Held back until BOTH the product and its shop have loaded — a
+  // half-built title is worse than the previous page's for the 200ms it takes.
+  useSeo(
+    useMemo(
+      () =>
+        product && merchant
+          ? productSeo(seoProductFrom(product, merchant), window.location.origin)
+          : null,
+      [product, merchant],
+    ),
+  );
+
   const [searchQuery, setSearchQuery] = useState("");
   const submitSearch = () => {
     if (!searchQuery.trim()) return;
@@ -166,14 +207,18 @@ export function ProductDetailPage() {
   const myRatingQ = useQuery({
     queryKey: ["my-rating", id],
     queryFn: () => services.reviews.getMyRating(id),
-    enabled: Boolean(session) && !ownsProduct,
+    // `id` now comes from the loaded product, so this has to wait for it.
+    enabled: Boolean(id) && Boolean(session) && !ownsProduct,
   });
 
   const rateMut = useMutation({
     mutationFn: (stars: number) => services.reviews.rateProduct(id, stars),
     onSuccess: (_data, stars) => {
       // The product's average is recomputed server-side — refetch, don't guess.
+      // Invalidate both cache keys: the page may have been reached by either
+      // route, and only one of them is the key this instance is reading.
       qc.invalidateQueries({ queryKey: ["product", id] });
+      qc.invalidateQueries({ queryKey: ["product-by-slug", shopParam, productSlug] });
       qc.setQueryData(["my-rating", id], stars);
       push(`You rated this ${stars} ${stars === 1 ? "star" : "stars"}`, "success");
     },

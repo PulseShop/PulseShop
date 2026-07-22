@@ -32,6 +32,7 @@ import { statusForQty } from "@/lib/constants";
 import { minVariantPrice, variantPrice } from "@/lib/currency";
 import { fileToDataUrl } from "@/lib/image";
 import { productImageSrc } from "@/lib/productImage";
+import { slugify } from "@/lib/slug";
 import { MERCHANT, PRODUCTS } from "./data";
 
 const LATENCY = 300;
@@ -458,10 +459,27 @@ export const mockServices: Services = {
       return found ? { ...structuredClone(found), shopSlug: merchant.handle } : null;
     },
 
+    async getProductBySlug(shopSlug: string, productSlug: string): Promise<Product | null> {
+      await delay();
+      // Single demo shop, but the handle still has to match — the real adapter
+      // scopes the slug to a merchant and returning a product for the wrong
+      // shop here would hide that bug until production.
+      if (merchant.handle !== shopSlug.toLowerCase()) return null;
+      const found = products.find((p) => p.slug === productSlug.toLowerCase());
+      return found ? { ...structuredClone(found), shopSlug: merchant.handle } : null;
+    },
+
     async createProduct(input: ProductInput): Promise<Product> {
       await delay();
+      // Mirrors the products_set_slug trigger: derive from the name, then
+      // disambiguate against what this shop already sells.
+      const base = slugify(input.slug || input.name) || "item";
+      let slug = base;
+      for (let n = 1; products.some((p) => p.slug === slug); n++) slug = `${base}-${n}`;
       const product: Product = {
         ...input,
+        slug,
+        metaDescription: input.metaDescription ?? null,
         id: `p${Date.now()}`,
         status: statusForQty(input.stockQty),
         rating: 0,
@@ -477,7 +495,14 @@ export const mockServices: Services = {
       await delay();
       const idx = products.findIndex((p) => p.id === id);
       if (idx === -1) throw new Error(`Product ${id} not found`);
-      const next = { ...products[idx], ...patch };
+      // `slug` is optional on ProductInput but required on Product, and a
+      // deliberate slug change is normalised the way the trigger would.
+      const next: Product = {
+        ...products[idx],
+        ...patch,
+        slug: patch.slug ? slugify(patch.slug) || products[idx].slug : products[idx].slug,
+        metaDescription: patch.metaDescription ?? products[idx].metaDescription,
+      };
       next.status = statusForQty(next.stockQty);
       products[idx] = next;
       saveProducts(products);
@@ -719,7 +744,7 @@ export const mockServices: Services = {
         stats: merchantStats(),
         previews: structuredClone(products)
           .slice(0, 3)
-          .map((p) => ({ id: p.id, name: p.name, image: productImageSrc(p.images) })),
+          .map((p) => ({ id: p.id, name: p.name, slug: p.slug, image: productImageSrc(p.images) })),
       };
 
       // Mirrors shop_directory()'s search (0023): name, handle, bio, location.

@@ -38,6 +38,11 @@ function toDirectoryMerchant(row: DirectoryRow): Merchant {
     avatarUrl: row.avatar_url || avatarFor(row.name),
     bannerUrl: row.banner_url ?? "",
     isOnline: row.is_online,
+    // shop_directory() deliberately doesn't return these — the discover list
+    // renders no titles, and a projection that returns only what it renders is
+    // one that can't leak what it doesn't.
+    tagline: "",
+    metaDescription: "",
     stats: {
       products: Number(row.product_count ?? 0),
       orders: Number(row.order_count ?? 0),

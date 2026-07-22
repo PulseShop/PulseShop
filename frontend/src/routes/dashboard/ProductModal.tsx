@@ -1,7 +1,7 @@
 import { zodResolver } from "@hookform/resolvers/zod";
 import { useMutation, useQueryClient } from "@tanstack/react-query";
 import { Database, ImagePlus, KeyRound, Loader2, Minus, Plus, X } from "lucide-react";
-import { useCallback, useEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useForm } from "react-hook-form";
 import { z } from "zod";
 import { ProductImage } from "@/components/product/ProductImage";
@@ -16,13 +16,19 @@ import {
   isLegacyCategory,
   sizeOptionsFor,
   sortSizes,
+  statusForQty,
 } from "@/lib/constants";
 import { formatKes } from "@/lib/currency";
 import { generateProductKey } from "@/lib/productKey";
+import { slugify } from "@/lib/slug";
+import { CharCount, SeoPreviews } from "@/components/seo/SeoPanel";
+import { productSeo } from "@/lib/seo";
+import { seoProductFrom } from "@/lib/seoFrom";
 import { cn, isUniqueViolation } from "@/lib/utils";
 import { services, type ProductInput } from "@/services";
 import type { Product } from "@/types";
 import { useToasts } from "@/stores/toast";
+import { useAuth } from "@/stores/auth";
 
 // The product key isn't here: it's generated, not entered, so there's nothing
 // for the user to get wrong and nothing to validate. See lib/productKey.ts.
@@ -33,6 +39,13 @@ const schema = z.object({
   discountPct: z.coerce.number().min(0).max(90).nullable(),
   summary: z.string().max(160, "Keep it under 160 characters").default(""),
   description: z.string().default(""),
+  metaDescription: z.string().max(160, "Keep it under 160 characters").default(""),
+  // Validated against the same alphabet as products_slug_fmt in migration 0028.
+  // Blank is valid and means "leave the URL alone".
+  slug: z
+    .string()
+    .default("")
+    .refine((v) => v === "" || /^[a-z0-9][a-z0-9-]{0,79}$/.test(slugify(v)), "Letters, numbers and dashes"),
 });
 
 type FormValues = z.infer<typeof schema>;
@@ -122,7 +135,7 @@ export function ProductModal({
     formState: { errors, isSubmitting },
   } = useForm<FormValues>({
     resolver: zodResolver(schema) as never,
-    defaultValues: { name: "", category: "", priceKes: 0, discountPct: null, summary: "", description: "" },
+    defaultValues: { name: "", category: "", priceKes: 0, discountPct: null, summary: "", description: "", metaDescription: "", slug: "" },
   });
 
   useEffect(() => {
@@ -135,6 +148,8 @@ export function ProductModal({
         discountPct: product.discountPct,
         summary: product.summary ?? "",
         description: product.description,
+        metaDescription: product.metaDescription ?? "",
+        slug: product.slug,
       });
       setImages(product.images);
       setSizes(product.sizes ?? []);
@@ -146,7 +161,7 @@ export function ProductModal({
       // the buyer's order messages and the merchant's own records.
       setProductKey(product.sku);
     } else {
-      reset({ name: "", category: "", priceKes: 0, discountPct: null, summary: "", description: "" });
+      reset({ name: "", category: "", priceKes: 0, discountPct: null, summary: "", description: "", metaDescription: "", slug: "" });
       setImages([]);
       setSizes([]);
       setColors([]);
@@ -158,6 +173,66 @@ export function ProductModal({
   }, [open, product, reset]);
 
   const category = watch("category");
+
+  // --- Search & sharing -----------------------------------------------------
+  const session = useAuth((st) => st.session);
+  const shopHandle = session?.shopSlug ?? "";
+  const origin = typeof window === "undefined" ? "https://pulseshop.space" : window.location.origin;
+
+  const nameValue = watch("name");
+  const summaryValue = watch("summary");
+  const metaDescriptionValue = watch("metaDescription");
+  const slugValue = watch("slug");
+  const priceValue = watch("priceKes");
+  const discountValue = watch("discountPct");
+
+  const slugChanged = Boolean(product && slugify(slugValue) && slugify(slugValue) !== product.slug);
+
+  /**
+   * Preview built from the UNSAVED form values, through the same builders the
+   * server renders with — so this is what a crawler and a WhatsApp preview will
+   * actually show, not a mock-up of it.
+   */
+  const seoPreview = useMemo(() => {
+    if (!nameValue?.trim()) return null;
+    return productSeo(
+      seoProductFrom(
+        {
+          id: product?.id ?? "",
+          name: nameValue,
+          slug: slugify(slugValue) || product?.slug || slugify(nameValue) || "item",
+          sku: productKey,
+          category: category || "",
+          priceKes: Number(priceValue) || 0,
+          discountPct: discountValue == null ? null : Number(discountValue),
+          stockQty: Number(stockQty) || 0,
+          status: statusForQty(Number(stockQty) || 0),
+          images,
+          sizes: sizes.length ? sizes : null,
+          colors: colors.length ? colors : null,
+          sizePriceAdj: toAdjMap(sizeAdj, sizes),
+          colorPriceAdj: toAdjMap(colorAdj, colors),
+          rating: 0,
+          reviewCount: 0,
+          summary: summaryValue || null,
+          description: "",
+          metaDescription: metaDescriptionValue || null,
+          createdAt: new Date().toISOString(),
+          shopSlug: shopHandle,
+        },
+        {
+          name: session?.shopName ?? "Your shop",
+          handle: shopHandle,
+          location: "",
+        } as never,
+      ),
+      origin,
+    );
+  }, [
+    nameValue, summaryValue, metaDescriptionValue, slugValue, priceValue, discountValue,
+    category, images, sizes, colors, sizeAdj, colorAdj, productKey, stockQty,
+    product, shopHandle, session?.shopName, origin,
+  ]);
 
   /**
    * A product saved under the old taxonomy (e.g. "Tops") needs its <option> to
@@ -289,6 +364,13 @@ export function ProductModal({
       colorPriceAdj: toAdjMap(colorAdj, colors),
       summary: data.summary || null,
       description: data.description ?? "",
+      metaDescription: data.metaDescription || null,
+      // Only sent when the seller actually changed it. Sending the unchanged
+      // value would be harmless today, but the column is the product's public
+      // URL and "we only write it when asked" is the property worth keeping.
+      ...(product && slugify(data.slug) && slugify(data.slug) !== product.slug
+        ? { slug: slugify(data.slug) }
+        : {}),
     });
   });
 
@@ -616,6 +698,63 @@ export function ProductModal({
             )}
           </div>
         </div>
+
+        {/*
+          Search & sharing. Collapsed by default and last in the form: it is
+          genuinely optional — every field here has a sensible generated default
+          — and putting an optional section in front of the required ones is how
+          you get sellers abandoning the "add product" flow.
+        */}
+        <details className="rounded-btn border border-stone-200 bg-stone-50/60 p-4">
+          <summary className="cursor-pointer select-none text-sm font-bold text-ink">
+            Search &amp; sharing
+            <span className="ml-2 font-medium text-muted">optional</span>
+          </summary>
+
+          <p className="mt-2 text-xs text-muted">
+            How this product looks in Google and when a customer shares its link. Leave blank and
+            we write it from the summary and price.
+          </p>
+
+          <div className="mt-4 space-y-4">
+            <div>
+              <Textarea
+                label="Search description"
+                rows={2}
+                maxLength={160}
+                placeholder="What it is, who it suits, and why yours."
+                error={errors.metaDescription?.message}
+                {...register("metaDescription")}
+              />
+              <div className="mt-1 flex justify-end">
+                <CharCount value={metaDescriptionValue} ideal={70} max={160} />
+              </div>
+            </div>
+
+            {product && (
+              <div>
+                <Input
+                  label="Link"
+                  error={errors.slug?.message}
+                  {...register("slug")}
+                />
+                <p className="mt-1 text-xs text-muted">
+                  {origin}/{shopHandle || "your-shop"}/
+                  <span className="font-semibold text-ink">{slugify(slugValue) || product.slug}</span>
+                </p>
+                {slugChanged && (
+                  <p className="mt-1.5 rounded-btn bg-warning/15 px-3 py-2 text-xs font-semibold text-warning">
+                    Changing the link breaks every existing link to this product — anything already
+                    shared on WhatsApp, and its place in Google. Only do this if the current link is
+                    wrong.
+                  </p>
+                )}
+              </div>
+            )}
+
+            {seoPreview && <SeoPreviews seo={seoPreview} />}
+          </div>
+        </details>
 
         <div className="flex justify-end gap-2 border-t border-stone-100 pt-4">
           <Button type="button" variant="ghost" onClick={() => onOpenChange(false)}>

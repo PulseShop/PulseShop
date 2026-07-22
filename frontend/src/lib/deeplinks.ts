@@ -2,6 +2,7 @@ import type { Merchant, Product } from "@/types";
 import type { OrderChannel } from "@/types";
 import { formatKes, hasPriceRange, minVariantPrice, variantPrice } from "./currency";
 import { variantLabel } from "./variant";
+import { productUrl } from "./productUrl";
 
 /**
  * Pre-filled "ask about this product" links for the detail page contact icons —
@@ -118,7 +119,7 @@ export function merchantChatLink(merchant: Merchant) {
  * callers fall back to copying `url` for the seller to paste into a bio/Story.
  */
 export function productShareLinks(product: Product) {
-  const url = `${window.location.origin}/product/${product.id}`;
+  const url = productUrl(product);
   const caption = `Check out ${product.name} — ${
     hasPriceRange(product) ? "from " : ""
   }${formatKes(minVariantPrice(product))} on PulseShop!`;

@@ -1,10 +1,13 @@
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { ImagePlus, Loader2, LogOut, Mail } from "lucide-react";
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { useNavigate } from "react-router";
 import { DashboardShell } from "@/components/layout/DashboardShell";
 import { Button } from "@/components/ui/Button";
-import { Input } from "@/components/ui/Input";
+import { Input, Textarea } from "@/components/ui/Input";
+import { CharCount, SeoPreviews } from "@/components/seo/SeoPanel";
+import { shopSeo } from "@/lib/seo";
+import { seoShopFrom } from "@/lib/seoFrom";
 import { Skeleton } from "@/components/ui/Skeleton";
 import { services } from "@/services";
 import type { MerchantUpdate } from "@/services";
@@ -33,6 +36,8 @@ export function SettingsPage() {
     whatsapp: "",
     instagram: "",
     facebook: "",
+    tagline: "",
+    metaDescription: "",
   });
   const [email, setEmail] = useState("");
 
@@ -45,6 +50,8 @@ export function SettingsPage() {
       whatsapp: merchant.contacts.whatsapp,
       instagram: merchant.contacts.instagram,
       facebook: merchant.contacts.facebook,
+      tagline: merchant.tagline,
+      metaDescription: merchant.metaDescription,
     });
   }, [merchant]);
 
@@ -52,8 +59,35 @@ export function SettingsPage() {
     if (session) setEmail(session.email);
   }, [session]);
 
-  const set = (k: keyof typeof form) => (e: React.ChangeEvent<HTMLInputElement>) =>
-    setForm((f) => ({ ...f, [k]: e.target.value }));
+  const set =
+    (k: keyof typeof form) =>
+    (e: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement>) =>
+      setForm((f) => ({ ...f, [k]: e.target.value }));
+
+  /**
+   * The previews run the seller's unsaved edits through the SAME builders the
+   * server uses, so what they see here is literally what a crawler will get —
+   * not an approximation of it. That is the whole value of the panel: without
+   * it these two fields are invisible until someone happens to search for the
+   * shop.
+   */
+  const seoPreview = useMemo(
+    () =>
+      merchant
+        ? shopSeo(
+            seoShopFrom({
+              ...merchant,
+              name: form.name || merchant.name,
+              handle: form.handle || merchant.handle,
+              location: form.location,
+              tagline: form.tagline,
+              metaDescription: form.metaDescription,
+            }),
+            typeof window === "undefined" ? "https://pulseshop.space" : window.location.origin,
+          )
+        : null,
+    [merchant, form.name, form.handle, form.location, form.tagline, form.metaDescription],
+  );
 
   const handleIssue = slugError(form.handle);
 
@@ -107,6 +141,8 @@ export function SettingsPage() {
       whatsapp: form.whatsapp.trim(),
       instagram: form.instagram.trim(),
       facebook: form.facebook.trim(),
+      tagline: form.tagline,
+      metaDescription: form.metaDescription,
     });
   };
 
@@ -185,6 +221,63 @@ export function SettingsPage() {
                 </Button>
               </div>
             </section>
+
+            {/* search & sharing */}
+            {seoPreview && (
+              <section className="rounded-card bg-card p-6 shadow-soft">
+                <h2 className="text-lg font-extrabold text-ink">Search &amp; sharing</h2>
+                <p className="mt-1 text-sm text-muted">
+                  How your shop looks in Google and when someone shares your link. Leave these
+                  blank and we write them from your shop name, location and categories.
+                </p>
+
+                <div className="mt-5 space-y-4">
+                  <div>
+                    <Input
+                      label="Tagline"
+                      name="tagline"
+                      value={form.tagline}
+                      maxLength={60}
+                      placeholder="e.g. Handmade jewellery, Nairobi"
+                      onChange={set("tagline")}
+                    />
+                    <div className="mt-1 flex justify-between gap-3">
+                      <p className="text-xs text-muted">
+                        Shown after your shop name in the page title.
+                      </p>
+                      <CharCount value={form.tagline} ideal={20} max={60} />
+                    </div>
+                  </div>
+
+                  <div>
+                    <Textarea
+                      label="Search description"
+                      name="metaDescription"
+                      rows={3}
+                      maxLength={160}
+                      value={form.metaDescription}
+                      placeholder="What you sell, who it is for, and where you deliver."
+                      onChange={set("metaDescription")}
+                    />
+                    <div className="mt-1 flex justify-between gap-3">
+                      <p className="text-xs text-muted">
+                        The grey text under your title in search results.
+                      </p>
+                      <CharCount value={form.metaDescription} ideal={70} max={160} />
+                    </div>
+                  </div>
+
+                  <SeoPreviews seo={seoPreview} />
+                </div>
+
+                <div className="mt-5 flex justify-end">
+                  <Button onClick={saveProfile} disabled={updateMut.isPending}>
+                    {updateMut.isPending && <Loader2 className="size-4 animate-spin" />}
+                    Save
+                  </Button>
+                </div>
+              </section>
+            )}
 
             {/* account */}
             <section className="rounded-card bg-card p-6 shadow-soft">

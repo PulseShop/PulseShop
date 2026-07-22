@@ -130,6 +130,40 @@ export const productsApi: ProductService = {
     return product;
   },
 
+  /**
+   * The canonical product read: `/gaminghq/30-inch-gaming-monitor`.
+   *
+   * Two hops rather than one — resolve the handle to a merchant id, then the
+   * slug within that merchant — because `products.slug` is only unique PER
+   * SHOP. Filtering on the slug alone would let a request for one shop's
+   * "black-hoodie" return a different shop's. The embedded-resource filter
+   * PostgREST offers for this (`merchants.handle=eq.…`) returns the row with a
+   * null join rather than excluding it, which is exactly the kind of quiet
+   * wrong answer worth spending a round trip to avoid.
+   */
+  async getProductBySlug(shopSlug: string, productSlug: string): Promise<Product | null> {
+    const { data: shop, error: shopErr } = await supabase
+      .from("merchants")
+      .select("id, handle")
+      .eq("handle", shopSlug.toLowerCase())
+      .maybeSingle<{ id: string; handle: string }>();
+    if (shopErr) throw shopErr;
+    if (!shop) return null;
+
+    const { data, error } = await supabase
+      .from("products")
+      .select("*")
+      .eq("merchant_id", shop.id)
+      .eq("slug", productSlug.toLowerCase())
+      .maybeSingle<ProductRow>();
+    if (error) throw error;
+    if (!data) return null;
+
+    const product = toProduct(data);
+    product.shopSlug = shop.handle;
+    return product;
+  },
+
   async createProduct(input: ProductInput): Promise<Product> {
     const uid = await requireUserId();
     const { data, error } = await supabase

@@ -135,6 +135,10 @@ createRoot(document.getElementById("root")!).render(
                 Auth "Redirect URLs" allowlist */}
             <Route path="/reset-password" element={<ResetPasswordPage />} />
             <Route path="/shops" element={<ShopsPage />} />
+            {/* legacy: already in WhatsApp threads and order confirmations, so
+                it keeps resolving. A hard load is 301'd by api/render.ts; this
+                route covers an in-app navigation, which never reaches the
+                server, and replaces itself with the canonical URL. */}
             <Route path="/product/:id" element={<ProductDetailPage />} />
             <Route path="/favorites" element={<FavoritesPage />} />
             <Route path="/cart" element={<CartPage />} />
@@ -152,6 +156,10 @@ createRoot(document.getElementById("root")!).render(
                 A single-segment miss (/nosuchshop) is genuinely ambiguous, so it
                 lands on the storefront's "Shop not found", which names the handle. */}
             <Route path="/:shopSlug" element={<StorefrontPage />} />
+            {/* canonical product URL. React Router ranks by specificity rather
+                than declaration order, so static two-segment routes like
+                /signup/shopper and /order/:id still win over this. */}
+            <Route path="/:shopSlug/:productSlug" element={<ProductDetailPage />} />
             {/* everything else (multi-segment misses like /dashboard/typo) used to
                 match no route at all and render a blank page */}
             <Route path="*" element={<NotFoundPage />} />

@@ -13,6 +13,7 @@ export interface ProductRow {
   id: string;
   merchant_id?: string;
   name: string;
+  slug?: string;
   sku: string;
   category: string;
   price_kes: number;
@@ -28,6 +29,7 @@ export interface ProductRow {
   review_count: number;
   summary?: string | null;
   description?: string | null;
+  meta_description?: string | null;
   created_at: string;
 }
 
@@ -41,6 +43,8 @@ export interface MerchantRow {
   avatar_url: string | null;
   banner_url: string | null;
   is_online: boolean;
+  tagline?: string | null;
+  meta_description?: string | null;
   whatsapp: string | null;
   instagram: string | null;
   facebook: string | null;
@@ -55,6 +59,11 @@ export function toProduct(row: ProductRow): Product {
   return {
     id: row.id,
     name: row.name,
+    // NOT NULL in the database since 0028; the fallback only covers a row read
+    // through a projection that omitted it, where an empty slug correctly makes
+    // canonicalProductPath() fall back to the legacy /product/:id URL rather
+    // than building `/shop//`.
+    slug: row.slug ?? "",
     sku: row.sku,
     category: row.category,
     priceKes: row.price_kes,
@@ -70,6 +79,7 @@ export function toProduct(row: ProductRow): Product {
     reviewCount: row.review_count,
     summary: row.summary ?? null,
     description: row.description ?? "",
+    metaDescription: row.meta_description ?? null,
     createdAt: row.created_at,
   };
 }
@@ -87,6 +97,8 @@ export function toMerchant(
     avatarUrl: row.avatar_url || avatarFor(row.name),
     bannerUrl: row.banner_url ?? "",
     isOnline: row.is_online,
+    tagline: row.tagline ?? "",
+    metaDescription: row.meta_description ?? "",
     stats: {
       products: stats.products,
       orders: stats.orders,
@@ -105,6 +117,10 @@ export function toMerchant(
 export function productInputToRow(patch: Partial<ProductInput>): Record<string, unknown> {
   const row: Record<string, unknown> = {};
   if (patch.name !== undefined) row.name = patch.name;
+  // Only ever present when the seller deliberately edited it — the trigger in
+  // 0028 fills it in on create and leaves it alone on rename.
+  if (patch.slug !== undefined) row.slug = patch.slug;
+  if (patch.metaDescription !== undefined) row.meta_description = patch.metaDescription || null;
   if (patch.sku !== undefined) row.sku = patch.sku;
   if (patch.category !== undefined) row.category = patch.category;
   if (patch.priceKes !== undefined) row.price_kes = patch.priceKes;
@@ -133,5 +149,10 @@ export function merchantUpdateToRow(patch: MerchantUpdate): Record<string, unkno
   if (patch.whatsapp !== undefined) row.whatsapp = patch.whatsapp ? toWhatsAppDigits(patch.whatsapp) : "";
   if (patch.instagram !== undefined) row.instagram = patch.instagram ? toSocialHandle(patch.instagram) : "";
   if (patch.facebook !== undefined) row.facebook = patch.facebook ? toSocialHandle(patch.facebook) : "";
+  // Empty string and "unset" mean the same thing for these two — a blank
+  // tagline should make the title fall back to the generated one, not render
+  // "Shop — | PulseShop".
+  if (patch.tagline !== undefined) row.tagline = patch.tagline.trim() || null;
+  if (patch.metaDescription !== undefined) row.meta_description = patch.metaDescription.trim() || null;
   return row;
 }

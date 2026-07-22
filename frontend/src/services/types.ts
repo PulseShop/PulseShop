@@ -112,10 +112,24 @@ export interface MerchantUpdate {
   whatsapp?: string;
   instagram?: string;
   facebook?: string;
+  /** Search & sharing. One short phrase for what the shop sells; goes in the
+   * <title> after the shop name. Capped at 60 chars by the DB. */
+  tagline?: string;
+  /** The snippet under the title in a search result. Capped at 160. Blank means
+   * "generate one from the shop's own data" — see lib/seo.ts shopSeo(). */
+  metaDescription?: string;
 }
 
 export interface ProductInput {
   name: string;
+  /**
+   * URL segment. Omit on create and the database derives it from the name.
+   * Sending it on update CHANGES the product's public URL and breaks every
+   * existing link to it, so only the SEO panel ever sets this, and only after
+   * the seller confirms.
+   */
+  slug?: string;
+  metaDescription?: string | null;
   sku: string;
   category: string;
   priceKes: number;
@@ -179,6 +193,12 @@ export interface ProductService {
   /** The signed-in merchant's own catalogue. */
   listProducts(query?: ProductQuery): Promise<Paged<Product>>;
   getProduct(id: string): Promise<Product | null>;
+  /**
+   * Public: a product by its canonical URL pair. This is how every product page
+   * loads now; getProduct(id) survives only to resolve legacy /product/:id
+   * links into a redirect.
+   */
+  getProductBySlug(shopSlug: string, productSlug: string): Promise<Product | null>;
   createProduct(input: ProductInput): Promise<Product>;
   updateProduct(id: string, patch: Partial<ProductInput>): Promise<Product>;
   deleteProduct(id: string): Promise<void>;

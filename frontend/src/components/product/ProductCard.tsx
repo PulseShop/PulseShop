@@ -3,6 +3,7 @@ import { useState } from "react";
 import { Link } from "react-router";
 import type { Product } from "@/types";
 import { cn } from "@/lib/utils";
+import { productHref } from "@/lib/productUrl";
 import {
   formatKes,
   hasPriceRange,
@@ -89,7 +90,7 @@ export function ProductCard({ product, className }: { product: Product; classNam
       )}
     >
       <Link
-        to={`/product/${product.id}`}
+        to={productHref(product)}
         aria-disabled={soldOut}
         onClick={(e) => soldOut && e.preventDefault()}
         className={cn("block", soldOut && "cursor-default")}

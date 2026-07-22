@@ -1,4 +1,5 @@
 import type { Merchant, Product } from "@/types";
+import { slugify } from "@/lib/slug";
 
 // All URLs verified HTTP 200 (see scripts/check-images.mjs).
 const img = (id: string) => `https://images.unsplash.com/${id}?w=800&q=80&auto=format&fit=crop`;
@@ -12,6 +13,8 @@ export const MERCHANT: Merchant = {
   avatarUrl: img("photo-1494790108377-be9c29b29330"),
   bannerUrl: img("photo-1441984904996-e0b6ba687e04"),
   isOnline: true,
+  tagline: "Curated fashion, delivered countrywide",
+  metaDescription: "",
   stats: { products: 12, orders: 348, followers: 1284, rating: 4.8 },
   contacts: {
     whatsapp: "254712345678",
@@ -22,7 +25,13 @@ export const MERCHANT: Merchant = {
 
 const daysAgo = (n: number) => new Date(Date.now() - n * 86_400_000).toISOString();
 
-export const PRODUCTS: Product[] = [
+/**
+ * Slugs are derived rather than written out, exactly as the database derives
+ * them (the products_set_slug trigger in migration 0028). Mirroring the server
+ * here matters: drift between the mock and the real adapter produces bugs that
+ * only appear against the real backend, which is the worst place to find them.
+ */
+const RAW_PRODUCTS: Omit<Product, "slug" | "metaDescription">[] = [
   {
     id: "p1",
     name: "Classic White Tee",
@@ -276,3 +285,10 @@ export const PRODUCTS: Product[] = [
     createdAt: daysAgo(7),
   },
 ];
+
+export const PRODUCTS: Product[] = RAW_PRODUCTS.map((p, i, all) => {
+  const base = slugify(p.name) || "item";
+  // Same collision rule as the trigger: first one wins the bare slug.
+  const earlier = all.slice(0, i).filter((q) => (slugify(q.name) || "item") === base).length;
+  return { ...p, metaDescription: null, slug: earlier === 0 ? base : `${base}-${earlier}` };
+});

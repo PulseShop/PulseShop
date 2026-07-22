@@ -296,7 +296,7 @@ function ShopRow({ shop }: { shop: Merchant }) {
       {previews.length > 0 && (
         <div className="mt-2.5 flex gap-2">
           {previews.map((p) => (
-            <Link key={p.id} to={`/product/${p.id}`} className="shrink-0">
+            <Link key={p.id} to={`/${shop.handle}/${p.slug}`} className="shrink-0">
               <ProductImage src={p.image} alt={p.name} className="size-14 rounded-lg object-cover" />
             </Link>
           ))}

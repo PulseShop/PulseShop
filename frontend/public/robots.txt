@@ -1,0 +1,38 @@
+# PulseShop
+#
+# Public storefronts and product pages are open to crawlers. Everything a
+# signed-in person uses is disallowed here AND served with a noindex header by
+# api/render.ts — robots.txt only asks a crawler not to FETCH a URL, it does not
+# stop one that already knows the URL from indexing it. The header is what
+# actually keeps a checkout page out of the results.
+#
+# Nothing here is a security control. A disallowed path is a published list of
+# where to look; access control lives in RLS.
+
+User-agent: *
+Allow: /
+
+Disallow: /cart
+Disallow: /checkout
+Disallow: /account
+Disallow: /orders
+Disallow: /order/
+Disallow: /favorites
+Disallow: /dashboard
+Disallow: /login
+Disallow: /signup
+Disallow: /reset-password
+Disallow: /auth/
+Disallow: /dev/
+Disallow: /shop$
+
+# Legacy product URLs 301 to /:shop/:product. Crawling them is wasted budget.
+Disallow: /product/
+
+# Query-string variants of a storefront are the same page with a filter applied
+# and would otherwise be indexed as near-duplicates of it.
+Disallow: /*?search=
+Disallow: /*?category=
+Disallow: /*?sort=
+
+Sitemap: https://pulseshop.space/sitemap.xml
