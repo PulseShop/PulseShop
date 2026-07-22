@@ -1,4 +1,5 @@
 import { QueryClient, QueryClientProvider, useQueryClient } from "@tanstack/react-query";
+import { Analytics } from "@vercel/analytics/react";
 import { StrictMode, useEffect, useRef } from "react";
 import { createRoot } from "react-dom/client";
 import { BrowserRouter, Route, Routes } from "react-router";
@@ -157,6 +158,7 @@ createRoot(document.getElementById("root")!).render(
           </Routes>
           <Toaster />
           <InstallPrompt />
+          <Analytics />
         </BrowserRouter>
       </QueryClientProvider>
     </ErrorBoundary>
