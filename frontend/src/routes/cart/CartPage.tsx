@@ -5,6 +5,7 @@ import { DesktopQuickNav } from "@/components/layout/DesktopQuickNav";
 import { ProductImage } from "@/components/product/ProductImage";
 import { Button } from "@/components/ui/Button";
 import { formatKes } from "@/lib/currency";
+import { useRemoveFromCart, useSetCartQty } from "@/hooks/useCart";
 import { cartSubtotal, useCart } from "@/stores/cart";
 import { useShopHome } from "@/stores/shop";
 
@@ -12,8 +13,8 @@ export function CartPage() {
   const navigate = useNavigate();
   const home = useShopHome();
   const items = useCart((s) => s.items);
-  const setQty = useCart((s) => s.setQty);
-  const remove = useCart((s) => s.remove);
+  const setQty = useSetCartQty();
+  const remove = useRemoveFromCart();
   const subtotal = cartSubtotal(items);
 
   if (items.length === 0) {

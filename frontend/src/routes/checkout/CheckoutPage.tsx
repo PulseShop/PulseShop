@@ -20,6 +20,7 @@ import { isValidPhone } from "@/lib/phone";
 import { cn } from "@/lib/utils";
 import { services } from "@/services";
 import type { PaymentMethod } from "@/types";
+import { useClearCart } from "@/hooks/useCart";
 import { cartSubtotal, useCart } from "@/stores/cart";
 import { useOrderStore } from "@/stores/order";
 import { useOrderHistory } from "@/stores/orderHistory";
@@ -55,7 +56,7 @@ export function CheckoutPage() {
   const push = useToasts((s) => s.push);
 
   const items = useCart((s) => s.items);
-  const clearCart = useCart((s) => s.clear);
+  const clearCart = useClearCart();
   const { customer, saveCustomer } = useOrderStore();
   const addOrder = useOrderHistory((s) => s.add);
   const activeSlug = useShop((s) => s.slug);

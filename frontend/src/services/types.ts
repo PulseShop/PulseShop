@@ -1,6 +1,7 @@
 import type {
   Analytics,
   AuthUser,
+  CartItem,
   CartOrderDraft,
   Merchant,
   MerchantOrder,
@@ -253,6 +254,25 @@ export interface FavoritesService {
   removeFavorite(productId: string): Promise<void>;
 }
 
+/**
+ * Server sync for a signed-in shopper's cart (migration 0025's `cart_items`
+ * table, RLS owner-only), mirroring FavoritesService. The local
+ * `stores/cart.ts` store stays the fast, always-available cache and the ONLY
+ * cart a guest gets; this is what makes a signed-in shopper's cart follow the
+ * ACCOUNT rather than the device — and what gets cleared on sign-out so it
+ * can't leak to the next person on a shared device. See hooks/useCart.ts for
+ * how the two are kept in sync.
+ */
+export interface CartService {
+  /** The signed-in shopper's cart, hydrated with live product/shop data
+   * (price, stock, name, image) — the stored row only has product_id/size/qty. */
+  listCart(): Promise<CartItem[]>;
+  /** Insert-or-update one line by (product_id, size) to the given qty. */
+  upsertCartItem(item: CartItem): Promise<void>;
+  removeCartItem(productId: string, size: string | null): Promise<void>;
+  clearCart(): Promise<void>;
+}
+
 export interface PaymentService {
   payWithMpesa(phone: string, amount: number): Promise<PaymentResult>;
   payWithPaypal(amount: number): Promise<PaymentResult>;
@@ -274,6 +294,7 @@ export interface Services {
   follows: FollowService;
   reviews: ReviewService;
   favorites: FavoritesService;
+  cart: CartService;
   payments: PaymentService;
   storage: StorageService;
 }

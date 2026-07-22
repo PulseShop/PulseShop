@@ -128,6 +128,20 @@ export interface Favorite {
   addedAt: string;
 }
 
+export interface CartItem {
+  productId: string;
+  /** Handle of the shop the product belongs to — the cart is one shop at a time. */
+  shopSlug: string;
+  name: string;
+  image: string;
+  /** Discounted unit price captured when the item was added. */
+  unitPrice: number;
+  size: string | null;
+  qty: number;
+  /** Stock at add-time — used to cap the quantity stepper. */
+  stockQty: number;
+}
+
 /** One line of a placed order, as the merchant sees it in their dashboard. */
 export interface OrderLine {
   productName: string;

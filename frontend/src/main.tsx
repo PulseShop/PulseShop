@@ -12,6 +12,7 @@ import "./styles/tokens.css";
 import { ErrorBoundary } from "@/components/ErrorBoundary";
 import { InstallPrompt } from "@/components/layout/InstallPrompt";
 import { Toaster } from "@/components/ui/Toaster";
+import { useCartSync } from "@/hooks/useCart";
 import { isSupabaseConfigured, supabase } from "@/services/api/client";
 import { useAuth } from "@/stores/auth";
 import { useToasts } from "@/stores/toast";
@@ -70,11 +71,19 @@ const queryClient = new QueryClient({
   },
 });
 
+/** Keeps the local cart in sync with the signed-in shopper's account —
+ * pulled/pushed on sign-in, cleared on sign-out. See hooks/useCart.ts. */
+function AppSync() {
+  useCartSync();
+  return null;
+}
+
 createRoot(document.getElementById("root")!).render(
   <StrictMode>
     <ErrorBoundary>
       <QueryClientProvider client={queryClient}>
         <BrowserRouter>
+          <AppSync />
           <Routes>
             <Route path="/" element={<LandingPage />} />
             <Route path="/welcome" element={<LandingPage />} />

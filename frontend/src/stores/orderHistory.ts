@@ -24,6 +24,16 @@ export interface PlacedOrder {
 interface OrderHistoryState {
   orders: PlacedOrder[];
   add: (order: PlacedOrder) => void;
+  /**
+   * Wipe this device's order history. Called on sign-out (see hooks/useCart.ts
+   * useCartSync): each PlacedOrder carries the order's secret `accessToken` —
+   * the only key to look that order up — so leaving them in localStorage after
+   * sign-out would hand the previous account's orders to the next person on a
+   * shared device. Signed-in shoppers re-read their authoritative history from
+   * the DB (listMyOrders, RLS-scoped) on next sign-in, so nothing is lost for
+   * them; a pure guest never signs out, so their history persists as before.
+   */
+  clear: () => void;
 }
 
 export const useOrderHistory = create<OrderHistoryState>()(
@@ -31,6 +41,7 @@ export const useOrderHistory = create<OrderHistoryState>()(
     (set) => ({
       orders: [],
       add: (order) => set((s) => ({ orders: [order, ...s.orders] })),
+      clear: () => set({ orders: [] }),
     }),
     { name: "pulseshop-orders" },
   ),

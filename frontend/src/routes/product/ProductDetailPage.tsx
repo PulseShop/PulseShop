@@ -18,6 +18,7 @@ import { merchantSocialLinks, productInquiryLinks } from "@/lib/deeplinks";
 import { cn } from "@/lib/utils";
 import { services } from "@/services";
 import type { Product } from "@/types";
+import { useAddToCart } from "@/hooks/useCart";
 import { useFavoriteToggle } from "@/hooks/useFavorites";
 import { useAuth } from "@/stores/auth";
 import { cartCount, useCart } from "@/stores/cart";
@@ -65,7 +66,7 @@ export function ProductDetailPage() {
 
   const isFavorite = useFavorites((s) => s.isFavorite(id));
   const toggle = useFavoriteToggle();
-  const addToCart = useCart((s) => s.add);
+  const addToCart = useAddToCart();
   const cartItems = useCart((s) => s.items);
   const cartItemCount = cartCount(cartItems);
   const { selectedSize, setSelectedSize, qty, setQty, setPreferredChannel } = useOrderStore();

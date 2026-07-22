@@ -1,6 +1,7 @@
 import type {
   Analytics,
   AuthUser,
+  CartItem,
   CartOrderDraft,
   Merchant,
   MerchantOrder,
@@ -40,6 +41,7 @@ const ORDERS_KEY = "pulseshop-mock-orders-received";
 const MY_ORDERS_KEY = "pulseshop-mock-my-orders";
 const FOLLOWS_KEY = "pulseshop-mock-follows";
 const FAVORITES_KEY = "pulseshop-mock-server-favorites";
+const CART_KEY = "pulseshop-mock-server-cart";
 const RATINGS_KEY = "pulseshop-mock-my-ratings";
 const PROFILE_KEY = "pulseshop-mock-profile";
 
@@ -273,6 +275,47 @@ function loadIds(key: string): string[] {
   } catch {
     return [];
   }
+}
+
+/** A cart_items row (product_id/size/qty only — see migration 0025). */
+interface MockCartRow {
+  productId: string;
+  size: string;
+  qty: number;
+}
+
+function loadCartRows(): MockCartRow[] {
+  try {
+    return JSON.parse(localStorage.getItem(CART_KEY) ?? "[]") as MockCartRow[];
+  } catch {
+    return [];
+  }
+}
+
+function saveCartRows(rows: MockCartRow[]) {
+  try {
+    localStorage.setItem(CART_KEY, JSON.stringify(rows));
+  } catch {
+    /* storage full/unavailable — keep in-memory copy */
+  }
+}
+
+/** Re-derives price/stock/name/image from the live product, same as the real
+ * adapter's join — a stored row only has product_id/size/qty. Null when the
+ * product no longer exists. */
+function hydrateCartRow(row: MockCartRow): CartItem | null {
+  const p = products.find((p) => p.id === row.productId);
+  if (!p) return null;
+  return {
+    productId: p.id,
+    shopSlug: merchant.handle,
+    name: p.name,
+    image: productImageSrc(p.images),
+    unitPrice: discountedPrice(p.priceKes, p.discountPct),
+    size: row.size || null,
+    qty: row.qty,
+    stockQty: p.stockQty,
+  };
 }
 
 function loadMyRatings(): Record<string, number> {
@@ -747,6 +790,41 @@ export const mockServices: Services = {
       const ids = new Set(loadIds(FAVORITES_KEY));
       ids.delete(productId);
       localStorage.setItem(FAVORITES_KEY, JSON.stringify([...ids]));
+    },
+  },
+
+  cart: {
+    // Stands in for the DB `cart_items` table (migration 0025) so the sync
+    // path (see hooks/useCart.ts) has something real to talk to in mock mode
+    // too. Only product_id/size/qty are persisted; price/stock/name/image
+    // come from the live product on every read, same as the real adapter.
+    async listCart(): Promise<CartItem[]> {
+      await delay();
+      return loadCartRows()
+        .map(hydrateCartRow)
+        .filter((i): i is CartItem => i !== null);
+    },
+
+    async upsertCartItem(item: CartItem): Promise<void> {
+      await delay();
+      const rows = loadCartRows();
+      const size = item.size ?? "";
+      const idx = rows.findIndex((r) => r.productId === item.productId && r.size === size);
+      const row = { productId: item.productId, size, qty: item.qty };
+      if (idx !== -1) rows[idx] = row;
+      else rows.push(row);
+      saveCartRows(rows);
+    },
+
+    async removeCartItem(productId: string, size: string | null): Promise<void> {
+      await delay();
+      const target = size ?? "";
+      saveCartRows(loadCartRows().filter((r) => !(r.productId === productId && r.size === target)));
+    },
+
+    async clearCart(): Promise<void> {
+      await delay();
+      saveCartRows([]);
     },
   },
 

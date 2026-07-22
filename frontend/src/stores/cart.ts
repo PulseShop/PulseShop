@@ -1,19 +1,8 @@
 import { create } from "zustand";
 import { persist } from "zustand/middleware";
+import type { CartItem } from "@/types";
 
-export interface CartItem {
-  productId: string;
-  /** Handle of the shop the product belongs to — the cart is one shop at a time. */
-  shopSlug: string;
-  name: string;
-  image: string;
-  /** Discounted unit price captured when the item was added. */
-  unitPrice: number;
-  size: string | null;
-  qty: number;
-  /** Stock at add-time — used to cap the quantity stepper. */
-  stockQty: number;
-}
+export type { CartItem };
 
 /** Same product + same size collapses onto one line. */
 const sameLine = (a: Pick<CartItem, "productId" | "size">, productId: string, size: string | null) =>

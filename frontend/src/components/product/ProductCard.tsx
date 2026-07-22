@@ -7,8 +7,8 @@ import { discountedPrice, formatKes } from "@/lib/currency";
 import { productImageSrc } from "@/lib/productImage";
 import { Button } from "@/components/ui/Button";
 import { Sheet } from "@/components/ui/Modal";
+import { useAddToCart } from "@/hooks/useCart";
 import { useFavoriteToggle } from "@/hooks/useFavorites";
-import { useCart } from "@/stores/cart";
 import { useFavorites } from "@/stores/favorites";
 import { useToasts } from "@/stores/toast";
 import { ProductImage } from "./ProductImage";
@@ -18,7 +18,7 @@ import { StockBadge } from "./StockBadge";
 export function ProductCard({ product, className }: { product: Product; className?: string }) {
   const isFavorite = useFavorites((s) => s.isFavorite(product.id));
   const toggle = useFavoriteToggle();
-  const addToCart = useCart((s) => s.add);
+  const addToCart = useAddToCart();
   const push = useToasts((s) => s.push);
 
   const [sizeSheetOpen, setSizeSheetOpen] = useState(false);
