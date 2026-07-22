@@ -119,7 +119,7 @@ export function ProductDetailPage() {
   // instead of only on OrderPage) — default to the seller's first configured
   // channel once merchant data loads.
   const [desktopChannel, setDesktopChannel] = useState<Channel | null>(null);
-  const [descExpanded, _setDescExpanded] = useState(false);
+  const [descExpanded, setDescExpanded] = useState(false);
 
   const merchant = merchantQ.data;
   // A merchant can't rate their own product — the DB rejects it too.
@@ -170,14 +170,17 @@ export function ProductDetailPage() {
     return out;
   }, [sameCategoryQ.data, shopFillQ.data, product]);
 
-  const descriptionParagraphs = useMemo(() => {
+  // Sellers write one detail per line (the dashboard form says so); each line
+  // renders as a bullet. Legacy descriptions written as a single paragraph are
+  // split on "Word(s):" style labels, e.g. "...Portability: Extremely thin..."
+  // → break before "Portability:", so they read as bullets too.
+  const descriptionBullets = useMemo(() => {
     if (!product?.description) return [];
     return product.description
-      // insert a paragraph break before "Word(s):" style labels,
-      // e.g. "...Portability: Extremely thin..." → break before "Portability:"
-      .replace(/(?<=[.;])\s+(?=[A-Z][a-zA-Z &]{2,30}:)/g, "\n\n")
-      .split(/\n\s*\n/)
-      .map((p) => p.trim())
+      .replace(/(?<=[.;])\s+(?=[A-Z][a-zA-Z &]{2,30}:)/g, "\n")
+      .split(/\n+/)
+      // a seller may type their own "- " or "• " markers — we add the bullet
+      .map((line) => line.replace(/^\s*[-•*]\s*/, "").trim())
       .filter(Boolean);
   }, [product?.description]);
 
@@ -238,7 +241,7 @@ export function ProductDetailPage() {
     return (
       <MobileShell homeTo={home}>
         <div className="space-y-4 p-4">
-          <Skeleton className="h-[32dvh] min-h-40 max-h-80 w-full" />
+          <Skeleton className="mx-auto aspect-square w-full max-w-[320px]" />
           <Skeleton className="h-6 w-2/3 rounded" />
           <Skeleton className="h-5 w-1/3 rounded" />
           <Skeleton className="h-24 w-full" />
@@ -420,10 +423,12 @@ export function ProductDetailPage() {
       <div className="px-4 pt-2 lg:px-6 lg:pb-14 lg:pt-6">
         <div className="lg:grid lg:grid-cols-2 lg:items-start lg:gap-10">
           {/* gallery */}
+          {/* square frame, sized down from full-bleed — matches the square
+              crop the shop grid shows, so the photo reads the same on both */}
           <Gallery
             images={product.images}
             alt={product.name}
-            frameClassName="h-[32dvh] min-h-40 max-h-80 lg:h-auto lg:max-h-none lg:aspect-[4/5]"
+            frameClassName="mx-auto aspect-square w-full max-w-[320px] lg:mx-0 lg:max-w-md"
             thumbnails
             thumbnailsClassName="hidden lg:flex"
           />
@@ -474,24 +479,37 @@ export function ProductDetailPage() {
               status={product.status}
               label={stockDetailLabel(product.status, product.stockQty)}
             />
-            <div className={cn("space-y-4 text-sm leading-relaxed text-ink/80", !descExpanded && "line-clamp-3")}>
-              {descExpanded
-                ? descriptionParagraphs.map((para, i) => {
-                  const match = para.match(/^([A-Z][a-zA-Z &]{2,30}:)\s*(.*)$/s);
-                  return (
-                    <p key={i}>
-                      {match ? (
-                        <>
-                          <span className="font-bold text-ink">{match[1]}</span> {match[2]}
-                        </>
-                      ) : (
-                        para
-                      )}
-                    </p>
-                  );
-                })
-                : product.description}
-            </div>
+            {descriptionBullets.length > 0 && (
+              <div className="space-y-2 text-sm leading-relaxed text-ink/80">
+                <ul className="list-disc space-y-1.5 pl-5 marker:text-primary">
+                  {(descExpanded ? descriptionBullets : descriptionBullets.slice(0, 4)).map(
+                    (line, i) => {
+                      const match = line.match(/^([A-Z][a-zA-Z &]{2,30}:)\s*(.*)$/s);
+                      return (
+                        <li key={i}>
+                          {match ? (
+                            <>
+                              <span className="font-bold text-ink">{match[1]}</span> {match[2]}
+                            </>
+                          ) : (
+                            line
+                          )}
+                        </li>
+                      );
+                    },
+                  )}
+                </ul>
+                {descriptionBullets.length > 4 && (
+                  <button
+                    type="button"
+                    onClick={() => setDescExpanded((v) => !v)}
+                    className="text-sm font-semibold text-primary"
+                  >
+                    {descExpanded ? "Show less" : `Show all ${descriptionBullets.length} details`}
+                  </button>
+                )}
+              </div>
+            )}
             {/* variant selectors — required before Add / Buy when present */}
             {hasSizes && (
               <div className="space-y-2">

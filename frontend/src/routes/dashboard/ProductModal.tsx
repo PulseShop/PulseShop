@@ -19,6 +19,7 @@ import {
   statusForQty,
 } from "@/lib/constants";
 import { formatKes } from "@/lib/currency";
+import { processProductImage } from "@/lib/imageProcess";
 import { generateProductKey } from "@/lib/productKey";
 import { slugify } from "@/lib/slug";
 import { CharCount, SeoPreviews } from "@/components/seo/SeoPanel";
@@ -256,7 +257,10 @@ export function ProductModal({
       setUploading(true);
       try {
         for (const file of picked) {
-          const url = await services.storage.uploadImage(file, "products");
+          // Square center-crop + downscale before upload, so the stored image
+          // is exactly what the storefront's square frames will show.
+          const processed = await processProductImage(file);
+          const url = await services.storage.uploadImage(processed, "products");
           setImages((imgs) => [...imgs, url]);
         }
       } catch (err) {
@@ -459,11 +463,20 @@ export function ProductModal({
           <div className="col-span-2">
             <Textarea
               label="Product Details"
-              placeholder="Key features, materials, what's included…"
-              rows={3}
+              placeholder={
+                "Write one detail per line, e.g.\n" +
+                "Material: 100% cotton\n" +
+                "Fits true to size\n" +
+                "Machine washable\n" +
+                "Includes: free sticker pack"
+              }
+              rows={5}
               error={errors.description?.message}
               {...register("description")}
             />
+            <p className="mt-1 text-xs text-muted">
+              Each line becomes a bullet point on your product page.
+            </p>
           </div>
           {/* Product key — generated, never typed. Read-only rather than
               disabled so it stays selectable (and copyable) and is still read

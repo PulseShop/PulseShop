@@ -95,7 +95,9 @@ export function ProductCard({ product, className }: { product: Product; classNam
         onClick={(e) => soldOut && e.preventDefault()}
         className={cn("block", soldOut && "cursor-default")}
       >
-        <div className="relative aspect-[3/4] overflow-hidden bg-stone-100">
+        {/* square, matching the square crop applied at upload — the frame and
+            the stored image agree, so nothing gets cut off */}
+        <div className="relative aspect-square overflow-hidden bg-stone-100">
           <ProductImage
             src={product.images[0]}
             alt={product.name}
