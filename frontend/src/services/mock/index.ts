@@ -29,7 +29,7 @@ import type {
   SignupInput,
 } from "../types";
 import { statusForQty } from "@/lib/constants";
-import { discountedPrice } from "@/lib/currency";
+import { minVariantPrice, variantPrice } from "@/lib/currency";
 import { fileToDataUrl } from "@/lib/image";
 import { productImageSrc } from "@/lib/productImage";
 import { MERCHANT, PRODUCTS } from "./data";
@@ -98,7 +98,10 @@ function queryProducts(all: Product[], q: ProductQuery = {}): Paged<Product> {
   }
   // The price the shopper is shown — and therefore the only one they can mean
   // when they filter or sort by price. See migration 0023.
-  const price = (p: Product) => discountedPrice(p.priceKes, p.discountPct);
+  // The LOWEST price a shopper could actually pay — mirrors search_products'
+  // eff_price (migration 0027). Sorting on the base price would rank a product
+  // by a number no variant of it costs.
+  const price = (p: Product) => minVariantPrice(p);
   if (q.maxPrice != null) list = list.filter((p) => price(p) <= q.maxPrice!);
   // Array OVERLAP, not containment — "M or L" means either. Mirrors the `&&`
   // in search_products (migration 0026); drift here is a bug you only ever see
@@ -215,7 +218,7 @@ const minsAgo = (n: number) => new Date(Date.now() - n * 60_000).toISOString();
 /** A few received orders so the merchant dashboard isn't empty in mock mode. */
 function seedOrders(): MerchantOrder[] {
   const line = (p: Product, qty: number, size: string | null, color: string | null = null) => {
-    const unit = discountedPrice(p.priceKes, p.discountPct);
+    const unit = variantPrice(p, size, color);
     return {
       productName: p.name,
       image: productImageSrc(p.images),
@@ -318,7 +321,7 @@ function hydrateCartRow(row: MockCartRow): CartItem | null {
     shopSlug: merchant.handle,
     name: p.name,
     image: productImageSrc(p.images),
-    unitPrice: discountedPrice(p.priceKes, p.discountPct),
+    unitPrice: variantPrice(p, row.size || null, row.color || null),
     size: row.size || null,
     color: row.color || null,
     qty: row.qty,
@@ -515,7 +518,7 @@ export const mockServices: Services = {
         colors: [...new Set(products.flatMap((p) => p.colors ?? []))].sort(),
         // Ceiling of the DISCOUNTED prices — it's the top of the price slider,
         // whose value is handed straight back to the discount-aware filter.
-        priceCeiling: Math.max(0, ...products.map((p) => discountedPrice(p.priceKes, p.discountPct))),
+        priceCeiling: Math.max(0, ...products.map(minVariantPrice)),
         total: products.length,
         available: products.filter((p) => p.status === "available").length,
         low: products.filter((p) => p.status === "low").length,
@@ -539,8 +542,8 @@ export const mockServices: Services = {
               size: draft.size,
               color: draft.color,
               qty: draft.qty,
-              unitPriceKes: discountedPrice(p.priceKes, p.discountPct),
-              lineTotalKes: discountedPrice(p.priceKes, p.discountPct) * draft.qty,
+              unitPriceKes: variantPrice(p, draft.size, draft.color),
+              lineTotalKes: variantPrice(p, draft.size, draft.color) * draft.qty,
             },
           ]
         : [];
@@ -577,7 +580,7 @@ export const mockServices: Services = {
       const items: OrderLine[] = draft.items.flatMap((item) => {
         const p = products.find((x) => x.id === item.productId);
         if (!p) return [];
-        const unit = discountedPrice(p.priceKes, p.discountPct);
+        const unit = variantPrice(p, item.size, item.color);
         return [{
           productName: p.name,
           image: productImageSrc(p.images),

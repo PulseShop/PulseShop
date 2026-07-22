@@ -14,7 +14,13 @@ import { Button } from "@/components/ui/Button";
 import { FacebookIcon, InstagramIcon, WhatsAppIcon } from "@/components/ui/BrandIcons";
 import { SocialLinks } from "@/components/shop/SocialLinks";
 import { Skeleton } from "@/components/ui/Skeleton";
-import { discountedPrice, formatKes } from "@/lib/currency";
+import {
+  formatKes,
+  hasPriceRange,
+  listPriceForSelection,
+  priceForSelection,
+  variantPrice,
+} from "@/lib/currency";
 import { merchantSocialLinks, productInquiryLinks } from "@/lib/deeplinks";
 import { cn } from "@/lib/utils";
 import { services } from "@/services";
@@ -211,12 +217,22 @@ export function ProductDetailPage() {
 
   const size = localSize ?? (product.sizes?.includes(selectedSize ?? "") ? selectedSize : null);
   const color = localColor ?? (product.colors?.includes(selectedColor ?? "") ? selectedColor : null);
-  const finalPrice = discountedPrice(product.priceKes, product.discountPct);
   const soldOut = product.status === "out";
   const links = merchant ? productInquiryLinks(merchant, product) : null;
 
   const hasSizes = Boolean(product.sizes?.length);
   const hasColors = Boolean(product.colors?.length);
+
+  /**
+   * The headline price tracks the selection. Anything not yet chosen counts at
+   * its CHEAPEST option and the figure is labelled "from", so it only ever
+   * climbs as the shopper picks — quoting the base price and then revising
+   * upward at the cart reads as a bait-and-switch even when it isn't one.
+   */
+  const shownPrice = priceForSelection(product, size, color);
+  const shownListPrice = listPriceForSelection(product, size, color);
+  const choicePending = (hasSizes && !size) || (hasColors && !color);
+  const showFrom = choicePending && hasPriceRange(product);
 
   /**
    * The rule: whatever the seller offers a choice of, the buyer must choose,
@@ -262,7 +278,7 @@ export function ProductDetailPage() {
         shopSlug: product.shopSlug,
         name: product.name,
         image: product.images[0],
-        unitPrice: finalPrice,
+        unitPrice: variantPrice(product, size, color),
         size,
         color,
         stockQty: product.stockQty,
@@ -392,9 +408,12 @@ export function ProductDetailPage() {
             <div className="flex items-start justify-between gap-3">
               <h1 className="text-xl font-extrabold text-ink lg:text-2xl">{product.name}</h1>
               <div className="text-right">
-                <p className="text-xl font-extrabold text-primary lg:text-2xl">{formatKes(finalPrice)}</p>
+                <p className="text-xl font-extrabold text-primary lg:text-2xl">
+                  {showFrom && <span className="text-sm font-medium text-muted">from </span>}
+                  {formatKes(shownPrice)}
+                </p>
                 {product.discountPct != null && (
-                  <p className="text-sm text-muted line-through">{formatKes(product.priceKes)}</p>
+                  <p className="text-sm text-muted line-through">{formatKes(shownListPrice)}</p>
                 )}
               </div>
             </div>

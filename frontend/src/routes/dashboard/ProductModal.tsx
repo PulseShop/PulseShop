@@ -17,6 +17,7 @@ import {
   sizeOptionsFor,
   sortSizes,
 } from "@/lib/constants";
+import { formatKes } from "@/lib/currency";
 import { generateProductKey } from "@/lib/productKey";
 import { cn, isUniqueViolation } from "@/lib/utils";
 import { services, type ProductInput } from "@/services";
@@ -38,6 +39,26 @@ type FormValues = z.infer<typeof schema>;
 
 /** How many fresh keys to try before giving up and surfacing the error. */
 const KEY_COLLISION_RETRIES = 4;
+
+/** Stored adjustments -> the editable text fields. Zero is left BLANK rather
+ * than shown as "0": a grid of zeroes reads as work the seller has to do, when
+ * in fact "same price as the base" is the answer for almost every option. */
+const toAdjText = (map: Record<string, number>): Record<string, string> =>
+  Object.fromEntries(Object.entries(map).map(([k, v]) => [k, v ? String(v) : ""]));
+
+/**
+ * Text fields -> the stored map, keeping only options still offered and only
+ * non-zero values. Everything else is +0 by definition, so storing it would be
+ * noise that has to be kept in sync with the size/colour lists forever.
+ */
+const toAdjMap = (text: Record<string, string>, offered: string[]): Record<string, number> => {
+  const out: Record<string, number> = {};
+  for (const key of offered) {
+    const n = Number(text[key]);
+    if (Number.isFinite(n) && n !== 0) out[key] = Math.trunc(n);
+  }
+  return out;
+};
 
 /**
  * Create the product, minting a new key if the one we generated is somehow
@@ -79,6 +100,11 @@ export function ProductModal({
   const [images, setImages] = useState<string[]>([]);
   const [sizes, setSizes] = useState<string[]>([]);
   const [colors, setColors] = useState<string[]>([]);
+  // Per-option price adjustments, kept as TEXT for the same reason stockQty is:
+  // a numeric state forces the intermediate empty string back to 0 mid-keystroke,
+  // so "-50" becomes impossible to type. Parsed once, on submit.
+  const [sizeAdj, setSizeAdj] = useState<Record<string, string>>({});
+  const [colorAdj, setColorAdj] = useState<Record<string, string>>({});
   // Kept as text, not a number: a merchant restocking 240 units types over the
   // field, and a numeric state would force the intermediate empty string back to
   // 0 mid-keystroke. Parsed once, on submit.
@@ -113,6 +139,8 @@ export function ProductModal({
       setImages(product.images);
       setSizes(product.sizes ?? []);
       setColors(product.colors ?? []);
+      setSizeAdj(toAdjText(product.sizePriceAdj));
+      setColorAdj(toAdjText(product.colorPriceAdj));
       setStockQty(String(product.stockQty));
       // An existing product keeps the key it was created with — it's already on
       // the buyer's order messages and the merchant's own records.
@@ -122,6 +150,8 @@ export function ProductModal({
       setImages([]);
       setSizes([]);
       setColors([]);
+      setSizeAdj({});
+      setColorAdj({});
       setStockQty("0");
       setProductKey(generateProductKey());
     }
@@ -182,6 +212,52 @@ export function ProductModal({
     return [...preset, ...sortSizes(extras)];
   })();
 
+  // Live preview of what the variants actually cost, so the seller sees the
+  // consequence of an adjustment in shillings rather than doing base + 350 in
+  // their head — including the discount, which applies AFTER the adjustment.
+  const basePrice = Number(watch("priceKes")) || 0;
+  const discount = Number(watch("discountPct")) || 0;
+  const pricedAt = (adj: number) =>
+    Math.max(0, Math.round((basePrice + adj) * (1 - discount / 100)));
+  const adjOf = (text: Record<string, string>, key: string) => {
+    const n = Number(text[key]);
+    return Number.isFinite(n) ? Math.trunc(n) : 0;
+  };
+
+  /** One "+ KES" field beside a selected option. */
+  const adjField = (
+    key: string,
+    text: Record<string, string>,
+    setText: (fn: (t: Record<string, string>) => Record<string, string>) => void,
+  ) => (
+    <label
+      key={key}
+      className="flex items-center justify-between gap-3 rounded-btn bg-card px-3 py-2"
+    >
+      <span className="text-sm font-semibold text-ink">{key}</span>
+      <span className="flex items-center gap-2">
+        <span className="text-xs font-medium text-muted">KES</span>
+        <input
+          type="text"
+          inputMode="numeric"
+          autoComplete="off"
+          aria-label={`Price adjustment for ${key}`}
+          value={text[key] ?? ""}
+          // Digits and a leading minus only — a seller can discount a size as
+          // well as surcharge it, but "12e4" is not a price.
+          onChange={(e) =>
+            setText((t) => ({ ...t, [key]: e.target.value.replace(/(?!^-)[^\d]/g, "") }))
+          }
+          placeholder="0"
+          className="h-9 w-24 rounded-btn border border-stone-200 bg-card px-2 text-right text-sm font-semibold text-ink outline-none focus:border-primary focus:ring-2 focus:ring-primary/20"
+        />
+        <span className="w-24 text-right text-xs font-bold text-primary">
+          = {formatKes(pricedAt(adjOf(text, key)))}
+        </span>
+      </span>
+    </label>
+  );
+
   const mutation = useMutation({
     mutationFn: (input: ProductInput) =>
       product
@@ -206,6 +282,11 @@ export function ProductModal({
       images,
       sizes: categoryHasSizes(data.category) && sizes.length ? sortSizes(sizes) : null,
       colors: colors.length ? colors : null,
+      // Pruned to the options actually offered: an adjustment left behind by a
+      // size the seller has since unselected would come back to life — and
+      // silently reprice the product — the moment they reselected it.
+      sizePriceAdj: toAdjMap(sizeAdj, categoryHasSizes(data.category) ? sizes : []),
+      colorPriceAdj: toAdjMap(colorAdj, colors),
       summary: data.summary || null,
       description: data.description ?? "",
     });
@@ -409,6 +490,21 @@ export function ProductModal({
                   ? "Buyers must pick one of these before they can order."
                   : "Leave all unselected if this product has no sizes."}
               </p>
+
+              {/* Price per size — only for the sizes actually selected, so the
+                  form grows with the seller's choices instead of showing a
+                  wall of fields for options they don't stock. */}
+              {sizes.length > 0 && (
+                <div className="mt-2 space-y-1 rounded-card bg-stone-50 p-3">
+                  <p className="text-xs font-semibold text-ink">
+                    Price by size{" "}
+                    <span className="font-medium text-muted">
+                      — leave blank for the same price
+                    </span>
+                  </p>
+                  {sortSizes(sizes).map((s) => adjField(s, sizeAdj, setSizeAdj))}
+                </div>
+              )}
             </fieldset>
           )}
 
@@ -450,6 +546,22 @@ export function ProductModal({
                 ? "Buyers must pick one of these before they can order."
                 : "Leave all unselected if this product only comes one way."}
             </p>
+
+            {colors.length > 0 && (
+              <div className="mt-2 space-y-1 rounded-card bg-stone-50 p-3">
+                <p className="text-xs font-semibold text-ink">
+                  Price by colour{" "}
+                  <span className="font-medium text-muted">
+                    — leave blank for the same price
+                  </span>
+                </p>
+                {colors.map((c) => adjField(c, colorAdj, setColorAdj))}
+                <p className="pt-1 text-xs text-muted">
+                  Size and colour adjustments add together — an XL in a colour at
+                  +100 costs the base price plus both.
+                </p>
+              </div>
+            )}
           </fieldset>
 
           {/* stock counter + DB sync indicator. The +/- buttons are for nudging a

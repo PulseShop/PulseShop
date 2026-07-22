@@ -1,5 +1,5 @@
 import { forwardRef } from "react";
-import { discountedPrice, formatKes } from "@/lib/currency";
+import { formatKes, minVariantPrice } from "@/lib/currency";
 import { ProductImage } from "@/components/product/ProductImage";
 import type { Product } from "@/types";
 
@@ -19,7 +19,7 @@ const HEIGHT = 1920;
 export const InstagramStoryTemplate = forwardRef<HTMLDivElement, { product: Product; shopName: string }>(
   function InstagramStoryTemplate({ product, shopName }, ref) {
     const hasDiscount = product.discountPct != null;
-    const finalPrice = discountedPrice(product.priceKes, product.discountPct);
+    const finalPrice = minVariantPrice(product);
 
     return (
       <div

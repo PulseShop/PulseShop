@@ -22,7 +22,7 @@ import { StockBadge } from "@/components/product/StockBadge";
 import { Button } from "@/components/ui/Button";
 import { Modal } from "@/components/ui/Modal";
 import { Skeleton } from "@/components/ui/Skeleton";
-import { discountedPrice, formatKes } from "@/lib/currency";
+import { formatKes, hasPriceRange, minVariantPrice } from "@/lib/currency";
 import { cn } from "@/lib/utils";
 import { services } from "@/services";
 import type { Paged, Product } from "@/types";
@@ -376,7 +376,8 @@ export function InventoryPage() {
                       </span>
                       {p.discountPct != null && (
                         <p className="font-bold text-primary">
-                          {formatKes(discountedPrice(p.priceKes, p.discountPct))}
+                          {hasPriceRange(p) ? "from " : ""}
+                          {formatKes(minVariantPrice(p))}
                         </p>
                       )}
                     </div>

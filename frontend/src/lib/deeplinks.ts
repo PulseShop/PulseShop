@@ -1,6 +1,6 @@
 import type { Merchant, Product } from "@/types";
 import type { OrderChannel } from "@/types";
-import { discountedPrice, formatKes } from "./currency";
+import { formatKes, hasPriceRange, minVariantPrice, variantPrice } from "./currency";
 import { variantLabel } from "./variant";
 
 /**
@@ -9,8 +9,9 @@ import { variantLabel } from "./variant";
  * render as dead buttons.
  */
 export function productInquiryLinks(merchant: Merchant, product: Product) {
-  const msg = `Hi ${merchant.name}! I'm interested in "${product.name}" (${product.sku}) — ${formatKes(
-    discountedPrice(product.priceKes, product.discountPct),
+  const from = hasPriceRange(product) ? "from " : "";
+  const msg = `Hi ${merchant.name}! I'm interested in "${product.name}" (${product.sku}) — ${from}${formatKes(
+    minVariantPrice(product),
   )}. Is it available?`;
   const links: { channel: OrderChannel; url: string }[] = [];
   if (merchant.contacts.whatsapp)
@@ -37,7 +38,9 @@ export function orderLink(
   channel: Exclude<OrderChannel, "direct">,
   reference: string,
 ) {
-  const price = discountedPrice(product.priceKes, product.discountPct);
+  // The variant's price, not the base — this line is what the seller collects
+  // money against, so it has to match what place_order charged.
+  const price = variantPrice(product, opts.size, opts.color);
   const lines = [
     `🛍️ New order for ${merchant.name}`,
     ``,
@@ -116,9 +119,9 @@ export function merchantChatLink(merchant: Merchant) {
  */
 export function productShareLinks(product: Product) {
   const url = `${window.location.origin}/product/${product.id}`;
-  const caption = `Check out ${product.name} — ${formatKes(
-    discountedPrice(product.priceKes, product.discountPct),
-  )} on PulseShop!`;
+  const caption = `Check out ${product.name} — ${
+    hasPriceRange(product) ? "from " : ""
+  }${formatKes(minVariantPrice(product))} on PulseShop!`;
   return {
     url,
     caption,

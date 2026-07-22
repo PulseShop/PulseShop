@@ -124,6 +124,8 @@ export interface ProductInput {
   images: string[];
   sizes: string[] | null;
   colors: string[] | null;
+  sizePriceAdj: Record<string, number>;
+  colorPriceAdj: Record<string, number>;
   summary: string | null;
   description: string;
 }

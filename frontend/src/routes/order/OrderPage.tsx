@@ -13,7 +13,7 @@ import { FacebookIcon, InstagramIcon, WhatsAppIcon } from "@/components/ui/Brand
 import { Button } from "@/components/ui/Button";
 import { Input, Textarea } from "@/components/ui/Input";
 import { Skeleton } from "@/components/ui/Skeleton";
-import { discountedPrice, formatKes } from "@/lib/currency";
+import { formatKes, variantPrice } from "@/lib/currency";
 import { variantLabel } from "@/lib/variant";
 import { orderLink } from "@/lib/deeplinks";
 import { isValidPhone } from "@/lib/phone";
@@ -149,7 +149,7 @@ export function OrderPage() {
     );
   }
 
-  const unitPrice = discountedPrice(product.priceKes, product.discountPct);
+  const unitPrice = variantPrice(product, selectedSize, selectedColor);
   const total = unitPrice * qty;
 
   const recordOrder = (

@@ -13,6 +13,14 @@ export interface Product {
   sizes: string[] | null;
   /** Colours the seller offers. Null/empty = this product has no colour choice. */
   colors: string[] | null;
+  /**
+   * Per-option price adjustments in KES, keyed by size/colour name, added to
+   * priceKes before the discount. A name that isn't a key is +0, so the common
+   * "one price for everything" product carries two empty objects. See
+   * lib/currency.ts variantPrice() and migration 0027.
+   */
+  sizePriceAdj: Record<string, number>;
+  colorPriceAdj: Record<string, number>;
   rating: number;
   reviewCount: number;
   summary: string | null;

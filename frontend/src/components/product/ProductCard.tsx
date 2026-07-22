@@ -3,7 +3,13 @@ import { useState } from "react";
 import { Link } from "react-router";
 import type { Product } from "@/types";
 import { cn } from "@/lib/utils";
-import { discountedPrice, formatKes } from "@/lib/currency";
+import {
+  formatKes,
+  hasPriceRange,
+  minVariantPrice,
+  priceForSelection,
+  variantPrice,
+} from "@/lib/currency";
 import { productImageSrc } from "@/lib/productImage";
 import { Button } from "@/components/ui/Button";
 import { Sheet } from "@/components/ui/Modal";
@@ -27,7 +33,13 @@ export function ProductCard({ product, className }: { product: Product; classNam
   const [chosenColor, setChosenColor] = useState<string | null>(null);
 
   const soldOut = product.status === "out";
-  const finalPrice = discountedPrice(product.priceKes, product.discountPct);
+  // With variants a product has a range, not a price. The card shows the
+  // cheapest reachable one and says so — the same number the grid sorts by and
+  // the price filter compares against, server-side.
+  const fromPrice = minVariantPrice(product);
+  const ranged = hasPriceRange(product);
+  // Inside the sheet the figure tracks what they've picked so far.
+  const sheetPrice = priceForSelection(product, chosenSize, chosenColor);
   const hasSizes = !!product.sizes && product.sizes.length > 0;
   const hasColors = !!product.colors && product.colors.length > 0;
   /** A one-tap add is only honest when there's nothing left to choose. */
@@ -43,7 +55,7 @@ export function ProductCard({ product, className }: { product: Product; classNam
       shopSlug: product.shopSlug,
       name: product.name,
       image: productImageSrc(product.images),
-      unitPrice: finalPrice,
+      unitPrice: variantPrice(product, size, color),
       size,
       color,
       stockQty: product.stockQty,
@@ -108,10 +120,14 @@ export function ProductCard({ product, className }: { product: Product; classNam
         <div className="space-y-1.5 p-3">
           <h3 className="truncate text-sm font-semibold text-ink">{product.name}</h3>
           <div className="flex items-baseline gap-1.5">
-            <span className="text-sm font-extrabold text-ink">{formatKes(finalPrice)}</span>
+            {ranged && <span className="text-xs font-medium text-muted">from</span>}
+            <span className="text-sm font-extrabold text-ink">{formatKes(fromPrice)}</span>
             {product.discountPct != null && (
+              // The "was" figure has to be the pre-discount price of the SAME
+              // variant we're quoting, or a -50% XL shows the base product's
+              // old price struck through and the discount looks wrong.
               <span className="text-xs font-medium text-muted line-through">
-                {formatKes(product.priceKes)}
+                {formatKes(minVariantPrice({ ...product, discountPct: null }))}
               </span>
             )}
           </div>
@@ -162,7 +178,12 @@ export function ProductCard({ product, className }: { product: Product; classNam
               />
               <div>
                 <p className="text-sm font-bold text-ink">{product.name}</p>
-                <p className="text-sm font-extrabold text-primary">{formatKes(finalPrice)}</p>
+                <p className="text-sm font-extrabold text-primary">
+                  {!choiceComplete && ranged && (
+                    <span className="text-xs font-medium text-muted">from </span>
+                  )}
+                  {formatKes(sheetPrice)}
+                </p>
               </div>
             </div>
             {hasSizes && (

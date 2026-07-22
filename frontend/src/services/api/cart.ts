@@ -1,6 +1,6 @@
 import type { CartItem } from "@/types";
 import type { CartService } from "../types";
-import { discountedPrice } from "@/lib/currency";
+import { variantPrice } from "@/lib/currency";
 import { productImageSrc } from "@/lib/productImage";
 import { requireUserId, supabase } from "./client";
 
@@ -17,6 +17,10 @@ interface CartRow {
     images: string[] | null;
     price_kes: number;
     discount_pct: number | null;
+    sizes: string[] | null;
+    colors: string[] | null;
+    size_price_adj: Record<string, number> | null;
+    color_price_adj: Record<string, number> | null;
     stock_qty: number;
     merchants: { handle: string } | null;
   } | null;
@@ -29,14 +33,30 @@ interface CartRow {
 function hydrate(row: CartRow): CartItem | null {
   const p = row.products;
   if (!p) return null;
+  const size = row.size || null;
+  const color = row.color || null;
   return {
     productId: row.product_id,
     shopSlug: p.merchants?.handle ?? "",
     name: p.name,
     image: productImageSrc(p.images),
-    unitPrice: discountedPrice(p.price_kes, p.discount_pct),
-    size: row.size || null,
-    color: row.color || null,
+    // Priced for the variant on the row, not the base product — otherwise a
+    // cart holding an XL would quietly re-price itself down to the base on
+    // every cross-device load.
+    unitPrice: variantPrice(
+      {
+        priceKes: p.price_kes,
+        discountPct: p.discount_pct,
+        sizes: p.sizes,
+        colors: p.colors,
+        sizePriceAdj: p.size_price_adj ?? {},
+        colorPriceAdj: p.color_price_adj ?? {},
+      },
+      size,
+      color,
+    ),
+    size,
+    color,
     qty: row.qty,
     stockQty: p.stock_qty,
   };
@@ -53,7 +73,7 @@ export const cartApi: CartService = {
     const { data, error } = await supabase
       .from("cart_items")
       .select(
-        "product_id, size, color, qty, products(name, images, price_kes, discount_pct, stock_qty, merchants(handle))",
+        "product_id, size, color, qty, products(name, images, price_kes, discount_pct, sizes, colors, size_price_adj, color_price_adj, stock_qty, merchants(handle))",
       )
       .eq("user_id", uid);
     if (error) throw error;
