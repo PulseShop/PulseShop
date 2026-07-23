@@ -11,8 +11,9 @@ import { seoShopFrom } from "@/lib/seoFrom";
 import { Skeleton } from "@/components/ui/Skeleton";
 import { services } from "@/services";
 import type { MerchantUpdate } from "@/services";
+import type { Fulfillment } from "@/types";
 import { slugError, slugify } from "@/lib/slug";
-import { isUniqueViolation } from "@/lib/utils";
+import { cn, isUniqueViolation } from "@/lib/utils";
 import { useAuth } from "@/stores/auth";
 import { useToasts } from "@/stores/toast";
 
@@ -39,6 +40,7 @@ export function SettingsPage() {
     tagline: "",
     metaDescription: "",
   });
+  const [fulfillment, setFulfillment] = useState<Fulfillment>("both");
   const [email, setEmail] = useState("");
 
   useEffect(() => {
@@ -53,6 +55,7 @@ export function SettingsPage() {
       tagline: merchant.tagline,
       metaDescription: merchant.metaDescription,
     });
+    setFulfillment(merchant.fulfillment ?? "both");
   }, [merchant]);
 
   useEffect(() => {
@@ -143,6 +146,7 @@ export function SettingsPage() {
       facebook: form.facebook.trim(),
       tagline: form.tagline,
       metaDescription: form.metaDescription,
+      fulfillment,
     });
   };
 
@@ -211,6 +215,38 @@ export function SettingsPage() {
                 <Input label="Instagram" value={form.instagram} onChange={set("instagram")} />
                 <div className="col-span-2">
                   <Input label="Facebook" value={form.facebook} onChange={set("facebook")} />
+                </div>
+              </div>
+
+              {/* How buyers receive their orders — surfaced to them at checkout. */}
+              <div className="mt-5">
+                <p className="text-sm font-semibold text-ink">How customers get their orders</p>
+                <p className="mt-0.5 text-xs text-muted">
+                  Shown to buyers on your shop and at checkout.
+                </p>
+                <div className="mt-3 grid grid-cols-3 gap-2">
+                  {(
+                    [
+                      { value: "both", label: "Pickup & delivery" },
+                      { value: "pickup", label: "Pickup only" },
+                      { value: "delivery", label: "Delivery only" },
+                    ] as const
+                  ).map((opt) => (
+                    <button
+                      key={opt.value}
+                      type="button"
+                      aria-pressed={fulfillment === opt.value}
+                      onClick={() => setFulfillment(opt.value)}
+                      className={cn(
+                        "rounded-btn border-2 px-3 py-2.5 text-sm font-semibold transition-colors",
+                        fulfillment === opt.value
+                          ? "border-primary bg-primary/5 text-primary"
+                          : "border-stone-200 text-ink hover:border-primary/50",
+                      )}
+                    >
+                      {opt.label}
+                    </button>
+                  ))}
                 </div>
               </div>
 

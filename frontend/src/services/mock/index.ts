@@ -14,6 +14,7 @@ import type {
   PaymentStatus,
   PlacedOrderRef,
   Product,
+  ProductReview,
   ShopFacets,
 } from "@/types";
 import type {
@@ -109,6 +110,9 @@ function queryProducts(all: Product[], q: ProductQuery = {}): Paged<Product> {
   // against the real backend.
   if (q.sizes?.length) list = list.filter((p) => p.sizes?.some((s) => q.sizes!.includes(s)));
   if (q.colors?.length) list = list.filter((p) => p.colors?.some((c) => q.colors!.includes(c)));
+  // Mirrors p_min_rating in search_products (migration 0030): rating 0 (no
+  // reviews) never clears a set threshold.
+  if (q.minRating != null) list = list.filter((p) => p.rating >= q.minRating!);
 
   list = [...list];
   if (q.sort === "price-asc") list.sort((a, b) => price(a) - price(b));
@@ -335,6 +339,16 @@ function loadMyRatings(): Record<string, number> {
     return JSON.parse(localStorage.getItem(RATINGS_KEY) ?? "{}") as Record<string, number>;
   } catch {
     return {};
+  }
+}
+
+const REVIEW_TEXTS_KEY = "pulseshop-mock-review-texts";
+type MockReviewText = { productId: string; stars: number; comment: string; reviewerName: string | null; createdAt: string };
+function loadReviewTexts(): MockReviewText[] {
+  try {
+    return JSON.parse(localStorage.getItem(REVIEW_TEXTS_KEY) ?? "[]") as MockReviewText[];
+  } catch {
+    return [];
   }
 }
 
@@ -786,7 +800,14 @@ export const mockServices: Services = {
       return loadMyRatings()[productId] ?? null;
     },
 
-    async rateProduct(productId: string, stars: number): Promise<void> {
+    // The demo shopper "owns" the seeded orders, so let them review anything —
+    // the real gate (having purchased) is enforced server-side.
+    async canReview(): Promise<boolean> {
+      await delay();
+      return true;
+    },
+
+    async rateProduct(productId: string, stars: number, comment?: string | null): Promise<void> {
       await delay();
       const mine = loadMyRatings();
       const previous = mine[productId] ?? null;
@@ -807,6 +828,28 @@ export const mockServices: Services = {
 
       mine[productId] = stars;
       localStorage.setItem(RATINGS_KEY, JSON.stringify(mine));
+
+      if (comment !== undefined) {
+        const trimmed = comment?.trim() ?? "";
+        const texts = loadReviewTexts().filter((t) => t.productId !== productId);
+        if (trimmed.length > 0) {
+          texts.unshift({
+            productId,
+            stars,
+            comment: trimmed,
+            reviewerName: "You",
+            createdAt: new Date().toISOString(),
+          });
+        }
+        localStorage.setItem(REVIEW_TEXTS_KEY, JSON.stringify(texts));
+      }
+    },
+
+    async listReviews(productId: string): Promise<ProductReview[]> {
+      await delay();
+      return loadReviewTexts()
+        .filter((t) => t.productId === productId)
+        .map(({ stars, comment, reviewerName, createdAt }) => ({ stars, comment, reviewerName, createdAt }));
     },
   },
 

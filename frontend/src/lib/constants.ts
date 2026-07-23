@@ -1,4 +1,4 @@
-import type { StockStatus } from "@/types";
+import type { Fulfillment, StockStatus } from "@/types";
 
 export const STOCK_LABEL: Record<StockStatus, string> = {
   available: "Available",
@@ -165,3 +165,16 @@ const COLOR_HEX = new Map<string, string>(PRODUCT_COLORS.map((c) => [c.name, c.h
 /** Swatch colour for a stored colour name; falls back to grey for anything
  * saved before this list existed (or added to it and later removed). */
 export const colorHex = (name: string) => COLOR_HEX.get(name) ?? "#D1D5DB";
+
+/** Human phrase for a shop's fulfillment setting (migration 0031). Undefined
+ * (a directory row that doesn't carry it) reads as the "both" default. */
+export function fulfillmentLabel(f: Fulfillment | undefined): string {
+  switch (f) {
+    case "pickup":
+      return "pickup only";
+    case "delivery":
+      return "delivery only";
+    default:
+      return "pickup & delivery";
+  }
+}

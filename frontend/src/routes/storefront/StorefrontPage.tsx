@@ -1,5 +1,5 @@
 import { keepPreviousData, useInfiniteQuery, useQuery } from "@tanstack/react-query";
-import { AlertTriangle, ArrowLeft, Check, Heart, Package, Search, ShoppingBag, SlidersHorizontal, Star, Store } from "lucide-react";
+import { AlertTriangle, ArrowLeft, Check, Heart, Package, Search, ShoppingBag, SlidersHorizontal, Star, Store, UserRound, Users } from "lucide-react";
 import { useEffect, useMemo, useState } from "react";
 import { Link, useParams, useSearchParams } from "react-router";
 import { useAuth } from "@/stores/auth";
@@ -10,6 +10,7 @@ import { Logo } from "@/components/common/Logo";
 import { ProductCard } from "@/components/product/ProductCard";
 import { QueryError } from "@/components/common/QueryError";
 import { FollowButton } from "@/components/shop/FollowButton";
+import { ShopFooter } from "@/components/shop/ShopFooter";
 import { SocialLinks } from "@/components/shop/SocialLinks";
 import { Sheet } from "@/components/ui/Modal";
 import { ProductCardSkeleton, Skeleton } from "@/components/ui/Skeleton";
@@ -56,6 +57,7 @@ export function StorefrontPage() {
   // shopper who wears both means. Server-side (array overlap, migration 0026).
   const [sizes, setSizes] = useState<string[]>([]);
   const [colors, setColors] = useState<string[]>([]);
+  const [minRating, setMinRating] = useState<number | null>(null);
   // Mobile has no room for the sidebar, so the same controls live in a sheet.
   const [filtersOpen, setFiltersOpen] = useState(false);
 
@@ -63,13 +65,18 @@ export function StorefrontPage() {
     setter((list) => (list.includes(value) ? list.filter((v) => v !== value) : [...list, value]));
 
   const activeFilterCount =
-    sizes.length + colors.length + (availableOnly ? 1 : 0) + (maxPrice !== null ? 1 : 0);
+    sizes.length +
+    colors.length +
+    (availableOnly ? 1 : 0) +
+    (maxPrice !== null ? 1 : 0) +
+    (minRating !== null ? 1 : 0);
 
   const clearFilters = () => {
     setSizes([]);
     setColors([]);
     setAvailableOnly(false);
     setMaxPrice(null);
+    setMinRating(null);
   };
 
   const cartItems = useCart((s) => s.items);
@@ -96,6 +103,7 @@ export function StorefrontPage() {
     maxPrice,
     sizes,
     colors,
+    minRating,
     sort,
     pageSize: PAGE_SIZE,
   };
@@ -206,6 +214,34 @@ export function StorefrontPage() {
           />
         </div>
       )}
+
+      <div>
+        <h2 className="text-sm font-bold text-ink">Rating</h2>
+        <div className="mt-3 flex flex-wrap gap-2">
+          {[4, 3, 2].map((r) => (
+            <button
+              key={r}
+              type="button"
+              aria-pressed={minRating === r}
+              onClick={() => setMinRating(minRating === r ? null : r)}
+              className={cn(
+                "flex min-h-9 items-center gap-1 rounded-btn border-2 px-2.5 text-sm font-semibold transition-colors",
+                minRating === r
+                  ? "border-primary bg-primary text-white"
+                  : "border-stone-200 bg-card text-ink hover:border-primary/50",
+              )}
+            >
+              <Star
+                className={cn(
+                  "size-4",
+                  minRating === r ? "fill-white text-white" : "fill-amber-400 text-amber-400",
+                )}
+              />
+              {r}+
+            </button>
+          ))}
+        </div>
+      </div>
 
       <div>
         <h2 className="text-sm font-bold text-ink">Availability</h2>
@@ -340,6 +376,13 @@ export function StorefrontPage() {
               </span>
             )}
           </Link>
+          <Link
+            to="/account"
+            aria-label="Account"
+            className="hidden size-10 items-center justify-center rounded-full text-ink hover:bg-stone-100 lg:flex"
+          >
+            <UserRound className="size-5" />
+          </Link>
           {merchant && (
             <div className="ml-1 hidden items-center gap-1.5 border-l border-stone-200 pl-3 lg:flex">
               <SocialLinks
@@ -404,8 +447,8 @@ export function StorefrontPage() {
             <div className="mt-4 flex w-full max-w-xs flex-col items-center gap-4 lg:mt-0 lg:w-auto lg:max-w-none lg:items-end">
               <div className="flex w-full justify-between rounded-card bg-card px-6 py-3 shadow-soft lg:w-auto lg:gap-6">
                 <Stat icon={<Package className="size-4 text-primary" />} value={merchant.stats.products} label="Products" />
-                <Stat icon={<ShoppingBag className="size-4 text-primary" />} value={merchant.stats.orders} label="Orders" />
                 <Stat icon={<Star className="size-4 fill-amber-400 text-amber-400" />} value={merchant.stats.rating.toFixed(1)} label="Rating" />
+                <Stat icon={<Users className="size-4 text-primary" />} value={merchant.stats.followers} label="Followers" />
               </div>
 
               <div className="flex items-center gap-2">
@@ -543,7 +586,7 @@ export function StorefrontPage() {
           ) : (
             <>
               <div
-                key={`${category}-${search}-${sort}-${availableOnly}-${maxPrice}-${sizes}-${colors}`}
+                key={`${category}-${search}-${sort}-${availableOnly}-${maxPrice}-${sizes}-${colors}-${minRating}`}
                 className="grid grid-cols-2 gap-3 animate-grid-fade lg:grid-cols-3 xl:grid-cols-4"
               >
                 {filtered.map((p) => (
@@ -569,6 +612,10 @@ export function StorefrontPage() {
           )}
         </section>
       </div>
+
+      {/* Public storefront only — a way back out to other shops, since drilling
+          into one shop otherwise strands the browser here. */}
+      {isPublic && <ShopFooter excludeId={merchant?.id} />}
 
       {/* mobile filters — the same controls as the desktop sidebar */}
       <Sheet open={filtersOpen} onOpenChange={setFiltersOpen} title="Filters">

@@ -3,6 +3,7 @@ import { Link, useNavigate } from "react-router";
 import { MobileShell } from "@/components/layout/MobileShell";
 import { DesktopQuickNav } from "@/components/layout/DesktopQuickNav";
 import { ProductImage } from "@/components/product/ProductImage";
+import { RecommendedProducts } from "@/components/product/RecommendedProducts";
 import { Button } from "@/components/ui/Button";
 import { formatKes } from "@/lib/currency";
 import { variantKey, variantLabel } from "@/lib/variant";
@@ -25,7 +26,7 @@ export function CartPage() {
           <h1 className="text-lg font-extrabold text-ink lg:text-2xl">Your Cart</h1>
           <DesktopQuickNav />
         </header>
-        <div className="flex min-h-[60dvh] flex-col items-center justify-center gap-3 p-6 text-center">
+        <div className="flex flex-col items-center gap-3 px-6 py-12 text-center">
           <div className="flex size-16 items-center justify-center rounded-full bg-stone-100">
             <ShoppingBag className="size-7 text-muted" />
           </div>
@@ -34,6 +35,12 @@ export function CartPage() {
           <Link to={home} className="mt-1 font-semibold text-primary">
             Browse products
           </Link>
+        </div>
+
+        {/* An empty cart is a chance to sell — surface the newest products across
+            the platform so the shopper has somewhere to go. */}
+        <div className="px-4 pb-10 lg:px-6">
+          <RecommendedProducts title="Fresh from our newest shops" limit={6} />
         </div>
       </MobileShell>
     );

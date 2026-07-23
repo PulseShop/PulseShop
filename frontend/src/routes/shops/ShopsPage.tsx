@@ -1,5 +1,5 @@
 import { keepPreviousData, useInfiniteQuery } from "@tanstack/react-query";
-import { Package, Search, ShoppingCart, Store, Users, X } from "lucide-react";
+import { Package, Search, Star, Store, Users, X } from "lucide-react";
 import { useState } from "react";
 import { Link } from "react-router";
 import type { Merchant } from "@/types";
@@ -309,8 +309,8 @@ function ShopRow({ shop }: { shop: Merchant }) {
           {shop.stats.products} product{shop.stats.products === 1 ? "" : "s"}
         </span>
         <span className="flex items-center gap-1">
-          <ShoppingCart className="size-3.5" />
-          {shop.stats.orders} order{shop.stats.orders === 1 ? "" : "s"}
+          <Star className="size-3.5 fill-amber-400 text-amber-400" />
+          {shop.stats.rating.toFixed(1)} rating
         </span>
         <span className="flex items-center gap-1">
           <Users className="size-3.5" />

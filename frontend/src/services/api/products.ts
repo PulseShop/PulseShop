@@ -73,6 +73,7 @@ function searchArgs(merchantId: string | null, q: ProductQuery = {}) {
     // unfiltered call byte-identical to the pre-0026 one.
     p_sizes: q.sizes?.length ? q.sizes : null,
     p_colors: q.colors?.length ? q.colors : null,
+    p_min_rating: q.minRating ?? null,
     p_sort: q.sort ?? "newest",
     p_limit: pageSize,
     p_offset: (page - 1) * pageSize,

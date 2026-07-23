@@ -3,6 +3,7 @@ import type {
   AuthUser,
   CartItem,
   CartOrderDraft,
+  Fulfillment,
   Merchant,
   MerchantOrder,
   MyOrder,
@@ -12,6 +13,7 @@ import type {
   PaymentStatus,
   PlacedOrderRef,
   Product,
+  ProductReview,
   ShopFacets,
 } from "@/types";
 
@@ -109,6 +111,8 @@ export interface MerchantUpdate {
   avatarUrl?: string;
   bannerUrl?: string;
   isOnline?: boolean;
+  /** How customers receive orders: "pickup" | "delivery" | "both". */
+  fulfillment?: Fulfillment;
   whatsapp?: string;
   instagram?: string;
   facebook?: string;
@@ -170,6 +174,10 @@ export interface ProductQuery {
    */
   sizes?: string[];
   colors?: string[];
+  /** Only products whose average rating is at least this (1–5). Omitted/null =
+   * no rating constraint. Products with no reviews (rating 0) never match a set
+   * value. */
+  minRating?: number | null;
   sort?: "newest" | "price-asc" | "price-desc";
 }
 
@@ -244,8 +252,20 @@ export interface OrderService {
 export interface ReviewService {
   /** The signed-in user's rating for a product, or null if they haven't rated it. */
   getMyRating(productId: string): Promise<number | null>;
-  /** Create or replace the signed-in user's rating. `stars` is 1–5. */
-  rateProduct(productId: string, stars: number): Promise<void>;
+  /**
+   * Whether the signed-in user is allowed to review this product — true once
+   * they've placed an order containing it. RLS enforces the same rule on write
+   * (migration 0029 has_purchased); this just lets the UI show or hide the form.
+   */
+  canReview(productId: string): Promise<boolean>;
+  /**
+   * Create or replace the signed-in user's rating, optionally with a written
+   * review. `stars` is 1–5. Pass `comment` to set/replace the text; omit it to
+   * leave any existing review untouched (a star-only re-rating).
+   */
+  rateProduct(productId: string, stars: number, comment?: string | null): Promise<void>;
+  /** Public: the written reviews shown on a product page, newest first. */
+  listReviews(productId: string): Promise<ProductReview[]>;
 }
 
 /**

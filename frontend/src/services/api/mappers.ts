@@ -49,6 +49,7 @@ export interface MerchantRow {
   instagram: string | null;
   facebook: string | null;
   rating: number | string;
+  fulfillment?: string | null;
 }
 
 /** Fallback avatar so an empty profile still renders a face on the storefront. */
@@ -97,6 +98,7 @@ export function toMerchant(
     avatarUrl: row.avatar_url || avatarFor(row.name),
     bannerUrl: row.banner_url ?? "",
     isOnline: row.is_online,
+    fulfillment: (row.fulfillment as Merchant["fulfillment"]) ?? "both",
     tagline: row.tagline ?? "",
     metaDescription: row.meta_description ?? "",
     stats: {
@@ -146,6 +148,7 @@ export function merchantUpdateToRow(patch: MerchantUpdate): Record<string, unkno
   if (patch.avatarUrl !== undefined) row.avatar_url = patch.avatarUrl;
   if (patch.bannerUrl !== undefined) row.banner_url = patch.bannerUrl;
   if (patch.isOnline !== undefined) row.is_online = patch.isOnline;
+  if (patch.fulfillment !== undefined) row.fulfillment = patch.fulfillment;
   if (patch.whatsapp !== undefined) row.whatsapp = patch.whatsapp ? toWhatsAppDigits(patch.whatsapp) : "";
   if (patch.instagram !== undefined) row.instagram = patch.instagram ? toSocialHandle(patch.instagram) : "";
   if (patch.facebook !== undefined) row.facebook = patch.facebook ? toSocialHandle(patch.facebook) : "";

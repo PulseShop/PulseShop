@@ -1,17 +1,19 @@
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { ArrowLeft, ChevronRight, Heart, Minus, Plus, Search, ShoppingBag } from "lucide-react";
+import { ArrowLeft, ChevronRight, Heart, Minus, Plus, Search, ShoppingBag, UserRound } from "lucide-react";
 import { useEffect, useMemo, useState } from "react";
 import { Link, useNavigate, useParams } from "react-router";
 import { MobileShell } from "@/components/layout/MobileShell";
 import { Gallery } from "@/components/product/Gallery";
 import { ProductCard } from "@/components/product/ProductCard";
 import { RatingRow } from "@/components/product/RatingRow";
+import { ReviewsSection } from "@/components/product/ReviewsSection";
 import { ShareMenu } from "@/components/product/ShareMenu";
 import { ColorSelector } from "@/components/product/ColorSelector";
 import { SizeSelector } from "@/components/product/SizeSelector";
 import { StockBadge, stockDetailLabel } from "@/components/product/StockBadge";
 import { Button } from "@/components/ui/Button";
 import { FacebookIcon, InstagramIcon, WhatsAppIcon } from "@/components/ui/BrandIcons";
+import { ShopFooter } from "@/components/shop/ShopFooter";
 import { SocialLinks } from "@/components/shop/SocialLinks";
 import { Skeleton } from "@/components/ui/Skeleton";
 import {
@@ -214,14 +216,27 @@ export function ProductDetailPage() {
     enabled: Boolean(id) && Boolean(session) && !ownsProduct,
   });
 
+  // Only a buyer who ordered this product may rate/review it (migration 0029).
+  // RLS is the real boundary; this decides whether the UI even offers the stars.
+  const canReviewQ = useQuery({
+    queryKey: ["can-review", id],
+    queryFn: () => services.reviews.canReview(id),
+    enabled: Boolean(id) && Boolean(session) && !ownsProduct,
+  });
+  const canReview = canReviewQ.data ?? false;
+
+  // The product's average is recomputed server-side — refetch, don't guess.
+  // Invalidate both cache keys: the page may have been reached by either route,
+  // and only one of them is the key this instance is reading.
+  const invalidateProduct = () => {
+    qc.invalidateQueries({ queryKey: ["product", id] });
+    qc.invalidateQueries({ queryKey: ["product-by-slug", shopParam, productSlug] });
+  };
+
   const rateMut = useMutation({
     mutationFn: (stars: number) => services.reviews.rateProduct(id, stars),
     onSuccess: (_data, stars) => {
-      // The product's average is recomputed server-side — refetch, don't guess.
-      // Invalidate both cache keys: the page may have been reached by either
-      // route, and only one of them is the key this instance is reading.
-      qc.invalidateQueries({ queryKey: ["product", id] });
-      qc.invalidateQueries({ queryKey: ["product-by-slug", shopParam, productSlug] });
+      invalidateProduct();
       qc.setQueryData(["my-rating", id], stars);
       push(`You rated this ${stars} ${stars === 1 ? "star" : "stars"}`, "success");
     },
@@ -398,6 +413,16 @@ export function ProductDetailPage() {
               </span>
             )}
           </Link>
+          {/* Account stays reachable even here, where the bottom nav is hidden and
+              most shoppers land cold from a shared link. Visible on mobile too —
+              the favorites/cart icons above are desktop-only. */}
+          <Link
+            to="/account"
+            aria-label="Account"
+            className="flex size-10 items-center justify-center rounded-full bg-card text-ink shadow-soft transition-colors hover:bg-stone-100 lg:bg-transparent lg:shadow-none"
+          >
+            <UserRound className="size-5" />
+          </Link>
           {desktopLinks.length > 0 && (
             <div className="ml-1 hidden items-center gap-1.5 border-l border-stone-200 pl-3 lg:flex">
               <SocialLinks links={desktopLinks} ariaPrefix="Chat on" size="size-9" iconSize="size-4" />
@@ -472,7 +497,7 @@ export function ProductDetailPage() {
               rating={product.rating}
               reviewCount={product.reviewCount}
               myRating={myRatingQ.data ?? null}
-              onRate={ownsProduct ? undefined : rate}
+              onRate={!ownsProduct && canReview ? rate : undefined}
               pending={rateMut.isPending}
             />
             <StockBadge
@@ -637,6 +662,15 @@ export function ProductDetailPage() {
           </div>
         </div>
 
+        <ReviewsSection
+          productId={id}
+          canReview={canReview}
+          isOwner={ownsProduct}
+          signedIn={Boolean(session)}
+          myRating={myRatingQ.data ?? null}
+          onRated={invalidateProduct}
+        />
+
         {/* related products — same shop, same category first */}
         {relatedProducts.length > 0 && (
           <div className="mt-3.5 space-y-2 lg:mt-10">
@@ -649,6 +683,11 @@ export function ProductDetailPage() {
           </div>
         )}
       </div>
+
+      {/* Other shops to jump to — this is exactly where the user gets stranded:
+          deep in one shop's product with no route back to the directory. Hidden
+          for a merchant previewing their own product. */}
+      {!ownsProduct && <ShopFooter excludeId={merchant?.id} />}
 
       {/* primary CTA — the same flush glass ledge the tab bar uses (this page has
           no tab bar), so the product images scroll under it. Desktop uses the

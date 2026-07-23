@@ -1,6 +1,6 @@
 import { zodResolver } from "@hookform/resolvers/zod";
 import { useQuery } from "@tanstack/react-query";
-import { ArrowLeft, Loader2 } from "lucide-react";
+import { ArrowLeft, Loader2, Truck } from "lucide-react";
 import { useEffect, useState } from "react";
 import { useForm } from "react-hook-form";
 import { Navigate, useNavigate } from "react-router";
@@ -10,11 +10,13 @@ import { useCaptcha } from "@/hooks/useCaptcha";
 import { orderErrorMessage } from "@/lib/orderErrors";
 import { MobileShell } from "@/components/layout/MobileShell";
 import { ProductImage } from "@/components/product/ProductImage";
+import { RecommendedProducts } from "@/components/product/RecommendedProducts";
 import { FacebookIcon, InstagramIcon, WhatsAppIcon } from "@/components/ui/BrandIcons";
 import { Button } from "@/components/ui/Button";
 import { Input, Textarea } from "@/components/ui/Input";
 import { Skeleton } from "@/components/ui/Skeleton";
 import { formatKes } from "@/lib/currency";
+import { fulfillmentLabel } from "@/lib/constants";
 import { variantKey, variantLabel } from "@/lib/variant";
 import { cartOrderLink } from "@/lib/deeplinks";
 import { isValidPhone } from "@/lib/phone";
@@ -334,6 +336,13 @@ export function CheckoutPage() {
             <span className="font-bold text-ink capitalize">{channel}</span>. They'll confirm stock
             and delivery.
           </p>
+          <div className="flex items-center gap-2 rounded-btn bg-stone-50 px-3 py-2 text-xs">
+            <Truck className="size-4 shrink-0 text-primary" />
+            <span className="text-muted">
+              This shop offers{" "}
+              <span className="font-bold text-ink">{fulfillmentLabel(merchant.fulfillment)}</span>.
+            </span>
+          </div>
         </div>
 
         {/* Order placement decrements stock before anyone has paid, so it is
@@ -361,6 +370,16 @@ export function CheckoutPage() {
             "COMPLETE ORDER — PAY NOW"
           )}
         </Button>
+
+        {/* One more nudge before they pay — more from the same shop (the cart is
+            single-shop), minus what's already in the cart. */}
+        <RecommendedProducts
+          title="You may also like"
+          shopId={merchant.id}
+          exclude={items.map((i) => i.productId)}
+          limit={6}
+          layout="rail"
+        />
       </div>
 
       <PaymentSheet

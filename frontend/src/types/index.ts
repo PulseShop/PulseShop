@@ -43,6 +43,15 @@ export interface Product {
   shopSlug?: string;
 }
 
+/** One written review shown on a product page (from product_reviews(), migration
+ * 0029) — deliberately carries no user_id, only what's safe to render publicly. */
+export interface ProductReview {
+  stars: number;
+  comment: string;
+  reviewerName: string | null;
+  createdAt: string;
+}
+
 /** A product thumbnail carried inline on a shop-directory row. */
 export interface ShopPreview {
   id: string;
@@ -50,6 +59,9 @@ export interface ShopPreview {
   slug: string;
   image: string;
 }
+
+/** How a shop's customers receive their orders (migration 0031). */
+export type Fulfillment = "pickup" | "delivery" | "both";
 
 export interface Merchant {
   id: string;
@@ -60,6 +72,12 @@ export interface Merchant {
   avatarUrl: string;
   bannerUrl: string;
   isOnline: boolean;
+  /**
+   * Pickup, delivery, or both. Optional because the shop-directory rows on
+   * /shops don't carry it (the card doesn't show it) — read it as `?? "both"`.
+   * The full getShop/getMerchant reads always populate it.
+   */
+  fulfillment?: Fulfillment;
   /** Search & sharing, set by the seller. Both may be empty, in which case
    * lib/seo.ts generates a title/description from the shop's own data. */
   tagline: string;
