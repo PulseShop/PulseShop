@@ -36,3 +36,22 @@ export async function requireUserId(): Promise<string> {
   if (error || !data.user) throw new Error("Not signed in");
   return data.user.id;
 }
+
+/**
+ * Pulls the server's message out of a supabase-js FunctionsHttpError.
+ *
+ * Any non-2xx from an edge function surfaces as a FunctionsHttpError whose
+ * `message` is always the same useless "Edge Function returned a non-2xx status
+ * code". The reason the caller actually needs (out of stock, captcha_failed,
+ * email_not_configured) is in the JSON body hanging off `context`.
+ */
+export async function readFunctionError(error: unknown): Promise<string | null> {
+  const res = (error as { context?: Response }).context;
+  if (!res || typeof res.json !== "function") return null;
+  try {
+    const body = (await res.json()) as { error?: string };
+    return body?.error ?? null;
+  } catch {
+    return null;
+  }
+}

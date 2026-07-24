@@ -29,6 +29,7 @@ import { cn } from "@/lib/utils";
 import { services } from "@/services";
 import type { Paged, Product } from "@/types";
 import { useToasts } from "@/stores/toast";
+import { InventoryTransfer } from "./InventoryTransfer";
 import { ProductModal } from "./ProductModal";
 
 const PAGE_SIZE = 10;
@@ -285,6 +286,10 @@ export function InventoryPage() {
             </option>
           ))}
         </select>
+
+        {/* Bulk CSV. Import can create or update any product, so it invalidates
+            the same queries every other write on this page does. */}
+        <InventoryTransfer onImported={refreshProducts} />
       </div>
 
       {/* bulk actions */}

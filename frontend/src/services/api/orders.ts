@@ -12,7 +12,7 @@ import type {
 } from "@/types";
 import type { OrderService, PageQuery } from "../types";
 import { productImageSrc } from "@/lib/productImage";
-import { requireUserId, supabase } from "./client";
+import { readFunctionError, requireUserId, supabase } from "./client";
 
 const ORDERS_PAGE_SIZE = 20;
 
@@ -195,18 +195,6 @@ async function placeOrder(
     throw new Error(data?.error ?? "Order was not created");
   }
   return { reference: data.reference, accessToken: data.access_token };
-}
-
-/** Pulls the server's message out of a supabase-js FunctionsHttpError. */
-async function readFunctionError(error: unknown): Promise<string | null> {
-  const res = (error as { context?: Response }).context;
-  if (!res || typeof res.json !== "function") return null;
-  try {
-    const body = (await res.json()) as { error?: string };
-    return body?.error ?? null;
-  } catch {
-    return null;
-  }
 }
 
 export const ordersApi: OrderService = {

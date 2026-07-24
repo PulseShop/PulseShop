@@ -1,7 +1,27 @@
 import type { Merchant, Paged, Product, ShopFacets } from "@/types";
-import type { ProductInput, ProductQuery, ProductService } from "../types";
-import { requireUserId, supabase } from "./client";
+import { MAX_IMPORT_ROWS, type ProductCsvInput } from "@/lib/productCsv";
+import type {
+  ProductExportEmailResult,
+  ProductImportResult,
+  ProductInput,
+  ProductQuery,
+  ProductService,
+} from "../types";
+import { readFunctionError, requireUserId, supabase } from "./client";
 import type { MerchantUpdate } from "../types";
+
+/**
+ * Machine-readable failures from the export-products function, turned into
+ * something a seller can act on. `email_not_configured` is deployment state,
+ * not seller error: the function is live but the project has no mail provider
+ * secret, and saying so plainly beats a generic failure toast.
+ */
+const EXPORT_ERRORS: Record<string, string> = {
+  email_not_configured:
+    "Emailed exports are not set up for this shop yet. Ask support to enable them.",
+  no_products: "There is nothing to export yet.",
+  too_many_products: "This catalogue is too large to email. Contact support for a full export.",
+};
 import {
   type MerchantRow,
   type ProductRow,
@@ -216,6 +236,82 @@ export const productsApi: ProductService = {
     const { data, error } = await supabase.rpc("search_products", searchArgs(null, query));
     if (error) throw error;
     return toPagedProducts((data ?? []) as SearchRow[]);
+  },
+
+  /**
+   * Bulk upsert keyed on (merchant_id, sku), the unique constraint the table
+   * has carried since 0001. One round trip decides create-vs-update per row;
+   * doing it in the client (read, diff, then insert some and update others)
+   * would race against the seller's own dashboard in another tab.
+   *
+   * The payload deliberately omits `slug`. On insert it is null and the
+   * products_set_slug trigger derives one from the name; on the conflict path
+   * the column is not in the SET list at all, so a product renamed via CSV
+   * KEEPS its public URL. That is the same guarantee the product form gives
+   * (see the note on Product.slug), and getting it for free from the trigger is
+   * why the column is left out rather than sent as undefined.
+   */
+  async importProducts(rows: ProductCsvInput[]): Promise<ProductImportResult> {
+    const uid = await requireUserId();
+    if (rows.length === 0) return { created: 0, updated: 0 };
+    if (rows.length > MAX_IMPORT_ROWS) {
+      throw new Error(`Import up to ${MAX_IMPORT_ROWS} products at a time.`);
+    }
+
+    // Which SKUs already exist decides the created/updated split reported back.
+    // Read it BEFORE the write, because afterwards every row exists and the
+    // distinction is gone.
+    const { data: existing, error: readErr } = await supabase
+      .from("products")
+      .select("sku")
+      .eq("merchant_id", uid)
+      .in(
+        "sku",
+        rows.map((r) => r.sku),
+      );
+    if (readErr) throw readErr;
+    const existingSkus = new Set((existing ?? []).map((r) => (r as { sku: string }).sku));
+
+    const { error } = await supabase.from("products").upsert(
+      rows.map((r) => ({
+        merchant_id: uid,
+        sku: r.sku,
+        name: r.name,
+        category: r.category,
+        price_kes: r.priceKes,
+        discount_pct: r.discountPct,
+        stock_qty: r.stockQty,
+        sizes: r.sizes,
+        colors: r.colors,
+        summary: r.summary,
+        description: r.description,
+        images: r.images,
+      })),
+      { onConflict: "merchant_id,sku" },
+    );
+    if (error) throw error;
+
+    const updated = rows.filter((r) => existingSkus.has(r.sku)).length;
+    return { created: rows.length - updated, updated };
+  },
+
+  async emailProductExport(): Promise<ProductExportEmailResult> {
+    // Fails here rather than at the function when signed out, so the message
+    // matches every other write on this page.
+    await requireUserId();
+
+    const { data, error } = await supabase.functions.invoke<{
+      email?: string;
+      count?: number;
+      error?: string;
+    }>("export-products", { body: {} });
+
+    if (error) {
+      const detail = await readFunctionError(error);
+      throw new Error(EXPORT_ERRORS[detail ?? ""] ?? detail ?? error.message);
+    }
+    if (!data?.email) throw new Error(data?.error ?? "The export could not be sent.");
+    return { email: data.email, count: Number(data.count ?? 0) };
   },
 
   async getFacets(merchantId?: string): Promise<ShopFacets> {

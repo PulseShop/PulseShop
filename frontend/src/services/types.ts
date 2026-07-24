@@ -1,3 +1,4 @@
+import type { ProductCsvInput } from "@/lib/productCsv";
 import type {
   Analytics,
   AuthUser,
@@ -202,6 +203,21 @@ export interface ShopQuery extends PageQuery {
   search?: string;
 }
 
+/** Outcome of a bulk CSV import, split by what each row turned out to be:
+ * a row whose SKU the shop already had is an update, a new SKU is a create. */
+export interface ProductImportResult {
+  created: number;
+  updated: number;
+}
+
+/** Confirmation that an over-limit export was queued as an email, and where to. */
+export interface ProductExportEmailResult {
+  /** The shop owner's account email, so the UI can say where it went. */
+  email: string;
+  /** Products written into the emailed file. */
+  count: number;
+}
+
 export interface ProductService {
   getMerchant(): Promise<Merchant>;
   updateMerchant(patch: MerchantUpdate): Promise<Merchant>;
@@ -228,6 +244,23 @@ export interface ProductService {
    * aggregates over the whole catalogue, which a single page can't give you.
    * Omit `merchantId` for the signed-in merchant's own catalogue. */
   getFacets(merchantId?: string): Promise<ShopFacets>;
+  /**
+   * Bulk create-or-update from an uploaded CSV, keyed on SKU: a row whose SKU
+   * this shop already has updates that product, a new one creates it.
+   *
+   * Only the columns the CSV carries are written. Everything else a product
+   * holds (its slug, per-variant pricing, colour photos, SEO text) is left
+   * alone, so importing an edited export cannot quietly reset fields the
+   * spreadsheet never represented.
+   */
+  importProducts(rows: ProductCsvInput[]): Promise<ProductImportResult>;
+  /**
+   * Builds the seller's FULL catalogue as CSV server-side and emails it to
+   * them, for the case where the catalogue is too big to hand to the browser
+   * (see EXPORT_DOWNLOAD_LIMIT). Small catalogues never come through here: the
+   * page already holds those rows and writes the file locally.
+   */
+  emailProductExport(): Promise<ProductExportEmailResult>;
 }
 
 export interface OrderService {

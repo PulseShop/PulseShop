@@ -26,6 +26,8 @@ import type {
   DiscountCodeInput,
   MerchantUpdate,
   PageQuery,
+  ProductExportEmailResult,
+  ProductImportResult,
   ProductInput,
   ProductQuery,
   Services,
@@ -34,6 +36,8 @@ import type {
   ShopperSignupInput,
   SignupInput,
 } from "../types";
+import type { ProductCsvInput } from "@/lib/productCsv";
+import { useAuth } from "@/stores/auth";
 import { statusForQty } from "@/lib/constants";
 import { minVariantPrice, variantPrice, variantPriceWithCode } from "@/lib/currency";
 import { fileToDataUrl } from "@/lib/image";
@@ -649,6 +653,58 @@ export const mockServices: Services = {
         available: products.filter((p) => p.status === "available").length,
         low: products.filter((p) => p.status === "low").length,
         out: products.filter((p) => p.status === "out").length,
+      };
+    },
+
+    /** Mirrors the real upsert: SKU is identity, and a rename keeps the
+     * existing slug exactly as the products_set_slug trigger would. */
+    async importProducts(rows: ProductCsvInput[]): Promise<ProductImportResult> {
+      await delay();
+      let created = 0;
+      let updated = 0;
+
+      for (const row of rows) {
+        const idx = products.findIndex((p) => p.sku === row.sku);
+        if (idx === -1) {
+          const base = slugify(row.name) || "item";
+          let slug = base;
+          for (let n = 1; products.some((p) => p.slug === slug); n++) slug = `${base}-${n}`;
+          products = [
+            {
+              ...row,
+              id: `p${Date.now()}${created}`,
+              slug,
+              status: statusForQty(row.stockQty),
+              sizePriceAdj: {},
+              colorPriceAdj: {},
+              metaDescription: null,
+              rating: 0,
+              reviewCount: 0,
+              createdAt: new Date().toISOString(),
+            },
+            ...products,
+          ];
+          created++;
+        } else {
+          // Spread the row over the existing product, never the reverse: the
+          // fields a CSV has no column for (slug, variant pricing, colour
+          // photos, SEO text) have to survive the import untouched.
+          products[idx] = { ...products[idx], ...row, status: statusForQty(row.stockQty) };
+          updated++;
+        }
+      }
+
+      saveProducts(products);
+      return { created, updated };
+    },
+
+    /** No mailbox in the demo, so this reports what the real adapter would have
+     * sent rather than pretending to deliver it. */
+    async emailProductExport(): Promise<ProductExportEmailResult> {
+      await delay();
+      return {
+        email: useAuth.getState().session?.email ?? "demo@pulseshop.space",
+        count: products.length,
       };
     },
   },
