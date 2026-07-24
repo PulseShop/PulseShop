@@ -12,7 +12,7 @@ export const MERCHANT: Merchant = {
   location: "Nairobi, KE",
   avatarUrl: img("photo-1494790108377-be9c29b29330"),
   bannerUrl: img("photo-1441984904996-e0b6ba687e04"),
-  isOnline: true,
+  shopStatus: "open",
   tagline: "Curated fashion, delivered countrywide",
   metaDescription: "",
   stats: { products: 12, orders: 348, followers: 1284, rating: 4.8 },

@@ -38,3 +38,6 @@ android/*.apk
 android/*.aab
 android/*.idsig
 android/hs_err_pid*.log
+
+# Supabase CLI scratch state (link info, not secrets)
+supabase/.temp/

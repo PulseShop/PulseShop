@@ -5,6 +5,7 @@ import {
   BarChart3,
   Boxes,
   LayoutDashboard,
+  MessageSquare,
   Monitor,
   Settings,
   ShoppingCart,
@@ -19,6 +20,7 @@ const nav = [
   { to: "/dashboard", label: "Dashboard", icon: LayoutDashboard, end: true },
   { to: "/dashboard/inventory", label: "Inventory", icon: Boxes },
   { to: "/dashboard/orders", label: "Orders", icon: ShoppingCart },
+  { to: "/dashboard/reviews", label: "Reviews", icon: MessageSquare },
   { to: "/dashboard/analytics", label: "Analytics", icon: BarChart3 },
   { to: "/dashboard/settings", label: "Settings", icon: Settings },
 ];

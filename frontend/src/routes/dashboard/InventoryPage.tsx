@@ -10,10 +10,12 @@ import {
   Pencil,
   Plus,
   Search,
+  Tag,
   Trash2,
   XCircle,
 } from "lucide-react";
 import { useEffect, useState } from "react";
+import { Link } from "react-router";
 import { DashboardShell } from "@/components/layout/DashboardShell";
 import { ProductImage } from "@/components/product/ProductImage";
 import { ShareMenu } from "@/components/product/ShareMenu";
@@ -193,6 +195,12 @@ export function InventoryPage() {
           <h1 className="text-2xl font-extrabold text-ink">Product Inventory</h1>
         </div>
         <div className="flex items-center gap-3">
+          <Link
+            to="/dashboard/discounts"
+            className="inline-flex h-11 items-center justify-center gap-2 rounded-btn border-2 border-stone-200 bg-card px-5 text-sm font-semibold text-ink transition-all hover:border-primary hover:text-primary"
+          >
+            <Tag className="size-4" /> Discount codes
+          </Link>
           <Button
             onClick={() => {
               setEditing(null);

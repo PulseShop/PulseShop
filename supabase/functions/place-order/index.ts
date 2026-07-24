@@ -58,6 +58,9 @@ interface Payload {
   channel?: string;
   payment_method?: string | null;
   items?: OrderItem[];
+  /** Optional seller-created discount code. place_order() validates and
+   * applies it server-side — this is forwarded, never trusted. */
+  discount_code?: string | null;
 }
 
 /** Cloudflare's verdict on the token. Fails closed: any error is a rejection. */
@@ -128,6 +131,7 @@ Deno.serve(async (req) => {
     p_items: body.items,
     p_idempotency_key: body.idempotency_key ?? null,
     p_customer_id: customerId,
+    p_discount_code: body.discount_code ?? null,
   });
 
   if (error) {

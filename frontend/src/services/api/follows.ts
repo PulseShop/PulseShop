@@ -1,4 +1,4 @@
-import type { Merchant, Paged, ShopPreview } from "@/types";
+import type { FollowerSeries, Merchant, Paged, ShopPreview } from "@/types";
 import type { FollowService, ShopQuery } from "../types";
 import { requireUserId, supabase } from "./client";
 import { toSocialHandle, toWhatsAppDigits } from "@/lib/phone";
@@ -13,7 +13,7 @@ interface DirectoryRow {
   location: string;
   avatar_url: string;
   banner_url: string;
-  is_online: boolean;
+  shop_status: string;
   whatsapp: string;
   instagram: string;
   facebook: string;
@@ -37,7 +37,7 @@ function toDirectoryMerchant(row: DirectoryRow): Merchant {
     location: row.location ?? "",
     avatarUrl: row.avatar_url || avatarFor(row.name),
     bannerUrl: row.banner_url ?? "",
-    isOnline: row.is_online,
+    shopStatus: (row.shop_status as Merchant["shopStatus"]) ?? "open",
     // shop_directory() deliberately doesn't return these — the discover list
     // renders no titles, and a projection that returns only what it renders is
     // one that can't leak what it doesn't.
@@ -116,5 +116,14 @@ export const followsApi: FollowService = {
       .eq("follower_id", uid)
       .eq("merchant_id", merchantId);
     if (error) throw error;
+  },
+
+  async getFollowerSeries(tz: string, days = 30): Promise<FollowerSeries> {
+    const { data, error } = await supabase.rpc("merchant_follower_series", {
+      p_days: days,
+      p_tz: tz,
+    });
+    if (error) throw error;
+    return data as FollowerSeries;
   },
 };

@@ -115,6 +115,28 @@ export function priceForSelection(
   );
 }
 
+/** best_discount_pct() (migration 0035): the better of a product's own
+ * markdown and an applied discount code, never both stacked. */
+export const bestDiscountPct = (productDiscountPct: number | null, codePercentOff: number | null) =>
+  Math.max(productDiscountPct ?? 0, codePercentOff ?? 0);
+
+/** variantPrice(), with a discount code's percentage substituted in whenever
+ * it beats the product's own. Mock-mode-only counterpart to what place_order
+ * computes server-side (0035) — the real adapter never prices a code
+ * client-side, it trusts the server's preview_discount_code/place_order. */
+export function variantPriceWithCode(
+  p: Priceable,
+  size: string | null,
+  color: string | null,
+  codePercentOff: number | null,
+): number {
+  return applyAdj(
+    p.priceKes,
+    bestDiscountPct(p.discountPct, codePercentOff),
+    variantAdj(p.sizePriceAdj, size) + variantAdj(p.colorPriceAdj, color),
+  );
+}
+
 /** The pre-discount equivalent of priceForSelection, for the struck-through
  * "was" figure — it has to move with the variant too, or a discounted XL shows
  * the base product's old price crossed out. */

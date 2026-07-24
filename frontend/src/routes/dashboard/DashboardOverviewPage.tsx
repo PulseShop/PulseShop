@@ -7,15 +7,18 @@ import {
   ShoppingCart,
   Star,
   Store,
+  TrendingUp,
   Users,
 } from "lucide-react";
 import { useEffect, useRef, useState } from "react";
 import { Link } from "react-router";
 import { DashboardShell } from "@/components/layout/DashboardShell";
+import { TopProductsList } from "@/components/dashboard/TopProductsList";
 import { InstagramStoryWalkthrough } from "@/components/product/InstagramStoryWalkthrough";
 import { Button } from "@/components/ui/Button";
 import { Modal } from "@/components/ui/Modal";
 import { Skeleton } from "@/components/ui/Skeleton";
+import { LOCAL_TZ } from "@/lib/timezone";
 import { services } from "@/services";
 import type { MerchantUpdate } from "@/services";
 import { useToasts } from "@/stores/toast";
@@ -27,6 +30,12 @@ export function DashboardOverviewPage() {
 
   const merchantQ = useQuery({ queryKey: ["merchant"], queryFn: services.products.getMerchant });
   const merchant = merchantQ.data;
+  // Same query key AnalyticsPage uses — whichever page loads first warms the
+  // cache for the other.
+  const analyticsQ = useQuery({
+    queryKey: ["analytics", LOCAL_TZ],
+    queryFn: () => services.analytics.getAnalytics(LOCAL_TZ, 7),
+  });
 
   const [bioOpen, setBioOpen] = useState(false);
   const [bio, setBio] = useState("");
@@ -126,6 +135,29 @@ export function DashboardOverviewPage() {
             />
             <StatCard icon={Star} label="Rating" value={merchant.stats.rating} />
           </div>
+        )}
+
+        {/* top 3 best sellers */}
+        {merchant && (
+          <section className="mt-6 rounded-card bg-card p-6 shadow-soft">
+            <div className="flex items-center justify-between">
+              <h2 className="text-lg font-extrabold text-ink">Best sellers</h2>
+              <Link
+                to="/dashboard/analytics"
+                className="inline-flex items-center gap-1 text-sm font-bold text-primary"
+              >
+                <TrendingUp className="size-3.5" /> View all
+              </Link>
+            </div>
+            {analyticsQ.isLoading || !analyticsQ.data ? (
+              <Skeleton className="mt-4 h-32 w-full rounded-lg" />
+            ) : (
+              <TopProductsList
+                products={analyticsQ.data.topProducts.slice(0, 3)}
+                emptyMessage="No sales yet — your best sellers will appear here."
+              />
+            )}
+          </section>
         )}
 
         {/* store bio */}

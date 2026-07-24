@@ -3,9 +3,13 @@ import type {
   AuthUser,
   CartItem,
   CartOrderDraft,
+  DiscountCode,
+  DiscountPreview,
+  FollowerSeries,
   Fulfillment,
   Merchant,
   MerchantOrder,
+  MerchantReviewsSummary,
   MyOrder,
   OrderDraft,
   Paged,
@@ -15,6 +19,7 @@ import type {
   Product,
   ProductReview,
   ShopFacets,
+  ShopStatus,
 } from "@/types";
 
 export interface Credentials {
@@ -110,7 +115,7 @@ export interface MerchantUpdate {
   location?: string;
   avatarUrl?: string;
   bannerUrl?: string;
-  isOnline?: boolean;
+  shopStatus?: ShopStatus;
   /** How customers receive orders: "pickup" | "delivery" | "both". */
   fulfillment?: Fulfillment;
   whatsapp?: string;
@@ -266,6 +271,17 @@ export interface ReviewService {
   rateProduct(productId: string, stars: number, comment?: string | null): Promise<void>;
   /** Public: the written reviews shown on a product page, newest first. */
   listReviews(productId: string): Promise<ProductReview[]>;
+  /**
+   * Merchant-facing: every rating left on any of the caller's own products
+   * (star-only ratings included, not just written reviews), plus a rating
+   * distribution computed over the whole set. Pass `productId` to scope to
+   * one product; omit for the whole shop.
+   */
+  getMerchantReviews(opts?: {
+    productId?: string;
+    limit?: number;
+    offset?: number;
+  }): Promise<MerchantReviewsSummary>;
 }
 
 /**
@@ -289,6 +305,11 @@ export interface FollowService {
   listFollowing(): Promise<string[]>;
   follow(merchantId: string): Promise<void>;
   unfollow(merchantId: string): Promise<void>;
+  /** Merchant-facing: the signed-in seller's own follower growth over the last
+   * `days` days, as a running total (not per-day snapshots) so unfollows show
+   * up as a dip rather than silently vanishing from history. `tz` buckets by
+   * the merchant's own calendar day, same convention as AnalyticsService. */
+  getFollowerSeries(tz: string, days?: number): Promise<FollowerSeries>;
 }
 
 /**
@@ -328,6 +349,43 @@ export interface PaymentService {
   payWithPaypal(amount: number): Promise<PaymentResult>;
 }
 
+/** Editable discount-code fields. `productIds` is only read/written when
+ * appliesTo === "selected"; ignored (and best left empty) for "all". */
+export interface DiscountCodeInput {
+  code: string;
+  percentOff: number;
+  startsAt?: string;
+  expiresAt: string;
+  maxRedemptions?: number | null;
+  appliesTo: "all" | "selected";
+  productIds?: string[];
+  active?: boolean;
+}
+
+/**
+ * Seller-created discount codes (migration 0035). Sellers manage their own
+ * codes directly — discount_codes/discount_code_products RLS already scopes
+ * everything to the owning merchant, so create/update/delete need no RPC.
+ * previewCode is the one call a BUYER makes, and it's public: a guest has to
+ * be able to check a code before creating any account.
+ */
+export interface DiscountService {
+  /** The signed-in merchant's own codes, newest first. */
+  listCodes(): Promise<DiscountCode[]>;
+  createCode(input: DiscountCodeInput): Promise<DiscountCode>;
+  updateCode(id: string, patch: Partial<DiscountCodeInput>): Promise<DiscountCode>;
+  deleteCode(id: string): Promise<void>;
+  /** Advisory only — place_order re-validates and re-computes authoritatively
+   * at submit time, so a code that stops qualifying between preview and
+   * submit is caught there, not here. */
+  previewCode(
+    merchantId: string,
+    code: string,
+    items: { productId: string; qty: number }[],
+    customerPhone?: string,
+  ): Promise<DiscountPreview>;
+}
+
 /** Image uploads. Mock keeps base64 inline; the API adapter uses Supabase Storage. */
 export interface StorageService {
   /** Upload an image and return a URL usable in an <img src>. `folder` groups files. */
@@ -347,4 +405,5 @@ export interface Services {
   cart: CartService;
   payments: PaymentService;
   storage: StorageService;
+  discounts: DiscountService;
 }

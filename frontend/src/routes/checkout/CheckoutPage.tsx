@@ -1,6 +1,6 @@
 import { zodResolver } from "@hookform/resolvers/zod";
 import { useQuery } from "@tanstack/react-query";
-import { ArrowLeft, Loader2, Truck } from "lucide-react";
+import { AlertTriangle, ArrowLeft, Loader2, Truck } from "lucide-react";
 import { useEffect, useState } from "react";
 import { useForm } from "react-hook-form";
 import { Navigate, useNavigate } from "react-router";
@@ -22,7 +22,7 @@ import { cartOrderLink } from "@/lib/deeplinks";
 import { isValidPhone } from "@/lib/phone";
 import { cn } from "@/lib/utils";
 import { services } from "@/services";
-import type { PaymentMethod } from "@/types";
+import type { DiscountPreview, PaymentMethod } from "@/types";
 import { useClearCart } from "@/hooks/useCart";
 import { cartSubtotal, useCart } from "@/stores/cart";
 import { useOrderStore } from "@/stores/order";
@@ -79,6 +79,17 @@ export function CheckoutPage() {
   const [pendingReference, setPendingReference] = useState<string | null>(null);
   const [pendingToken, setPendingToken] = useState<string | null>(null);
 
+  // Discount code — applied via preview_discount_code (advisory) before
+  // submit; place_order re-validates and re-computes authoritatively, so a
+  // code that stops qualifying between here and submit is caught there, not
+  // here (see the catch block in openPayment).
+  const [discountOpen, setDiscountOpen] = useState(false);
+  const [discountInput, setDiscountInput] = useState("");
+  const [discountChecking, setDiscountChecking] = useState(false);
+  const [discountError, setDiscountError] = useState<string | null>(null);
+  const [appliedCode, setAppliedCode] = useState<string | null>(null);
+  const [appliedDiscount, setAppliedDiscount] = useState<DiscountPreview | null>(null);
+
   const captcha = useCaptcha();
 
   // One key per checkout attempt, minted when the page mounts and reused across
@@ -133,7 +144,54 @@ export function CheckoutPage() {
     );
   }
 
+  // place_order is the real gate (it rejects any non-'open' shop server-side);
+  // this just stops a buyer from filling in the whole form only to hit that
+  // error at the very last step.
+  const shopClosed = merchant.shopStatus !== "open";
+
   const total = cartSubtotal(items);
+  // Subtracted from the cart's own total rather than trusting the preview's
+  // `newTotal` directly — the preview ignores variant price adjustments, so
+  // deriving the shown total from the number the cart already computed keeps
+  // Subtotal/Discount/Total internally consistent even when that estimate is
+  // slightly conservative. The actual charge is always computed correctly by
+  // place_order regardless of what's shown here.
+  const discountKes = appliedDiscount?.valid ? appliedDiscount.discountKes : 0;
+  const displayTotal = Math.max(0, total - discountKes);
+
+  const clearDiscount = () => {
+    setAppliedCode(null);
+    setAppliedDiscount(null);
+    setDiscountInput("");
+    setDiscountError(null);
+    setDiscountOpen(false);
+  };
+
+  const applyDiscount = async () => {
+    const code = discountInput.trim();
+    if (!code) return;
+    setDiscountChecking(true);
+    setDiscountError(null);
+    try {
+      const result = await services.discounts.previewCode(
+        merchant.id,
+        code,
+        items.map((i) => ({ productId: i.productId, qty: i.qty })),
+        getValues("phone") || undefined,
+      );
+      if (result.valid) {
+        setAppliedCode(code.toUpperCase());
+        setAppliedDiscount(result);
+      } else {
+        setAppliedDiscount(null);
+        setDiscountError(result.reason ?? "This code isn't valid for this order.");
+      }
+    } catch {
+      setDiscountError("Couldn't check that code — try again.");
+    } finally {
+      setDiscountChecking(false);
+    }
+  };
 
   const recordOrders = (
     reference: string,
@@ -142,6 +200,14 @@ export function CheckoutPage() {
     ch: Channel | "direct",
   ) => {
     const placedAt = new Date().toISOString();
+    // This is a LOCAL convenience cache (the guest's /orders list, since only
+    // signed-in buyers get the server's own history) — it doesn't know which
+    // lines a code actually applied to, only the order-wide total. Scaling
+    // every line by the same ratio keeps the displayed lines summing to what
+    // was actually charged, rather than showing the pre-discount amount. The
+    // real per-line breakdown is always correct on the order lookup page,
+    // which this record's reference + accessToken can always reach.
+    const discountRatio = total > 0 ? displayTotal / total : 1;
     for (const item of items) {
       addOrder({
         reference,
@@ -152,7 +218,7 @@ export function CheckoutPage() {
         size: item.size,
         color: item.color,
         qty: item.qty,
-        totalKes: item.unitPrice * item.qty,
+        totalKes: Math.round(item.unitPrice * item.qty * discountRatio),
         channel: ch,
         paymentMethod,
         placedAt,
@@ -177,6 +243,7 @@ export function CheckoutPage() {
       payment: null,
       idempotencyKey,
       captchaToken: captcha.token,
+      discountCode: appliedDiscount?.valid ? appliedCode : undefined,
     });
 
   const openPayment = async () => {
@@ -220,6 +287,13 @@ export function CheckoutPage() {
       // "captcha_failed") — a generic connection message would send the shopper
       // to retry something that will never succeed.
       push(orderErrorMessage(err), "danger");
+      // A code that stopped qualifying in the seconds between preview and
+      // submit (last redemption slot taken, buyer used it elsewhere) must not
+      // block the order entirely — clear it so a resubmit goes through at
+      // full price instead of hitting the exact same rejection again.
+      if (err instanceof Error && err.message.toLowerCase().includes("discount code")) {
+        clearDiscount();
+      }
       // Turnstile tokens are single-use; a spent one must be reissued or the
       // retry fails on the captcha instead of on whatever actually broke.
       captcha.reset();
@@ -269,9 +343,77 @@ export function CheckoutPage() {
               <p className="text-sm font-bold text-ink">{formatKes(item.unitPrice * item.qty)}</p>
             </div>
           ))}
-          <div className="flex items-center justify-between border-t border-stone-100 pt-3">
-            <span className="text-base font-bold text-ink">Total</span>
-            <span className="text-lg font-extrabold text-primary">{formatKes(total)}</span>
+
+          {/* discount code */}
+          <div className="border-t border-stone-100 pt-3">
+            {appliedCode && appliedDiscount?.valid ? (
+              <div className="flex items-center justify-between rounded-btn bg-success/5 px-3 py-2">
+                <span className="text-sm font-semibold text-success">
+                  "{appliedCode}" applied — {appliedDiscount.percentOff}% off
+                </span>
+                <button
+                  type="button"
+                  onClick={clearDiscount}
+                  className="text-xs font-bold text-muted underline underline-offset-2 hover:text-ink"
+                >
+                  Remove
+                </button>
+              </div>
+            ) : discountOpen ? (
+              <div className="space-y-1.5">
+                <div className="flex gap-2">
+                  <input
+                    autoFocus
+                    value={discountInput}
+                    onChange={(e) => {
+                      setDiscountInput(e.target.value);
+                      setDiscountError(null);
+                    }}
+                    onKeyDown={(e) => e.key === "Enter" && (e.preventDefault(), applyDiscount())}
+                    placeholder="Discount code"
+                    aria-label="Discount code"
+                    className="h-10 flex-1 rounded-btn border border-stone-200 bg-card px-3 text-sm uppercase outline-none focus:border-primary focus:ring-2 focus:ring-primary/20"
+                  />
+                  <button
+                    type="button"
+                    onClick={applyDiscount}
+                    disabled={!discountInput.trim() || discountChecking}
+                    className="flex items-center gap-1.5 rounded-btn bg-ink px-4 text-sm font-bold text-white disabled:opacity-50"
+                  >
+                    {discountChecking && <Loader2 className="size-4 animate-spin" />}
+                    Apply
+                  </button>
+                </div>
+                {discountError && <p className="text-xs font-semibold text-danger">{discountError}</p>}
+              </div>
+            ) : (
+              <button
+                type="button"
+                onClick={() => setDiscountOpen(true)}
+                className="text-sm font-bold text-primary"
+              >
+                Have a discount code?
+              </button>
+            )}
+          </div>
+
+          <div className="space-y-1.5 border-t border-stone-100 pt-3">
+            {appliedCode && appliedDiscount?.valid && (
+              <>
+                <div className="flex items-center justify-between text-sm">
+                  <span className="text-muted">Subtotal</span>
+                  <span className="text-ink">{formatKes(total)}</span>
+                </div>
+                <div className="flex items-center justify-between text-sm">
+                  <span className="text-muted">Discount ({appliedCode})</span>
+                  <span className="font-semibold text-success">−{formatKes(discountKes)}</span>
+                </div>
+              </>
+            )}
+            <div className="flex items-center justify-between">
+              <span className="text-base font-bold text-ink">Total</span>
+              <span className="text-lg font-extrabold text-primary">{formatKes(displayTotal)}</span>
+            </div>
           </div>
         </div>
 
@@ -345,6 +487,15 @@ export function CheckoutPage() {
           </div>
         </div>
 
+        {shopClosed && (
+          <div className="flex items-center gap-2 rounded-card border border-warning/30 bg-warning/5 px-4 py-3 text-sm">
+            <AlertTriangle className="size-4 shrink-0 text-warning" />
+            <span className="text-ink">
+              <span className="font-bold">{merchant.name}</span> isn't accepting orders right now.
+            </span>
+          </div>
+        )}
+
         {/* Order placement decrements stock before anyone has paid, so it is
             captcha-gated like the auth forms. Renders nothing when no site key
             is set (dev/mock), and the button stays enabled in that case. */}
@@ -359,7 +510,7 @@ export function CheckoutPage() {
           size="lg"
           className="w-full"
           onClick={openPayment}
-          disabled={placing || !captcha.ready}
+          disabled={placing || !captcha.ready || shopClosed}
         >
           {placing ? (
             <>
@@ -385,7 +536,7 @@ export function CheckoutPage() {
       <PaymentSheet
         open={payOpen}
         onOpenChange={setPayOpen}
-        amount={total}
+        amount={displayTotal}
         defaultPhone={getValues("phone") || customer.phone}
         merchantName={merchant.name}
         orderReference={pendingReference ?? ""}

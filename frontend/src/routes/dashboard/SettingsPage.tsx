@@ -1,21 +1,28 @@
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { ImagePlus, Loader2, LogOut, Mail } from "lucide-react";
+import { AlertTriangle, ImagePlus, Loader2, LogOut, Mail } from "lucide-react";
 import { useEffect, useMemo, useRef, useState } from "react";
 import { useNavigate } from "react-router";
 import { DashboardShell } from "@/components/layout/DashboardShell";
 import { Button } from "@/components/ui/Button";
 import { Input, Textarea } from "@/components/ui/Input";
+import { Modal } from "@/components/ui/Modal";
 import { CharCount, SeoPreviews } from "@/components/seo/SeoPanel";
 import { shopSeo } from "@/lib/seo";
 import { seoShopFrom } from "@/lib/seoFrom";
 import { Skeleton } from "@/components/ui/Skeleton";
 import { services } from "@/services";
 import type { MerchantUpdate } from "@/services";
-import type { Fulfillment } from "@/types";
+import type { Fulfillment, ShopStatus } from "@/types";
 import { slugError, slugify } from "@/lib/slug";
 import { cn, isUniqueViolation } from "@/lib/utils";
 import { useAuth } from "@/stores/auth";
 import { useToasts } from "@/stores/toast";
+
+const STATUS_OPTIONS: { value: ShopStatus; label: string; dot: string; active: string }[] = [
+  { value: "open", label: "Open", dot: "bg-success", active: "border-success bg-success/5 text-success" },
+  { value: "closed", label: "Temporarily closed", dot: "bg-warning", active: "border-warning bg-warning/5 text-warning" },
+  { value: "closing", label: "Closing down", dot: "bg-danger", active: "border-danger bg-danger/5 text-danger" },
+];
 
 export function SettingsPage() {
   const qc = useQueryClient();
@@ -41,6 +48,8 @@ export function SettingsPage() {
     metaDescription: "",
   });
   const [fulfillment, setFulfillment] = useState<Fulfillment>("both");
+  const [shopStatus, setShopStatus] = useState<ShopStatus>("open");
+  const [confirmClosingOpen, setConfirmClosingOpen] = useState(false);
   const [email, setEmail] = useState("");
 
   useEffect(() => {
@@ -56,6 +65,7 @@ export function SettingsPage() {
       metaDescription: merchant.metaDescription,
     });
     setFulfillment(merchant.fulfillment ?? "both");
+    setShopStatus(merchant.shopStatus);
   }, [merchant]);
 
   useEffect(() => {
@@ -147,6 +157,7 @@ export function SettingsPage() {
       tagline: form.tagline,
       metaDescription: form.metaDescription,
       fulfillment,
+      shopStatus,
     });
   };
 
@@ -250,6 +261,41 @@ export function SettingsPage() {
                 </div>
               </div>
 
+              {/* The dot shown on your storefront avatar. "Closing down" hides
+                  the shop from search/browsing entirely — confirmed below. */}
+              <div className="mt-5">
+                <p className="text-sm font-semibold text-ink">Shop status</p>
+                <p className="mt-0.5 text-xs text-muted">
+                  Shown to buyers as a status dot on your shop.
+                </p>
+                <div className="mt-3 grid grid-cols-3 gap-2">
+                  {STATUS_OPTIONS.map((opt) => (
+                    <button
+                      key={opt.value}
+                      type="button"
+                      aria-pressed={shopStatus === opt.value}
+                      onClick={() =>
+                        opt.value === "closing" ? setConfirmClosingOpen(true) : setShopStatus(opt.value)
+                      }
+                      className={cn(
+                        "flex items-center justify-center gap-2 rounded-btn border-2 px-3 py-2.5 text-sm font-semibold transition-colors",
+                        shopStatus === opt.value
+                          ? opt.active
+                          : "border-stone-200 text-ink hover:border-primary/50",
+                      )}
+                    >
+                      <span className={cn("size-2 shrink-0 rounded-full", opt.dot)} />
+                      {opt.label}
+                    </button>
+                  ))}
+                </div>
+                {shopStatus === "closing" && (
+                  <p className="mt-2 text-xs font-semibold text-danger">
+                    Your shop is hidden from search and browsing. Existing orders still work.
+                  </p>
+                )}
+              </div>
+
               <div className="mt-5 flex justify-end">
                 <Button onClick={saveProfile} disabled={updateMut.isPending || Boolean(handleIssue)}>
                   {updateMut.isPending && <Loader2 className="size-4 animate-spin" />}
@@ -351,6 +397,30 @@ export function SettingsPage() {
           </div>
         )}
       </div>
+
+      <Modal
+        open={confirmClosingOpen}
+        onOpenChange={setConfirmClosingOpen}
+        title="Close this shop for good?"
+        description="Your shop disappears from search and the shop directory, and its storefront link stops working for new visitors. Buyers with an existing order can still view it — this doesn't take effect until you save."
+        className="max-w-md"
+      >
+        <div className="flex justify-end gap-2">
+          <Button variant="ghost" onClick={() => setConfirmClosingOpen(false)}>
+            Cancel
+          </Button>
+          <Button
+            variant="danger"
+            onClick={() => {
+              setShopStatus("closing");
+              setConfirmClosingOpen(false);
+            }}
+          >
+            <AlertTriangle className="size-4" />
+            Yes, close it down
+          </Button>
+        </div>
+      </Modal>
     </DashboardShell>
   );
 }

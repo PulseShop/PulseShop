@@ -37,6 +37,8 @@ interface OrderRow {
   payment_status: PaymentStatus;
   subtotal_kes: number;
   total_kes: number;
+  discount_code: string | null;
+  discount_kes: number;
   placed_at: string;
   order_items: OrderItemRow[];
 }
@@ -65,6 +67,8 @@ function toMerchantOrder(row: OrderRow): MerchantOrder {
     paymentStatus: row.payment_status,
     subtotalKes: row.subtotal_kes,
     totalKes: row.total_kes,
+    discountCode: row.discount_code,
+    discountKes: row.discount_kes,
     placedAt: row.placed_at,
     items: (row.order_items ?? []).map(toOrderLine),
   };
@@ -84,6 +88,8 @@ function toMyOrder(row: MyOrderRow): MyOrder {
     paymentStatus: row.payment_status,
     subtotalKes: row.subtotal_kes,
     totalKes: row.total_kes,
+    discountCode: row.discount_code,
+    discountKes: row.discount_kes,
     placedAt: row.placed_at,
     shopName: row.merchants?.name ?? "",
     shopSlug: row.merchants?.handle ?? "",
@@ -100,6 +106,8 @@ interface OrderTokenPayload {
   payment_status: PaymentStatus;
   subtotal_kes: number;
   total_kes: number;
+  discount_code: string | null;
+  discount_kes: number;
   placed_at: string;
   items: OrderItemRow[];
 }
@@ -113,6 +121,8 @@ function tokenPayloadToMyOrder(p: OrderTokenPayload): MyOrder {
     paymentStatus: p.payment_status,
     subtotalKes: p.subtotal_kes,
     totalKes: p.total_kes,
+    discountCode: p.discount_code,
+    discountKes: p.discount_kes,
     placedAt: p.placed_at,
     items: (p.items ?? []).map(toOrderLine),
   };
@@ -147,6 +157,7 @@ async function placeOrder(
   items: { productId: string; size: string | null; color: string | null; qty: number }[],
   idempotencyKey: string,
   captchaToken?: string,
+  discountCode?: string | null,
 ): Promise<PlacedOrderRef> {
   const { data, error } = await supabase.functions.invoke<{
     reference?: string;
@@ -167,6 +178,7 @@ async function placeOrder(
         color: i.color,
         qty: i.qty,
       })),
+      discount_code: discountCode || null,
     },
   });
 
@@ -217,6 +229,7 @@ export const ordersApi: OrderService = {
       draft.items,
       draft.idempotencyKey,
       draft.captchaToken,
+      draft.discountCode,
     );
   },
 

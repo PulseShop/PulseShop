@@ -3,8 +3,12 @@ import type {
   AuthUser,
   CartItem,
   CartOrderDraft,
+  DiscountCode,
+  DiscountPreview,
+  FollowerSeries,
   Merchant,
   MerchantOrder,
+  MerchantReviewsSummary,
   MyOrder,
   OrderChannel,
   OrderDraft,
@@ -19,6 +23,7 @@ import type {
 } from "@/types";
 import type {
   Credentials,
+  DiscountCodeInput,
   MerchantUpdate,
   PageQuery,
   ProductInput,
@@ -30,7 +35,7 @@ import type {
   SignupInput,
 } from "../types";
 import { statusForQty } from "@/lib/constants";
-import { minVariantPrice, variantPrice } from "@/lib/currency";
+import { minVariantPrice, variantPrice, variantPriceWithCode } from "@/lib/currency";
 import { fileToDataUrl } from "@/lib/image";
 import { productImageSrc } from "@/lib/productImage";
 import { slugify } from "@/lib/slug";
@@ -46,6 +51,8 @@ const FAVORITES_KEY = "pulseshop-mock-server-favorites";
 const CART_KEY = "pulseshop-mock-server-cart";
 const RATINGS_KEY = "pulseshop-mock-my-ratings";
 const PROFILE_KEY = "pulseshop-mock-profile";
+const DISCOUNT_CODES_KEY = "pulseshop-mock-discount-codes";
+const DISCOUNT_REDEMPTIONS_KEY = "pulseshop-mock-discount-redemptions";
 
 const delay = (ms = LATENCY) => new Promise((r) => setTimeout(r, ms));
 
@@ -196,8 +203,12 @@ function recordMyOrder(
   reference: string,
   items: OrderLine[],
   draft: { channel: OrderDraft["channel"]; payment: OrderDraft["payment"] },
+  discount?: { code: string; amountKes: number } | null,
 ): string {
   const accessToken = makeToken();
+  // items already carry the CHARGED (post-discount) unit price, matching
+  // place_order (0035) — so the pre-discount figure is reconstructed by
+  // adding the discount back, not summed separately.
   const total = items.reduce((s, i) => s + i.lineTotalKes, 0);
   const order: MyOrder = {
     id: `o${Date.now()}`,
@@ -205,8 +216,10 @@ function recordMyOrder(
     channel: draft.channel,
     paymentMethod: draft.payment?.method ?? null,
     paymentStatus: draft.payment?.status === "paid" ? "paid" : "pending",
-    subtotalKes: total,
+    subtotalKes: total + (discount?.amountKes ?? 0),
     totalKes: total,
+    discountCode: discount?.code ?? null,
+    discountKes: discount?.amountKes ?? 0,
     placedAt: new Date().toISOString(),
     shopName: merchant.name,
     shopSlug: merchant.handle,
@@ -246,19 +259,22 @@ function seedOrders(): MerchantOrder[] {
       id: "o-seed-1", reference: makeRef(), customerName: "Amina Njoroge",
       customerPhone: "254712345678", customerNotes: "Deliver after 5pm please",
       channel: "whatsapp", paymentMethod: "mpesa", paymentStatus: "paid",
-      subtotalKes: total(o1), totalKes: total(o1), placedAt: minsAgo(35), items: o1,
+      subtotalKes: total(o1), totalKes: total(o1), discountCode: null, discountKes: 0,
+      placedAt: minsAgo(35), items: o1,
     },
     {
       id: "o-seed-2", reference: makeRef(), customerName: "Brian Otieno",
       customerPhone: "254798765432", customerNotes: "",
       channel: "instagram", paymentMethod: null, paymentStatus: "pending",
-      subtotalKes: total(o2), totalKes: total(o2), placedAt: minsAgo(180), items: o2,
+      subtotalKes: total(o2), totalKes: total(o2), discountCode: null, discountKes: 0,
+      placedAt: minsAgo(180), items: o2,
     },
     {
       id: "o-seed-3", reference: makeRef(), customerName: "Cynthia Wanjiru",
       customerPhone: "254733222111", customerNotes: "Gift wrap if possible",
       channel: "facebook", paymentMethod: "paypal", paymentStatus: "paid",
-      subtotalKes: total(o3), totalKes: total(o3), placedAt: minsAgo(1440), items: o3,
+      subtotalKes: total(o3), totalKes: total(o3), discountCode: null, discountKes: 0,
+      placedAt: minsAgo(1440), items: o3,
     },
   ];
 }
@@ -282,6 +298,77 @@ function saveOrders(list: MerchantOrder[]) {
 }
 
 let ordersReceived = loadOrders();
+
+/** One redemption per (code, buyer phone) — mirrors the real one-per-buyer
+ * unique index (0035), simplified since mock mode has no signed-in buyer id
+ * to fall back on either. */
+interface MockRedemption {
+  codeId: string;
+  buyerPhone: string;
+}
+
+function loadDiscountCodes(): DiscountCode[] {
+  try {
+    const raw = localStorage.getItem(DISCOUNT_CODES_KEY);
+    if (raw) return JSON.parse(raw) as DiscountCode[];
+  } catch {
+    /* fall through to empty */
+  }
+  return [];
+}
+
+function saveDiscountCodes(list: DiscountCode[]) {
+  try {
+    localStorage.setItem(DISCOUNT_CODES_KEY, JSON.stringify(list));
+  } catch {
+    /* storage full/unavailable — keep in-memory copy */
+  }
+}
+
+let discountCodes = loadDiscountCodes();
+
+function loadRedemptions(): MockRedemption[] {
+  try {
+    const raw = localStorage.getItem(DISCOUNT_REDEMPTIONS_KEY);
+    if (raw) return JSON.parse(raw) as MockRedemption[];
+  } catch {
+    /* fall through to empty */
+  }
+  return [];
+}
+
+function saveRedemptions(list: MockRedemption[]) {
+  try {
+    localStorage.setItem(DISCOUNT_REDEMPTIONS_KEY, JSON.stringify(list));
+  } catch {
+    /* storage full/unavailable — keep in-memory copy */
+  }
+}
+
+let discountRedemptions = loadRedemptions();
+
+/** The same checks place_order (0035) makes server-side: exists, active, in
+ * its date window, under its cap, and not already used by this phone number. */
+function findValidMockCode(code: string, customerPhone?: string): DiscountCode | null {
+  const trimmed = code.trim().toUpperCase();
+  if (!trimmed) return null;
+
+  const found = discountCodes.find((c) => c.code.toUpperCase() === trimmed);
+  if (!found || !found.active) return null;
+
+  const now = Date.now();
+  if (now < new Date(found.startsAt).getTime() || now > new Date(found.expiresAt).getTime()) {
+    return null;
+  }
+  if (found.maxRedemptions != null && found.redemptionCount >= found.maxRedemptions) {
+    return null;
+  }
+  const phone = customerPhone?.trim();
+  if (phone && discountRedemptions.some((r) => r.codeId === found.id && r.buyerPhone === phone)) {
+    return null;
+  }
+  return found;
+}
 
 function loadIds(key: string): string[] {
   try {
@@ -600,6 +687,8 @@ export const mockServices: Services = {
             paymentStatus: draft.payment?.status === "paid" ? "paid" : "pending",
             subtotalKes: total,
             totalKes: total,
+            discountCode: null,
+            discountKes: 0,
             placedAt: new Date().toISOString(),
             items,
           },
@@ -616,10 +705,29 @@ export const mockServices: Services = {
       const replay = replayOrder(draft.idempotencyKey);
       if (replay) return replay;
       const reference = makeRef();
+
+      // Resolved once, exactly like place_order (0035) resolves it once the
+      // shop is known — mock mode only ever has one shop, so there's no
+      // per-shop scoping to redo here.
+      const match = draft.discountCode
+        ? findValidMockCode(draft.discountCode, draft.customer.phone)
+        : null;
+      if (draft.discountCode && !match) {
+        throw new Error("discount code is no longer valid for this order");
+      }
+
+      let anyEligible = false;
+      let noCodeTotal = 0;
       const items: OrderLine[] = draft.items.flatMap((item) => {
         const p = products.find((x) => x.id === item.productId);
         if (!p) return [];
-        const unit = variantPrice(p, item.size, item.color);
+        const eligible = match !== null && (match.appliesTo === "all" || match.productIds.includes(p.id));
+        anyEligible = anyEligible || eligible;
+        const noCodeUnit = variantPrice(p, item.size, item.color);
+        const unit = match
+          ? variantPriceWithCode(p, item.size, item.color, eligible ? match.percentOff : null)
+          : noCodeUnit;
+        noCodeTotal += noCodeUnit * item.qty;
         return [{
           productName: p.name,
           image: productImageSrc(p.images),
@@ -630,7 +738,14 @@ export const mockServices: Services = {
           lineTotalKes: unit * item.qty,
         }];
       });
+
+      if (match && !anyEligible) {
+        throw new Error("discount code is no longer valid for this order");
+      }
+
       const total = items.reduce((s, i) => s + i.lineTotalKes, 0);
+      const discountKes = match ? Math.max(0, noCodeTotal - total) : 0;
+
       ordersReceived = [
         {
           id: `o${Date.now()}`,
@@ -641,15 +756,35 @@ export const mockServices: Services = {
           channel: draft.channel,
           paymentMethod: draft.payment?.method ?? null,
           paymentStatus: draft.payment?.status === "paid" ? "paid" : "pending",
-          subtotalKes: total,
+          subtotalKes: noCodeTotal,
           totalKes: total,
+          discountCode: match ? match.code : null,
+          discountKes,
           placedAt: new Date().toISOString(),
           items,
         },
         ...ordersReceived,
       ];
       saveOrders(ordersReceived);
-      const accessToken = recordMyOrder(reference, items, draft);
+
+      if (match) {
+        discountRedemptions = [
+          ...discountRedemptions,
+          { codeId: match.id, buyerPhone: draft.customer.phone.trim() },
+        ];
+        saveRedemptions(discountRedemptions);
+        discountCodes = discountCodes.map((c) =>
+          c.id === match.id ? { ...c, redemptionCount: c.redemptionCount + 1 } : c,
+        );
+        saveDiscountCodes(discountCodes);
+      }
+
+      const accessToken = recordMyOrder(
+        reference,
+        items,
+        draft,
+        match ? { code: match.code, amountKes: discountKes } : null,
+      );
       return rememberOrder(draft.idempotencyKey, { reference, accessToken });
     },
 
@@ -684,6 +819,96 @@ export const mockServices: Services = {
         (r) => r.order.reference === reference && r.accessToken === accessToken,
       );
       return rec ? structuredClone(rec.order) : null;
+    },
+  },
+
+  discounts: {
+    async listCodes(): Promise<DiscountCode[]> {
+      await delay();
+      return structuredClone(discountCodes);
+    },
+
+    async createCode(input: DiscountCodeInput): Promise<DiscountCode> {
+      await delay();
+      const code: DiscountCode = {
+        id: `dc${Date.now()}`,
+        code: input.code.trim().toUpperCase(),
+        percentOff: input.percentOff,
+        startsAt: input.startsAt ?? new Date().toISOString(),
+        expiresAt: input.expiresAt,
+        maxRedemptions: input.maxRedemptions ?? null,
+        redemptionCount: 0,
+        appliesTo: input.appliesTo,
+        productIds: input.appliesTo === "selected" ? (input.productIds ?? []) : [],
+        active: input.active ?? true,
+        createdAt: new Date().toISOString(),
+      };
+      discountCodes = [code, ...discountCodes];
+      saveDiscountCodes(discountCodes);
+      return structuredClone(code);
+    },
+
+    async updateCode(id: string, patch: Partial<DiscountCodeInput>): Promise<DiscountCode> {
+      await delay();
+      const current = discountCodes.find((c) => c.id === id);
+      if (!current) throw new Error("Discount code not found");
+      const updated: DiscountCode = {
+        ...current,
+        code: patch.code !== undefined ? patch.code.trim().toUpperCase() : current.code,
+        percentOff: patch.percentOff ?? current.percentOff,
+        startsAt: patch.startsAt ?? current.startsAt,
+        expiresAt: patch.expiresAt ?? current.expiresAt,
+        maxRedemptions: patch.maxRedemptions !== undefined ? patch.maxRedemptions : current.maxRedemptions,
+        appliesTo: patch.appliesTo ?? current.appliesTo,
+        productIds: patch.productIds !== undefined ? patch.productIds : current.productIds,
+        active: patch.active !== undefined ? patch.active : current.active,
+      };
+      discountCodes = discountCodes.map((c) => (c.id === id ? updated : c));
+      saveDiscountCodes(discountCodes);
+      return structuredClone(updated);
+    },
+
+    async deleteCode(id: string): Promise<void> {
+      await delay();
+      discountCodes = discountCodes.filter((c) => c.id !== id);
+      saveDiscountCodes(discountCodes);
+    },
+
+    async previewCode(
+      _merchantId: string,
+      code: string,
+      items: { productId: string; qty: number }[],
+      customerPhone?: string,
+    ): Promise<DiscountPreview> {
+      await delay();
+      const reason = "This code isn't valid for this order.";
+      const match = findValidMockCode(code, customerPhone);
+      if (!match) {
+        return { valid: false, reason, percentOff: null, discountKes: 0, newTotal: null };
+      }
+
+      let noCodeTotal = 0;
+      let withCodeTotal = 0;
+      let anyEligible = false;
+      for (const item of items) {
+        const p = products.find((x) => x.id === item.productId);
+        if (!p) continue;
+        const eligible = match.appliesTo === "all" || match.productIds.includes(p.id);
+        anyEligible = anyEligible || eligible;
+        noCodeTotal += variantPrice(p, null, null) * item.qty;
+        withCodeTotal += variantPriceWithCode(p, null, null, eligible ? match.percentOff : null) * item.qty;
+      }
+      if (!anyEligible) {
+        return { valid: false, reason, percentOff: null, discountKes: 0, newTotal: null };
+      }
+
+      return {
+        valid: true,
+        reason: null,
+        percentOff: match.percentOff,
+        discountKes: noCodeTotal - withCodeTotal,
+        newTotal: withCodeTotal,
+      };
     },
   },
 
@@ -790,6 +1015,25 @@ export const mockServices: Services = {
       ids.delete(merchantId);
       localStorage.setItem(FOLLOWS_KEY, JSON.stringify([...ids]));
     },
+
+    // Mock mode has no follow-event log to derive real growth from, so this
+    // is a flat line at the current count rather than fabricated history.
+    async getFollowerSeries(tz: string, days = 30): Promise<FollowerSeries> {
+      await delay();
+      const total = merchantStats().followers;
+      const series: FollowerSeries["days"] = [];
+      for (let i = days - 1; i >= 0; i--) {
+        const d = new Date();
+        d.setDate(d.getDate() - i);
+        series.push({
+          date: d.toLocaleDateString("en-CA", { timeZone: tz }),
+          followers: total,
+          gained: 0,
+          lost: 0,
+        });
+      }
+      return { baseline: total, days: series };
+    },
   },
 
   reviews: {
@@ -850,6 +1094,44 @@ export const mockServices: Services = {
       return loadReviewTexts()
         .filter((t) => t.productId === productId)
         .map(({ stars, comment, reviewerName, createdAt }) => ({ stars, comment, reviewerName, createdAt }));
+    },
+
+    // Mock mode only simulates WRITTEN reviews (loadReviewTexts) — there's no
+    // separate star-only stream the way the real `reviews` table has one, so
+    // this is a smaller dataset than the server version returns. Good enough
+    // to demo the page's layout.
+    async getMerchantReviews(opts): Promise<MerchantReviewsSummary> {
+      await delay();
+      const all = loadReviewTexts().filter(
+        (t) => !opts?.productId || t.productId === opts.productId,
+      );
+      const total = all.length;
+      const avgRating = total
+        ? Math.round((all.reduce((sum, t) => sum + t.stars, 0) / total) * 10) / 10
+        : 0;
+      const distribution = { 1: 0, 2: 0, 3: 0, 4: 0, 5: 0 } as Record<1 | 2 | 3 | 4 | 5, number>;
+      for (const t of all) distribution[t.stars as 1 | 2 | 3 | 4 | 5]++;
+
+      const offset = opts?.offset ?? 0;
+      const limit = opts?.limit ?? 20;
+      return {
+        avgRating,
+        totalReviews: total,
+        totalCount: total,
+        distribution,
+        items: all.slice(offset, offset + limit).map((t) => {
+          const p = products.find((pr) => pr.id === t.productId);
+          return {
+            productId: t.productId,
+            productName: p?.name ?? "Unknown product",
+            image: p?.images[0] ?? "",
+            stars: t.stars,
+            comment: t.comment,
+            reviewerName: t.reviewerName,
+            createdAt: t.createdAt,
+          };
+        }),
+      };
     },
   },
 

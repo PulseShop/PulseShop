@@ -11,6 +11,7 @@ import { ProductCard } from "@/components/product/ProductCard";
 import { QueryError } from "@/components/common/QueryError";
 import { FollowButton } from "@/components/shop/FollowButton";
 import { ShopFooter } from "@/components/shop/ShopFooter";
+import { ShopStatusDot } from "@/components/shop/ShopStatusDot";
 import { SocialLinks } from "@/components/shop/SocialLinks";
 import { Sheet } from "@/components/ui/Modal";
 import { ProductCardSkeleton, Skeleton } from "@/components/ui/Skeleton";
@@ -292,8 +293,10 @@ export function StorefrontPage() {
     );
   }
 
-  // Public shop that doesn't exist -> friendly not-found instead of a stuck skeleton.
-  if (isPublic && merchantQ.isSuccess && !merchant) {
+  // Public shop that doesn't exist, OR has wound down for good ('closing' is
+  // hidden everywhere else — search, directory, sitemap — so its storefront
+  // URL has to agree) -> friendly not-found instead of a stuck skeleton.
+  if (isPublic && merchantQ.isSuccess && (!merchant || merchant.shopStatus === "closing")) {
     return (
       <MobileShell nav={false}>
         <div className="flex min-h-[70dvh] flex-col items-center justify-center gap-3 p-8 text-center">
@@ -426,12 +429,7 @@ export function StorefrontPage() {
                   alt={merchant.name}
                   className="size-20 rounded-full object-cover ring-4 ring-card shadow-soft lg:size-24"
                 />
-                {merchant.isOnline && (
-                  <span className="absolute bottom-1 right-1 flex size-4">
-                    <span className="absolute inline-flex size-full rounded-full bg-success animate-ping-slow" />
-                    <span className="relative inline-flex size-4 rounded-full border-2 border-card bg-success" />
-                  </span>
-                )}
+                <ShopStatusDot status={merchant.shopStatus} className="absolute bottom-1 right-1" />
               </div>
               <div>
                 <h1 className="mt-3 text-xl font-extrabold text-ink lg:mt-0 lg:text-2xl">
@@ -441,6 +439,11 @@ export function StorefrontPage() {
                   @{merchant.handle} · {merchant.location}
                 </p>
                 <p className="mt-2 max-w-xs text-sm text-ink/80 lg:max-w-sm">{merchant.bio}</p>
+                {merchant.shopStatus === "closed" && (
+                  <span className="mt-2 inline-flex items-center rounded-full bg-warning/10 px-3 py-1 text-xs font-bold text-warning">
+                    Temporarily closed — not accepting orders right now
+                  </span>
+                )}
               </div>
             </div>
 

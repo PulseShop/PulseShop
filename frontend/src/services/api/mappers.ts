@@ -42,7 +42,7 @@ export interface MerchantRow {
   location: string | null;
   avatar_url: string | null;
   banner_url: string | null;
-  is_online: boolean;
+  shop_status: string;
   tagline?: string | null;
   meta_description?: string | null;
   whatsapp: string | null;
@@ -97,7 +97,7 @@ export function toMerchant(
     location: row.location ?? "",
     avatarUrl: row.avatar_url || avatarFor(row.name),
     bannerUrl: row.banner_url ?? "",
-    isOnline: row.is_online,
+    shopStatus: (row.shop_status as Merchant["shopStatus"]) ?? "open",
     fulfillment: (row.fulfillment as Merchant["fulfillment"]) ?? "both",
     tagline: row.tagline ?? "",
     metaDescription: row.meta_description ?? "",
@@ -147,7 +147,7 @@ export function merchantUpdateToRow(patch: MerchantUpdate): Record<string, unkno
   if (patch.location !== undefined) row.location = patch.location;
   if (patch.avatarUrl !== undefined) row.avatar_url = patch.avatarUrl;
   if (patch.bannerUrl !== undefined) row.banner_url = patch.bannerUrl;
-  if (patch.isOnline !== undefined) row.is_online = patch.isOnline;
+  if (patch.shopStatus !== undefined) row.shop_status = patch.shopStatus;
   if (patch.fulfillment !== undefined) row.fulfillment = patch.fulfillment;
   if (patch.whatsapp !== undefined) row.whatsapp = patch.whatsapp ? toWhatsAppDigits(patch.whatsapp) : "";
   if (patch.instagram !== undefined) row.instagram = patch.instagram ? toSocialHandle(patch.instagram) : "";

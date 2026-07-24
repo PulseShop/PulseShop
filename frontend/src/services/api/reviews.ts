@@ -1,4 +1,4 @@
-import type { ProductReview } from "@/types";
+import type { MerchantReviewsSummary, ProductReview } from "@/types";
 import type { ReviewService } from "../types";
 import { requireUserId, supabase } from "./client";
 
@@ -68,5 +68,15 @@ export const reviewsApi: ReviewService = {
       reviewerName: r.reviewer_name,
       createdAt: r.created_at,
     }));
+  },
+
+  async getMerchantReviews(opts): Promise<MerchantReviewsSummary> {
+    const { data, error } = await supabase.rpc("merchant_reviews", {
+      p_product_id: opts?.productId ?? null,
+      p_limit: opts?.limit ?? 20,
+      p_offset: opts?.offset ?? 0,
+    });
+    if (error) throw error;
+    return data as MerchantReviewsSummary;
   },
 };

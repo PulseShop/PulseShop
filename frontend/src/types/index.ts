@@ -52,6 +52,43 @@ export interface ProductReview {
   createdAt: string;
 }
 
+/** One review row on the merchant-facing Reviews page — unlike ProductReview
+ *  (public, one product, text-only), this carries which product it's for and
+ *  includes star-only ratings with no written comment. */
+export interface MerchantReviewItem {
+  productId: string;
+  productName: string;
+  image: string;
+  stars: number;
+  comment: string | null;
+  reviewerName: string | null;
+  createdAt: string;
+}
+
+export interface MerchantReviewsSummary {
+  avgRating: number;
+  totalReviews: number;
+  distribution: Record<1 | 2 | 3 | 4 | 5, number>;
+  items: MerchantReviewItem[];
+  totalCount: number;
+}
+
+/** One day of the followers chart. `followers` is a true running total (the
+ * baseline plus every gain/loss up to and including this day), not a
+ * point-in-time snapshot — so it correctly shows churn, not just growth. */
+export interface FollowerSeriesPoint {
+  date: string;
+  followers: number;
+  gained: number;
+  lost: number;
+}
+
+export interface FollowerSeries {
+  /** Net followers as of the day before the series starts. */
+  baseline: number;
+  days: FollowerSeriesPoint[];
+}
+
 /** A product thumbnail carried inline on a shop-directory row. */
 export interface ShopPreview {
   id: string;
@@ -63,6 +100,16 @@ export interface ShopPreview {
 /** How a shop's customers receive their orders (migration 0031). */
 export type Fulfillment = "pickup" | "delivery" | "both";
 
+/**
+ * Seller-controlled shop status (migration 0032), replacing the old isOnline
+ * boolean:
+ *  - "open"    normal — listed everywhere, checkout allowed.
+ *  - "closed"  temporary break — still listed and browsable, checkout blocked.
+ *  - "closing" winding down — hidden from search/directory/sitemap, storefront
+ *              404s. Existing orders keep working.
+ */
+export type ShopStatus = "open" | "closed" | "closing";
+
 export interface Merchant {
   id: string;
   name: string;
@@ -71,7 +118,7 @@ export interface Merchant {
   location: string;
   avatarUrl: string;
   bannerUrl: string;
-  isOnline: boolean;
+  shopStatus: ShopStatus;
   /**
    * Pickup, delivery, or both. Optional because the shop-directory rows on
    * /shops don't carry it (the card doesn't show it) — read it as `?? "both"`.
@@ -136,6 +183,44 @@ export type PaymentMethod = "mpesa" | "paypal";
 export type PaymentStatus = "idle" | "pending" | "paid" | "failed";
 
 /**
+ * A seller-created discount code (migration 0035). Never stacks with a
+ * product's own discountPct — the better of the two applies at checkout, not
+ * both.
+ */
+export interface DiscountCode {
+  id: string;
+  code: string;
+  percentOff: number;
+  startsAt: string;
+  expiresAt: string;
+  /** null = uncapped total redemptions. Independent of the one-per-buyer rule,
+   * which always applies regardless of this. */
+  maxRedemptions: number | null;
+  redemptionCount: number;
+  appliesTo: "all" | "selected";
+  /** Product ids the code applies to. Only meaningful (and only populated by
+   * the adapter) when appliesTo === "selected". */
+  productIds: string[];
+  active: boolean;
+  createdAt: string;
+}
+
+/** The buyer-facing effect of applying a code, computed before the order is
+ * placed. Advisory only — place_order re-validates and re-computes this
+ * itself, and its answer is the one that's actually charged. */
+export interface DiscountPreview {
+  valid: boolean;
+  /** Deliberately the SAME generic string for every failure reason — see the
+   * comment on place_order's discount handling for why. */
+  reason: string | null;
+  percentOff: number | null;
+  discountKes: number;
+  /** Estimated post-discount total. Ignores variant price adjustments; null
+   * when invalid. */
+  newTotal: number | null;
+}
+
+/**
  * What every order submission must carry, on top of the order itself.
  *
  * `idempotencyKey` is minted once per checkout ATTEMPT and replayed on retry:
@@ -171,6 +256,9 @@ export interface CartOrderDraft extends OrderSubmission {
   customer: { name: string; phone: string; notes: string };
   channel: OrderChannel;
   payment: null | { method: PaymentMethod; status: PaymentStatus };
+  /** A code the buyer applied at checkout. Validated and applied server-side
+   * in place_order — never trusted for the actual charge. */
+  discountCode?: string | null;
 }
 
 export interface Favorite {
@@ -230,6 +318,10 @@ export interface MyOrder {
   paymentStatus: PaymentStatus;
   subtotalKes: number;
   totalKes: number;
+  /** The code applied at checkout, if any — null on every order placed before
+   * discount codes existed, or with no code applied. */
+  discountCode: string | null;
+  discountKes: number;
   placedAt: string;
   /** Present when read from signed-in history (joined); empty on guest lookup. */
   shopName?: string;
@@ -249,6 +341,8 @@ export interface MerchantOrder {
   paymentStatus: PaymentStatus;
   subtotalKes: number;
   totalKes: number;
+  discountCode: string | null;
+  discountKes: number;
   placedAt: string;
   items: OrderLine[];
 }

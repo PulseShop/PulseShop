@@ -2,6 +2,7 @@ import type { Services } from "../types";
 import { analyticsApi } from "./analytics";
 import { authApi } from "./auth";
 import { cartApi } from "./cart";
+import { discountsApi } from "./discounts";
 import { favoritesApi } from "./favorites";
 import { followsApi } from "./follows";
 import { ordersApi } from "./orders";
@@ -26,4 +27,5 @@ export const apiServices: Services = {
   cart: cartApi,
   payments: paymentsApi,
   storage: storageApi,
+  discounts: discountsApi,
 };

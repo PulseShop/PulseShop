@@ -32,8 +32,10 @@ import { NotFoundPage } from "@/routes/NotFoundPage";
 import { ComponentsPage } from "@/routes/dev/ComponentsPage";
 import { AnalyticsPage } from "@/routes/dashboard/AnalyticsPage";
 import { DashboardOverviewPage } from "@/routes/dashboard/DashboardOverviewPage";
+import { DiscountCodesPage } from "@/routes/dashboard/DiscountCodesPage";
 import { InventoryPage } from "@/routes/dashboard/InventoryPage";
 import { OrdersDashboardPage } from "@/routes/dashboard/OrdersPage";
+import { ReviewsDashboardPage } from "@/routes/dashboard/ReviewsPage";
 import { SettingsPage } from "@/routes/dashboard/SettingsPage";
 import { AccountPage } from "@/routes/account/AccountPage";
 import { FavoritesPage } from "@/routes/favorites/FavoritesPage";
@@ -148,7 +150,9 @@ createRoot(document.getElementById("root")!).render(
             <Route path="/account" element={<AccountPage />} />
             <Route path="/dashboard" element={<RequireMerchant><DashboardOverviewPage /></RequireMerchant>} />
             <Route path="/dashboard/inventory" element={<RequireMerchant><InventoryPage /></RequireMerchant>} />
+            <Route path="/dashboard/discounts" element={<RequireMerchant><DiscountCodesPage /></RequireMerchant>} />
             <Route path="/dashboard/orders" element={<RequireMerchant><OrdersDashboardPage /></RequireMerchant>} />
+            <Route path="/dashboard/reviews" element={<RequireMerchant><ReviewsDashboardPage /></RequireMerchant>} />
             <Route path="/dashboard/analytics" element={<RequireMerchant><AnalyticsPage /></RequireMerchant>} />
             <Route path="/dashboard/settings" element={<RequireMerchant><SettingsPage /></RequireMerchant>} />
             <Route path="/dev/components" element={<ComponentsPage />} />

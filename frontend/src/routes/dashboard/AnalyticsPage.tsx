@@ -1,16 +1,20 @@
 import { useQuery } from "@tanstack/react-query";
-import { AlertTriangle, DollarSign, Receipt, TrendingUp } from "lucide-react";
+import { AlertTriangle, DollarSign, Receipt, TrendingDown, TrendingUp } from "lucide-react";
 import { Link } from "react-router";
 import { DashboardShell } from "@/components/layout/DashboardShell";
-import { ProductImage } from "@/components/product/ProductImage";
+import { TopProductsList } from "@/components/dashboard/TopProductsList";
 import { QueryError } from "@/components/common/QueryError";
 import { Skeleton } from "@/components/ui/Skeleton";
 import { formatKes } from "@/lib/currency";
+import { LOCAL_TZ as TZ } from "@/lib/timezone";
 import { cn } from "@/lib/utils";
 import { services } from "@/services";
 import type { OrderChannel } from "@/types";
 
+import { FollowersChart } from "./FollowersChart";
 import { RevenueChart } from "./RevenueChart";
+
+const FOLLOWER_DAYS = 30;
 
 const CHANNEL_LABEL: Record<OrderChannel, string> = {
   whatsapp: "WhatsApp",
@@ -19,16 +23,20 @@ const CHANNEL_LABEL: Record<OrderChannel, string> = {
   direct: "Direct",
 };
 
-/** The merchant's own timezone — revenue is bucketed by *their* calendar day,
- * so a 01:00 Nairobi sale doesn't get counted against the previous day. */
-const TZ = Intl.DateTimeFormat().resolvedOptions().timeZone || "UTC";
-
 /** "2026-07-11" -> "Sat". The server returns calendar days; the weekday label
  * is presentation, so it stays here. Parsed as local noon to dodge the
  * off-by-one an ISO date string parsed as UTC midnight would cause. */
 const weekdayLabel = (isoDate: string) => {
   const [y, m, d] = isoDate.split("-").map(Number);
   return new Date(y, m - 1, d, 12).toLocaleDateString("en-KE", { weekday: "short" });
+};
+
+/** "2026-07-11" -> "Jul 11". The followers chart spans up to 90 days, where a
+ * weekday name alone would repeat several times over — same off-by-one
+ * dodge as weekdayLabel. */
+const monthDayLabel = (isoDate: string) => {
+  const [y, m, d] = isoDate.split("-").map(Number);
+  return new Date(y, m - 1, d, 12).toLocaleDateString("en-KE", { month: "short", day: "numeric" });
 };
 
 /**
@@ -42,9 +50,16 @@ export function AnalyticsPage() {
     queryKey: ["analytics", TZ],
     queryFn: () => services.analytics.getAnalytics(TZ, 7),
   });
+  const followersQ = useQuery({
+    queryKey: ["follower-series", TZ, FOLLOWER_DAYS],
+    queryFn: () => services.follows.getFollowerSeries(TZ, FOLLOWER_DAYS),
+  });
 
   const a = analyticsQ.data;
   const totalChannelOrders = Math.max(1, a?.orderCount ?? 0);
+
+  const f = followersQ.data;
+  const followerDelta = f ? (f.days.at(-1)?.followers ?? f.baseline) - f.baseline : 0;
 
   return (
     <DashboardShell>
@@ -110,26 +125,45 @@ export function AnalyticsPage() {
               </section>
             </div>
 
+            {/* followers growth — a running total, so an unfollow shows as a
+                dip rather than disappearing from history (migration 0034) */}
+            <section className="rounded-card bg-card p-6 shadow-soft">
+              <div className="flex items-center justify-between">
+                <h2 className="text-lg font-extrabold text-ink">Followers · last {FOLLOWER_DAYS} days</h2>
+                {f && followerDelta !== 0 && (
+                  <span
+                    className={cn(
+                      "inline-flex items-center gap-1 rounded-full px-2.5 py-1 text-xs font-bold",
+                      followerDelta > 0 ? "bg-success/10 text-success" : "bg-danger/10 text-danger",
+                    )}
+                  >
+                    {followerDelta > 0 ? (
+                      <TrendingUp className="size-3.5" />
+                    ) : (
+                      <TrendingDown className="size-3.5" />
+                    )}
+                    {followerDelta > 0 ? "+" : ""}
+                    {followerDelta}
+                  </span>
+                )}
+              </div>
+              {followersQ.isError ? (
+                <p className="mt-4 text-sm text-muted">Couldn't load follower history.</p>
+              ) : followersQ.isLoading || !f ? (
+                <Skeleton className="mt-4 h-64 w-full rounded-lg" />
+              ) : (
+                <div className="-ml-5 mt-4 h-64 w-full flex-1">
+                  <FollowersChart
+                    data={f.days.map((d) => ({ name: monthDayLabel(d.date), followers: d.followers }))}
+                  />
+                </div>
+              )}
+            </section>
+
             {/* top products */}
             <section className="rounded-card bg-card p-6 shadow-soft">
               <h2 className="text-lg font-extrabold text-ink">Top products</h2>
-              {a.topProducts.length === 0 ? (
-                <p className="mt-3 text-sm text-muted">No sales yet — orders will populate this.</p>
-              ) : (
-                <div className="mt-4 space-y-3">
-                  {a.topProducts.map((p, i) => (
-                    <div key={p.name} className="flex items-center gap-3">
-                      <span className="w-5 text-sm font-bold text-muted">{i + 1}</span>
-                      <ProductImage src={p.image} alt="" className="size-10 rounded-lg object-cover" />
-                      <div className="min-w-0 flex-1">
-                        <p className="truncate text-sm font-semibold text-ink">{p.name}</p>
-                        <p className="text-xs text-muted">{p.units} sold</p>
-                      </div>
-                      <p className="text-sm font-bold text-ink">{formatKes(p.revenue)}</p>
-                    </div>
-                  ))}
-                </div>
-              )}
+              <TopProductsList products={a.topProducts} />
             </section>
 
             {/* low stock alert — the server returns the worst 8 plus the full count */}

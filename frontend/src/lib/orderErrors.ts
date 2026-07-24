@@ -37,5 +37,13 @@ export function orderErrorMessage(err: unknown): string {
   if (msg.includes("name and phone")) {
     return "Please enter your name and phone number.";
   }
+  if (msg.includes("discount code")) {
+    // Deliberately doesn't say why (expired vs. cap reached vs. already used)
+    // — see place_order's comment on discount codes (migration 0035).
+    return "Your discount code is no longer valid for this order. Remove it to check out at full price, or try again.";
+  }
+  if (msg.includes("shop is not accepting orders")) {
+    return "This shop isn't accepting orders right now.";
+  }
   return "Couldn't place your order. Please try again.";
 }

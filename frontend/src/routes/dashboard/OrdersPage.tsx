@@ -13,6 +13,7 @@ import { Button } from "@/components/ui/Button";
 import { WhatsAppIcon } from "@/components/ui/BrandIcons";
 import { Skeleton } from "@/components/ui/Skeleton";
 import { formatKes } from "@/lib/currency";
+import { LOCAL_TZ as TZ } from "@/lib/timezone";
 import { variantLabel } from "@/lib/variant";
 import { toWhatsAppDigits } from "@/lib/phone";
 import { cn } from "@/lib/utils";
@@ -21,10 +22,6 @@ import type { MerchantOrder, OrderChannel, Paged, PaymentStatus } from "@/types"
 import { useToasts } from "@/stores/toast";
 
 const PAGE_SIZE = 20;
-
-/** The merchant's own timezone, so the shared analytics aggregate buckets by
- * their calendar day (see AnalyticsPage). */
-const TZ = Intl.DateTimeFormat().resolvedOptions().timeZone || "UTC";
 
 const CHANNEL_LABEL: Record<OrderChannel, string> = {
   whatsapp: "WhatsApp",
@@ -183,6 +180,11 @@ export function OrdersDashboardPage() {
                   </div>
                   <div className="text-right">
                     <p className="text-lg font-extrabold text-ink">{formatKes(o.totalKes)}</p>
+                    {o.discountCode && o.discountKes > 0 && (
+                      <p className="text-xs font-semibold text-success">
+                        {o.discountCode} · −{formatKes(o.discountKes)}
+                      </p>
+                    )}
                     {o.paymentMethod && (
                       <p className="text-xs font-medium text-muted uppercase">{o.paymentMethod}</p>
                     )}
