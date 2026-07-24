@@ -16,6 +16,13 @@ const sameLine = (
 interface CartState {
   items: CartItem[];
   /**
+   * A discount code the shopper applied in the cart, carried through to
+   * checkout so they don't have to type it twice. Advisory only — checkout
+   * re-validates it with preview_discount_code and place_order recomputes the
+   * charge server-side regardless of what this says.
+   */
+  discountCode: string | null;
+  /**
    * Adds an item. The cart holds items from ONE shop at a time (an order goes
    * to a single seller) — returns false when the item belongs to a different
    * shop than the current cart, so the UI can tell the shopper.
@@ -23,6 +30,7 @@ interface CartState {
   add: (item: Omit<CartItem, "qty">, qty?: number) => boolean;
   setQty: (productId: string, size: string | null, color: string | null, qty: number) => void;
   remove: (productId: string, size: string | null, color: string | null) => void;
+  setDiscountCode: (code: string | null) => void;
   clear: () => void;
 }
 
@@ -30,6 +38,7 @@ export const useCart = create<CartState>()(
   persist(
     (set, get) => ({
       items: [],
+      discountCode: null,
       add: (item, qty = 1) => {
         const current = get().items;
         if (current.length > 0 && current[0].shopSlug !== item.shopSlug) return false;
@@ -60,20 +69,25 @@ export const useCart = create<CartState>()(
         })),
       remove: (productId, size, color) =>
         set((s) => ({ items: s.items.filter((i) => !sameLine(i, productId, size, color)) })),
-      clear: () => set({ items: [] }),
+      setDiscountCode: (code) => set({ discountCode: code }),
+      clear: () => set({ items: [], discountCode: null }),
     }),
     {
       name: "pulseshop-cart",
-      // Lines written before colours existed have no `color` key at all, and
-      // `undefined === null` is false — so every one of them would fail
+      // v1: lines written before colours existed have no `color` key at all,
+      // and `undefined === null` is false — so every one of them would fail
       // sameLine() and the shopper's existing cart would render with dead
       // quantity and remove buttons. Normalise them on read.
-      version: 1,
+      // v2: adds discountCode.
+      version: 2,
       migrate: (persisted) => {
-        const state = persisted as { items?: CartItem[] } | undefined;
+        const state = persisted as
+          | { items?: CartItem[]; discountCode?: string | null }
+          | undefined;
         return {
           ...state,
           items: (state?.items ?? []).map((i) => ({ ...i, color: i.color ?? null })),
+          discountCode: state?.discountCode ?? null,
         } as CartState;
       },
     },

@@ -36,8 +36,11 @@ import {
   type PageSeo,
   type SeoProduct,
   type SeoShop,
+  aboutSeo,
+  faqSeo,
   homeSeo,
   isValidSlug,
+  pricesSeo,
   privateSeo,
   productSeo,
   renderHead,
@@ -60,7 +63,7 @@ const SUPABASE_ANON_KEY = process.env.SUPABASE_ANON_KEY || process.env.VITE_SUPA
 const RESERVED = new Set([
   "shop", "shops", "product", "cart", "checkout", "order", "orders", "account",
   "favorites", "login", "signup", "welcome", "auth", "reset-password",
-  "dashboard", "dev", "api", "assets", "icons",
+  "dashboard", "dev", "api", "assets", "icons", "prices", "about", "faq",
 ]);
 
 /** Pages that exist for a signed-in human and must never be indexed. */
@@ -206,6 +209,13 @@ async function resolve(pathname: string, origin: string): Promise<Resolution> {
 
   if (first === "shops" && segments.length === 1) {
     return { kind: "page", seo: shopsSeo(origin) };
+  }
+
+  // Marketing pages — public and indexable, unlike the rest of RESERVED.
+  if (segments.length === 1) {
+    if (first === "prices") return { kind: "page", seo: pricesSeo(origin) };
+    if (first === "about") return { kind: "page", seo: aboutSeo(origin) };
+    if (first === "faq") return { kind: "page", seo: faqSeo(origin) };
   }
 
   /**

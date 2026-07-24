@@ -160,7 +160,17 @@ export default async function handler(request: Request): Promise<Response> {
   if (kind === "static") {
     // The handful of URLs that are neither a shop nor a product.
     const today = new Date().toISOString().slice(0, 10);
-    return xml(doc([urlEntry(`${origin}/`, today), urlEntry(`${origin}/shops`, today)].join("\n")));
+    return xml(
+      doc(
+        [
+          urlEntry(`${origin}/`, today),
+          urlEntry(`${origin}/shops`, today),
+          urlEntry(`${origin}/prices`, today),
+          urlEntry(`${origin}/about`, today),
+          urlEntry(`${origin}/faq`, today),
+        ].join("\n"),
+      ),
+    );
   }
 
   // The index. One probe row of each kind gives the total, which is all that is

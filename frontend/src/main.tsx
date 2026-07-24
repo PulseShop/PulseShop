@@ -27,7 +27,10 @@ import { SignupPage } from "@/routes/auth/SignupPage";
 import { ShopsPage } from "@/routes/shops/ShopsPage";
 import { CartPage } from "@/routes/cart/CartPage";
 import { CheckoutPage } from "@/routes/checkout/CheckoutPage";
+import { AboutPage } from "@/routes/marketing/AboutPage";
+import { FaqPage } from "@/routes/marketing/FaqPage";
 import { LandingPage } from "@/routes/marketing/LandingPage";
+import { PricesPage } from "@/routes/marketing/PricesPage";
 import { NotFoundPage } from "@/routes/NotFoundPage";
 import { ComponentsPage } from "@/routes/dev/ComponentsPage";
 import { AnalyticsPage } from "@/routes/dashboard/AnalyticsPage";
@@ -128,6 +131,9 @@ createRoot(document.getElementById("root")!).render(
           <Routes>
             <Route path="/" element={<LandingPage />} />
             <Route path="/welcome" element={<LandingPage />} />
+            <Route path="/prices" element={<PricesPage />} />
+            <Route path="/about" element={<AboutPage />} />
+            <Route path="/faq" element={<FaqPage />} />
             <Route path="/auth/callback" element={<AuthCallbackPage />} />
             <Route path="/shop" element={<StorefrontPage />} />
             <Route path="/login" element={<LoginPage />} />

@@ -8,14 +8,17 @@ import {
   Star,
   Wallet,
 } from "lucide-react";
+import { useMemo } from "react";
 import { Link } from "react-router";
 import { Button } from "@/components/ui/Button";
-import { Logo } from "@/components/common/Logo";
 import {
   FacebookIcon,
   InstagramIcon,
   WhatsAppIcon,
 } from "@/components/ui/BrandIcons";
+import { useSeo } from "@/hooks/useSeo";
+import { homeSeo } from "@/lib/seo";
+import { MarketingShell } from "./MarketingShell";
 
 const steps = [
   {
@@ -59,28 +62,10 @@ const features = [
 ];
 
 export function LandingPage() {
-  return (
-    <div className="app-surface min-h-dvh">
-      {/* nav */}
-      <header className="glass-header sticky top-0 z-30">
-        <div className="mx-auto flex max-w-5xl items-center justify-between px-5 py-3">
-          <span className="flex items-center gap-2 text-lg font-extrabold tracking-tight text-primary">
-            <Logo size={30} />
-            PulseShop
-          </span>
-          <div className="flex items-center gap-2">
-            <Link to="/login">
-              <Button variant="ghost" size="sm">
-                Log in
-              </Button>
-            </Link>
-            <Link to="/signup">
-              <Button size="sm">Create your shop</Button>
-            </Link>
-          </div>
-        </div>
-      </header>
+  useSeo(useMemo(() => homeSeo(window.location.origin), []));
 
+  return (
+    <MarketingShell>
       {/* hero */}
       <section className="mx-auto grid max-w-5xl items-center gap-10 px-5 pb-8 pt-10 md:grid-cols-2 md:pt-16">
         <div>
@@ -172,21 +157,25 @@ export function LandingPage() {
           <p className="max-w-sm text-sm text-ink/70">
             Set it up today and share your link before the day is out.
           </p>
-          <Link to="/signup">
-            <Button size="lg" className="rounded-full">
-              Create your shop <ArrowRight className="size-5" />
-            </Button>
-          </Link>
+          <div className="flex flex-wrap items-center justify-center gap-3">
+            <Link to="/signup">
+              <Button size="lg" className="rounded-full">
+                Create your shop <ArrowRight className="size-5" />
+              </Button>
+            </Link>
+            <Link to="/prices">
+              <Button
+                variant="outline"
+                size="lg"
+                className="rounded-full border-white/60 bg-white/70"
+              >
+                See pricing
+              </Button>
+            </Link>
+          </div>
         </div>
       </section>
-
-      <footer className="mx-auto max-w-5xl px-5 pb-10 pt-2 text-center">
-        <p className="text-xs font-medium text-muted">
-          © {new Date().getFullYear()} PulseShop · Built for sellers who sell on
-          social.
-        </p>
-      </footer>
-    </div>
+    </MarketingShell>
   );
 }
 

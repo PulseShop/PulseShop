@@ -1,5 +1,8 @@
+import { useQuery } from "@tanstack/react-query";
 import { ArrowRight, Minus, Plus, ShoppingBag, Trash2 } from "lucide-react";
+import { useState } from "react";
 import { Link, useNavigate } from "react-router";
+import { type AppliedDiscount, DiscountCodeSection } from "@/components/cart/DiscountCodeSection";
 import { MobileShell } from "@/components/layout/MobileShell";
 import { DesktopQuickNav } from "@/components/layout/DesktopQuickNav";
 import { ProductImage } from "@/components/product/ProductImage";
@@ -8,6 +11,7 @@ import { Button } from "@/components/ui/Button";
 import { formatKes } from "@/lib/currency";
 import { variantKey, variantLabel } from "@/lib/variant";
 import { useRemoveFromCart, useSetCartQty } from "@/hooks/useCart";
+import { services } from "@/services";
 import { cartSubtotal, useCart } from "@/stores/cart";
 import { useShopHome } from "@/stores/shop";
 
@@ -15,9 +19,25 @@ export function CartPage() {
   const navigate = useNavigate();
   const home = useShopHome();
   const items = useCart((s) => s.items);
+  const storedCode = useCart((s) => s.discountCode);
+  const setStoredCode = useCart((s) => s.setDiscountCode);
   const setQty = useSetCartQty();
   const remove = useRemoveFromCart();
   const subtotal = cartSubtotal(items);
+
+  // The discount code needs the merchant's id to validate against; resolved
+  // from the cart's shop the same way checkout does (same query key, so the
+  // result is shared).
+  const shopSlug = items[0]?.shopSlug;
+  const merchantQ = useQuery({
+    queryKey: ["shop", shopSlug],
+    queryFn: () => services.products.getShop(shopSlug!),
+    enabled: Boolean(shopSlug),
+  });
+
+  const [applied, setApplied] = useState<AppliedDiscount | null>(null);
+  const discountKes = applied?.preview.valid ? applied.preview.discountKes : 0;
+  const displayTotal = Math.max(0, subtotal - discountKes);
 
   if (items.length === 0) {
     return (
@@ -117,13 +137,35 @@ export function CartPage() {
 
         {/* summary — sticky sidebar on desktop, inline card on mobile */}
         <div className="mt-3 space-y-3 rounded-card bg-card p-4 shadow-soft lg:sticky lg:top-24 lg:mt-0 lg:w-80 lg:shrink-0">
-          <div className="flex items-center justify-between text-sm">
+          {merchantQ.data && (
+            <DiscountCodeSection
+              merchantId={merchantQ.data.id}
+              items={items.map((i) => ({ productId: i.productId, qty: i.qty }))}
+              applied={applied}
+              onApply={(a) => {
+                setApplied(a);
+                setStoredCode(a.code);
+              }}
+              onClear={() => {
+                setApplied(null);
+                setStoredCode(null);
+              }}
+              initialCode={storedCode}
+            />
+          )}
+          <div className="flex items-center justify-between border-t border-stone-100 pt-3 text-sm">
             <span className="font-semibold text-muted">Subtotal</span>
             <span className="font-bold text-ink">{formatKes(subtotal)}</span>
           </div>
+          {discountKes > 0 && (
+            <div className="flex items-center justify-between text-sm">
+              <span className="font-semibold text-muted">Discount ({applied?.code})</span>
+              <span className="font-semibold text-success">−{formatKes(discountKes)}</span>
+            </div>
+          )}
           <div className="flex items-center justify-between border-t border-stone-100 pt-3">
             <span className="text-base font-bold text-ink">Total</span>
-            <span className="text-lg font-extrabold text-primary">{formatKes(subtotal)}</span>
+            <span className="text-lg font-extrabold text-primary">{formatKes(displayTotal)}</span>
           </div>
           <p className="text-xs text-muted">
             Delivery is arranged with the seller after you place the order.

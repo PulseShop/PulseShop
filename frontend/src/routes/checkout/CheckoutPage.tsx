@@ -22,7 +22,8 @@ import { cartOrderLink } from "@/lib/deeplinks";
 import { isValidPhone } from "@/lib/phone";
 import { cn } from "@/lib/utils";
 import { services } from "@/services";
-import type { DiscountPreview, PaymentMethod } from "@/types";
+import { type AppliedDiscount, DiscountCodeSection } from "@/components/cart/DiscountCodeSection";
+import type { PaymentMethod } from "@/types";
 import { useClearCart } from "@/hooks/useCart";
 import { cartSubtotal, useCart } from "@/stores/cart";
 import { useOrderStore } from "@/stores/order";
@@ -82,13 +83,11 @@ export function CheckoutPage() {
   // Discount code — applied via preview_discount_code (advisory) before
   // submit; place_order re-validates and re-computes authoritatively, so a
   // code that stops qualifying between here and submit is caught there, not
-  // here (see the catch block in openPayment).
-  const [discountOpen, setDiscountOpen] = useState(false);
-  const [discountInput, setDiscountInput] = useState("");
-  const [discountChecking, setDiscountChecking] = useState(false);
-  const [discountError, setDiscountError] = useState<string | null>(null);
-  const [appliedCode, setAppliedCode] = useState<string | null>(null);
-  const [appliedDiscount, setAppliedDiscount] = useState<DiscountPreview | null>(null);
+  // here (see the catch block in openPayment). A code the shopper applied in
+  // the cart arrives via the store and is re-validated on mount.
+  const storedCode = useCart((s) => s.discountCode);
+  const setStoredCode = useCart((s) => s.setDiscountCode);
+  const [applied, setApplied] = useState<AppliedDiscount | null>(null);
 
   const captcha = useCaptcha();
 
@@ -156,41 +155,12 @@ export function CheckoutPage() {
   // Subtotal/Discount/Total internally consistent even when that estimate is
   // slightly conservative. The actual charge is always computed correctly by
   // place_order regardless of what's shown here.
-  const discountKes = appliedDiscount?.valid ? appliedDiscount.discountKes : 0;
+  const discountKes = applied?.preview.valid ? applied.preview.discountKes : 0;
   const displayTotal = Math.max(0, total - discountKes);
 
   const clearDiscount = () => {
-    setAppliedCode(null);
-    setAppliedDiscount(null);
-    setDiscountInput("");
-    setDiscountError(null);
-    setDiscountOpen(false);
-  };
-
-  const applyDiscount = async () => {
-    const code = discountInput.trim();
-    if (!code) return;
-    setDiscountChecking(true);
-    setDiscountError(null);
-    try {
-      const result = await services.discounts.previewCode(
-        merchant.id,
-        code,
-        items.map((i) => ({ productId: i.productId, qty: i.qty })),
-        getValues("phone") || undefined,
-      );
-      if (result.valid) {
-        setAppliedCode(code.toUpperCase());
-        setAppliedDiscount(result);
-      } else {
-        setAppliedDiscount(null);
-        setDiscountError(result.reason ?? "This code isn't valid for this order.");
-      }
-    } catch {
-      setDiscountError("Couldn't check that code — try again.");
-    } finally {
-      setDiscountChecking(false);
-    }
+    setApplied(null);
+    setStoredCode(null);
   };
 
   const recordOrders = (
@@ -243,7 +213,7 @@ export function CheckoutPage() {
       payment: null,
       idempotencyKey,
       captchaToken: captcha.token,
-      discountCode: appliedDiscount?.valid ? appliedCode : undefined,
+      discountCode: applied?.preview.valid ? applied.code : undefined,
     });
 
   const openPayment = async () => {
@@ -346,66 +316,29 @@ export function CheckoutPage() {
 
           {/* discount code */}
           <div className="border-t border-stone-100 pt-3">
-            {appliedCode && appliedDiscount?.valid ? (
-              <div className="flex items-center justify-between rounded-btn bg-success/5 px-3 py-2">
-                <span className="text-sm font-semibold text-success">
-                  "{appliedCode}" applied — {appliedDiscount.percentOff}% off
-                </span>
-                <button
-                  type="button"
-                  onClick={clearDiscount}
-                  className="text-xs font-bold text-muted underline underline-offset-2 hover:text-ink"
-                >
-                  Remove
-                </button>
-              </div>
-            ) : discountOpen ? (
-              <div className="space-y-1.5">
-                <div className="flex gap-2">
-                  <input
-                    autoFocus
-                    value={discountInput}
-                    onChange={(e) => {
-                      setDiscountInput(e.target.value);
-                      setDiscountError(null);
-                    }}
-                    onKeyDown={(e) => e.key === "Enter" && (e.preventDefault(), applyDiscount())}
-                    placeholder="Discount code"
-                    aria-label="Discount code"
-                    className="h-10 flex-1 rounded-btn border border-stone-200 bg-card px-3 text-sm uppercase outline-none focus:border-primary focus:ring-2 focus:ring-primary/20"
-                  />
-                  <button
-                    type="button"
-                    onClick={applyDiscount}
-                    disabled={!discountInput.trim() || discountChecking}
-                    className="flex items-center gap-1.5 rounded-btn bg-ink px-4 text-sm font-bold text-white disabled:opacity-50"
-                  >
-                    {discountChecking && <Loader2 className="size-4 animate-spin" />}
-                    Apply
-                  </button>
-                </div>
-                {discountError && <p className="text-xs font-semibold text-danger">{discountError}</p>}
-              </div>
-            ) : (
-              <button
-                type="button"
-                onClick={() => setDiscountOpen(true)}
-                className="text-sm font-bold text-primary"
-              >
-                Have a discount code?
-              </button>
-            )}
+            <DiscountCodeSection
+              merchantId={merchant.id}
+              items={items.map((i) => ({ productId: i.productId, qty: i.qty }))}
+              getPhone={() => getValues("phone") || undefined}
+              applied={applied}
+              onApply={(a) => {
+                setApplied(a);
+                setStoredCode(a.code);
+              }}
+              onClear={clearDiscount}
+              initialCode={storedCode}
+            />
           </div>
 
           <div className="space-y-1.5 border-t border-stone-100 pt-3">
-            {appliedCode && appliedDiscount?.valid && (
+            {applied?.preview.valid && (
               <>
                 <div className="flex items-center justify-between text-sm">
                   <span className="text-muted">Subtotal</span>
                   <span className="text-ink">{formatKes(total)}</span>
                 </div>
                 <div className="flex items-center justify-between text-sm">
-                  <span className="text-muted">Discount ({appliedCode})</span>
+                  <span className="text-muted">Discount ({applied.code})</span>
                   <span className="font-semibold text-success">−{formatKes(discountKes)}</span>
                 </div>
               </>

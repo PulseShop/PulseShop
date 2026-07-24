@@ -247,6 +247,122 @@ export function shopsSeo(origin: string): PageSeo {
   };
 }
 
+// ---------------------------------------------------------------------------
+// Marketing pages (/prices, /about, /faq)
+// ---------------------------------------------------------------------------
+
+export function pricesSeo(origin: string): PageSeo {
+  return {
+    title: `Pricing — plans for every seller | ${SITE_NAME}`,
+    description:
+      "Start free with 5 products, or grow with the Boutique and Influencer plans. Simple KES pricing for Kenyan sellers — no card needed to open your shop.",
+    canonical: `${origin}/prices`,
+    image: absolute(origin, DEFAULT_IMAGE),
+    robots: true,
+    ogType: "website",
+    jsonLd: [
+      {
+        "@context": "https://schema.org",
+        "@type": "WebPage",
+        name: `${SITE_NAME} pricing`,
+        url: `${origin}/prices`,
+      },
+    ],
+  };
+}
+
+export function aboutSeo(origin: string): PageSeo {
+  return {
+    title: `About ${SITE_NAME} — helping local shops sell online`,
+    description:
+      `${SITE_NAME} helps local Kenyan shops evolve into the new generation of online selling — a real storefront behind the social posts they already make.`,
+    canonical: `${origin}/about`,
+    image: absolute(origin, DEFAULT_IMAGE),
+    robots: true,
+    ogType: "website",
+    jsonLd: [
+      {
+        "@context": "https://schema.org",
+        "@type": "AboutPage",
+        name: `About ${SITE_NAME}`,
+        url: `${origin}/about`,
+      },
+    ],
+  };
+}
+
+/**
+ * The FAQ content lives HERE, not in the page component, so the FAQPage
+ * JSON-LD the server emits and the accordion the browser renders can never
+ * drift apart — divergence between the two reads as cloaking to a crawler.
+ * FaqPage imports this array and renders it verbatim.
+ */
+export const FAQ_ITEMS: { q: string; a: string }[] = [
+  {
+    q: "What is PulseShop?",
+    a: "PulseShop gives sellers a hosted online shop that lives behind their social posts. You get a link — pulseshop.space/yourshop — to put in your bio; shoppers browse your catalogue in their browser and their orders come straight to your WhatsApp, Instagram or Facebook.",
+  },
+  {
+    q: "How much does it cost?",
+    a: "Explorer is free forever — up to 5 products and 1 GB of storage. Boutique is KES 1,950/month with 100 products and 50 GB. Influencer is KES 6,500/month with everything unlimited. Paid billing is launching soon; today every shop starts free on Explorer.",
+  },
+  {
+    q: "What's the difference between the plans?",
+    a: "Explorer covers the essentials: your shop link, product listings and order management. Boutique adds a full dashboard, 30-day analytics, buyer reviews and discount codes. Influencer unlocks everything — unlimited products and storage, full analytics history, the Instagram Story image generator, delivery fulfilment options and search & sharing (SEO) tools.",
+  },
+  {
+    q: "What counts toward my storage?",
+    a: "Your product photos, shop banner and profile image. 1 GB comfortably holds several hundred optimised product photos, so the free tier goes a long way for a small catalogue.",
+  },
+  {
+    q: "How do orders reach me?",
+    a: "A shopper checks out on your shop page and the order lands in your dashboard, with a prefilled message sent to you on WhatsApp, Instagram or Facebook — whichever channels you've connected. You confirm and arrange fulfilment directly with the buyer.",
+  },
+  {
+    q: "How do I get paid?",
+    a: "Today you arrange payment directly with your buyer — M-Pesa, cash on pickup or delivery, whatever works for you both. Integrated M-Pesa and PayPal checkout is on the way.",
+  },
+  {
+    q: "Do my customers need to install anything?",
+    a: "No. Your shop link opens in any browser on any phone — no app, no account required to browse or order. Signed-in shoppers additionally get synced carts, favourites and order history across devices.",
+  },
+  {
+    q: "How do discount codes work?",
+    a: "Sellers on Boutique and Influencer can create percentage-off codes with an expiry date, a redemption cap, and optionally limited to specific products. Buyers enter the code in their cart or at checkout. If a product already has its own discount, the better of the two applies — discounts never stack.",
+  },
+  {
+    q: "How do product reviews work?",
+    a: "Only verified buyers — people who actually ordered a product — can rate and review it. Reviews appear on your product pages on every plan; the seller-side reviews dashboard is available from Boutique up.",
+  },
+  {
+    q: "What happens if I reach my product limit?",
+    a: "Nothing is ever deleted. Your existing products stay live and sellable — you just can't add new listings until you upgrade or remove one. The same applies if you ever downgrade.",
+  },
+];
+
+export function faqSeo(origin: string): PageSeo {
+  return {
+    title: `FAQ — common questions, answered | ${SITE_NAME}`,
+    description:
+      `How ${SITE_NAME} works: pricing and plans, storage, how orders reach you on WhatsApp, getting paid, discount codes and reviews.`,
+    canonical: `${origin}/faq`,
+    image: absolute(origin, DEFAULT_IMAGE),
+    robots: true,
+    ogType: "website",
+    jsonLd: [
+      {
+        "@context": "https://schema.org",
+        "@type": "FAQPage",
+        mainEntity: FAQ_ITEMS.map(({ q, a }) => ({
+          "@type": "Question",
+          name: q,
+          acceptedAnswer: { "@type": "Answer", text: a },
+        })),
+      },
+    ],
+  };
+}
+
 /** A page that exists but must never be indexed (cart, checkout, account, 404). */
 export function privateSeo(): PageSeo {
   return {
