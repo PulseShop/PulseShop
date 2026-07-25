@@ -27,6 +27,7 @@ import { merchantSocialLinks, productInquiryLinks } from "@/lib/deeplinks";
 import { productSeo } from "@/lib/seo";
 import { seoProductFrom } from "@/lib/seoFrom";
 import { useSeo } from "@/hooks/useSeo";
+import { useSmartBack } from "@/hooks/useSmartBack";
 import { cn } from "@/lib/utils";
 import { services } from "@/services";
 import type { Product } from "@/types";
@@ -55,6 +56,7 @@ export function ProductDetailPage() {
   const navigate = useNavigate();
   const push = useToasts((s) => s.push);
   const home = useShopHome();
+  const { goBack } = useSmartBack(home);
   const setShopSlug = useShop((s) => s.setSlug);
   const session = useAuth((s) => s.session);
   const qc = useQueryClient();
@@ -365,22 +367,21 @@ export function ProductDetailPage() {
   const desktopLinks = merchant ? merchantSocialLinks(merchant) : [];
 
   return (
-    <MobileShell nav={false} wide>
+    <MobileShell nav={false} wide floatingBack={false}>
       {/* header */}
       <header className="glass-header sticky top-0 z-30 flex items-center justify-between px-3 py-3 lg:px-6">
         <div className="flex min-w-0 items-center gap-3">
-          {/* mobile's back lives in the floating button (MobileShell) */}
+          {/* Back lives here instead of a floating button (MobileShell) or a
+              truncated product title — keeps the top bar uncluttered and the
+              name from being cut off. */}
           <button
             type="button"
             aria-label="Go back"
-            onClick={() => navigate(-1)}
-            className="hidden size-11 shrink-0 items-center justify-center rounded-full bg-transparent focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary lg:flex lg:hover:bg-stone-100"
+            onClick={goBack}
+            className="flex size-11 shrink-0 items-center justify-center rounded-full bg-transparent transition-transform focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary active:scale-90 lg:hover:bg-stone-100"
           >
             <ArrowLeft className="size-5" />
           </button>
-          <span className="max-w-[55%] truncate text-sm font-bold text-ink lg:hidden">
-            {product.name}
-          </span>
           {merchant && (
             <Link to={home} className="hidden min-w-0 items-center gap-2.5 lg:flex">
               <img src={merchant.avatarUrl} alt="" className="size-8 shrink-0 rounded-full object-cover" />

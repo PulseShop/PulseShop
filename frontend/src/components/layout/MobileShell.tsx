@@ -9,6 +9,7 @@ export function MobileShell({
   nav = true,
   homeTo,
   wide = false,
+  floatingBack = true,
 }: {
   children: ReactNode;
   nav?: boolean;
@@ -18,6 +19,9 @@ export function MobileShell({
    * product detail use this; cart/checkout/orders stay phone-width, just
    * centered, since they don't have a desktop-specific design yet. */
   wide?: boolean;
+  /** Off for pages that put their own back control in the header instead —
+   * avoids showing the control twice. */
+  floatingBack?: boolean;
 }) {
   return (
     <div
@@ -43,7 +47,7 @@ export function MobileShell({
       <div className="pb-bottom-bar min-h-0 flex-1 overflow-y-auto overscroll-contain lg:min-h-0 lg:flex-none lg:overflow-visible">
         {children}
       </div>
-      <FloatingBack homeTo={homeTo} />
+      {floatingBack && <FloatingBack homeTo={homeTo} />}
       {nav && <BottomNav homeTo={homeTo} />}
     </div>
   );
