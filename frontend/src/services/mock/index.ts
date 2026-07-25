@@ -581,13 +581,16 @@ export const mockServices: Services = {
       const base = slugify(input.slug || input.name) || "item";
       let slug = base;
       for (let n = 1; products.some((p) => p.slug === slug); n++) slug = `${base}-${n}`;
+      const pt = input.productType ?? "general";
       const product: Product = {
         ...input,
         slug,
         metaDescription: input.metaDescription ?? null,
-        productType: input.productType ?? "general",
-        phoneSpecs: input.phoneSpecs ?? null,
-        pcSpecs: input.pcSpecs ?? null,
+        // Keep only the spec matching the type — mirrors the real adapter's
+        // mapper, which gates phoneSpecs/pcSpecs on product_type.
+        productType: pt,
+        phoneSpecs: pt === "phone" ? (input.phoneSpecs ?? null) : null,
+        pcSpecs: pt === "pc" ? (input.pcSpecs ?? null) : null,
         id: `p${Date.now()}`,
         status: statusForQty(input.stockQty),
         rating: 0,
@@ -612,6 +615,10 @@ export const mockServices: Services = {
         metaDescription: patch.metaDescription ?? products[idx].metaDescription,
       };
       next.status = statusForQty(next.stockQty);
+      // Same gating as create: a type change (or switch back to general) must
+      // not leave the other type's specs stranded on the product.
+      next.phoneSpecs = next.productType === "phone" ? (next.phoneSpecs ?? null) : null;
+      next.pcSpecs = next.productType === "pc" ? (next.pcSpecs ?? null) : null;
       products[idx] = next;
       saveProducts(products);
       return structuredClone(next);

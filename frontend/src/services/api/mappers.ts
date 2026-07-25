@@ -145,9 +145,16 @@ export function productInputToRow(patch: Partial<ProductInput>): Record<string, 
   if (patch.sizePriceAdj !== undefined) row.size_price_adj = patch.sizePriceAdj;
   if (patch.colorPriceAdj !== undefined) row.color_price_adj = patch.colorPriceAdj;
   if (patch.colorImages !== undefined) row.color_images = patch.colorImages;
-  if (patch.productType !== undefined) row.product_type = patch.productType;
+  if (patch.productType !== undefined) {
+    row.product_type = patch.productType;
+    // Switching a listing back to 'general' must wipe any leftover phone/PC
+    // specs — otherwise the generated ram_gb/storage_gb columns stay populated
+    // and the product keeps matching spec filters it no longer belongs to.
+    if (patch.productType === "general") row.specs = {};
+  }
   // Both write the `specs` column — callers set at most one, matching
-  // productType (see the note on ProductInput.phoneSpecs).
+  // productType (see the note on ProductInput.phoneSpecs). Ordered after the
+  // general-reset above so a phone/PC save always wins.
   if (patch.phoneSpecs !== undefined) row.specs = patch.phoneSpecs;
   if (patch.pcSpecs !== undefined) row.specs = patch.pcSpecs;
   if (patch.summary !== undefined) row.summary = patch.summary;

@@ -26,10 +26,22 @@ import { CharCount, SeoPreviews } from "@/components/seo/SeoPanel";
 import { productSeo } from "@/lib/seo";
 import { seoProductFrom } from "@/lib/seoFrom";
 import { cn, isUniqueViolation } from "@/lib/utils";
+import {
+  EMPTY_PC,
+  EMPTY_PHONE,
+  type PcForm,
+  type PhoneForm,
+  fromPcSpecs,
+  fromPhoneSpecs,
+  specError,
+  toPcSpecs,
+  toPhoneSpecs,
+} from "@/lib/productSpecs";
 import { services, type ProductInput } from "@/services";
-import type { Product } from "@/types";
+import type { Product, ProductType } from "@/types";
 import { useToasts } from "@/stores/toast";
 import { useAuth } from "@/stores/auth";
+import { ProductSpecFields } from "./ProductSpecFields";
 
 // The product key isn't here: it's generated, not entered, so there's nothing
 // for the user to get wrong and nothing to validate. See lib/productKey.ts.
@@ -127,6 +139,12 @@ export function ProductModal({
   // 0 mid-keystroke. Parsed once, on submit.
   const [stockQty, setStockQty] = useState("0");
   const [productKey, setProductKey] = useState("");
+  // Structured Phone/PC specs (see lib/productSpecs). Both forms are kept live
+  // even when hidden, so toggling the type back and forth doesn't wipe what was
+  // typed; only the one matching productType is read on submit.
+  const [productType, setProductType] = useState<ProductType>("general");
+  const [phoneForm, setPhoneForm] = useState<PhoneForm>(EMPTY_PHONE);
+  const [pcForm, setPcForm] = useState<PcForm>(EMPTY_PC);
   const [dragOver, setDragOver] = useState(false);
   const [uploading, setUploading] = useState(false);
   const fileInput = useRef<HTMLInputElement>(null);
@@ -165,6 +183,11 @@ export function ProductModal({
       // An existing product keeps the key it was created with — it's already on
       // the buyer's order messages and the merchant's own records.
       setProductKey(product.sku);
+      setProductType(product.productType);
+      // Seed the matching spec form from the product; leave the other at its
+      // defaults so switching type mid-edit starts from a sane blank.
+      setPhoneForm(product.phoneSpecs ? fromPhoneSpecs(product.phoneSpecs) : EMPTY_PHONE);
+      setPcForm(product.pcSpecs ? fromPcSpecs(product.pcSpecs) : EMPTY_PC);
     } else {
       reset({ name: "", category: "", priceKes: 0, discountPct: null, summary: "", description: "", metaDescription: "", slug: "" });
       setImages([]);
@@ -175,6 +198,9 @@ export function ProductModal({
       setColorAdj({});
       setStockQty("0");
       setProductKey(generateProductKey());
+      setProductType("general");
+      setPhoneForm(EMPTY_PHONE);
+      setPcForm(EMPTY_PC);
     }
   }, [open, product, reset]);
 
@@ -218,11 +244,11 @@ export function ProductModal({
           colors: colors.length ? colors : null,
           sizePriceAdj: toAdjMap(sizeAdj, sizes),
           colorPriceAdj: toAdjMap(colorAdj, colors),
-          // This form doesn't edit specs yet — carry over whatever the product
-          // already has so the SEO preview doesn't lie about its type.
-          productType: product?.productType ?? "general",
-          phoneSpecs: product?.phoneSpecs ?? null,
-          pcSpecs: product?.pcSpecs ?? null,
+          // Specs don't affect the SEO title/description, so the preview only
+          // needs the live type — the shapes stay null here.
+          productType,
+          phoneSpecs: null,
+          pcSpecs: null,
           rating: 0,
           reviewCount: 0,
           summary: summaryValue || null,
@@ -241,7 +267,7 @@ export function ProductModal({
     );
   }, [
     nameValue, summaryValue, metaDescriptionValue, slugValue, priceValue, discountValue,
-    category, images, sizes, colors, sizeAdj, colorAdj, productKey, stockQty,
+    category, images, sizes, colors, sizeAdj, colorAdj, productKey, stockQty, productType,
     product, shopHandle, session?.shopName, origin,
   ]);
 
@@ -373,6 +399,13 @@ export function ProductModal({
   });
 
   const onSubmit = handleSubmit((data) => {
+    // Spec fields live outside the zod schema (they're useState, not register),
+    // so their one required-field check runs here.
+    const badSpec = specError(productType, phoneForm, pcForm);
+    if (badSpec) {
+      push(badSpec, "danger");
+      return;
+    }
     mutation.mutate({
       name: data.name,
       sku: productKey,
@@ -396,6 +429,11 @@ export function ProductModal({
       summary: data.summary || null,
       description: data.description ?? "",
       metaDescription: data.metaDescription || null,
+      // productType is always sent so a type change is recorded; the matching
+      // spec shape rides along, and the mapper clears specs when it's general.
+      productType,
+      ...(productType === "phone" ? { phoneSpecs: toPhoneSpecs(phoneForm) } : {}),
+      ...(productType === "pc" ? { pcSpecs: toPcSpecs(pcForm) } : {}),
       // Only sent when the seller actually changed it. Sending the unchanged
       // value would be harmless today, but the column is the product's public
       // URL and "we only write it when asked" is the property worth keeping.
@@ -580,6 +618,17 @@ export function ProductModal({
             placeholder="0"
             error={errors.discountPct?.message}
             {...register("discountPct")}
+          />
+
+          {/* Phone/PC structured specs — powers the buyer's spec filters. Most
+              products stay "General" and this collapses to just the type picker. */}
+          <ProductSpecFields
+            productType={productType}
+            onType={setProductType}
+            phone={phoneForm}
+            onPhone={setPhoneForm}
+            pc={pcForm}
+            onPc={setPcForm}
           />
 
           {/* Sizes — a fixed preset per category, not free text. Typed sizes
