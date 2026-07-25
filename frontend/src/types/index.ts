@@ -1,5 +1,56 @@
 export type StockStatus = "available" | "low" | "out";
 
+/** 'general' is every product today — untouched. 'phone'/'pc' turn on the
+ * structured spec form and read/write the matching *Specs shape below. */
+export type ProductType = "general" | "phone" | "pc";
+
+export interface PhoneSpecs {
+  /** Free text with autocomplete, not an enum — model names churn every
+   * release cycle, so the maintained-dropdown value is condition/storage/RAM,
+   * not this. */
+  brand: string;
+  model: string;
+  storageGb: 128 | 256 | 512 | 1024;
+  ramGb: 8 | 12 | 16 | 24;
+  condition: "new" | "mint" | "good" | "fair" | "salvage";
+  /** Seller-entered, independent of the condition band's nominal range. */
+  batteryPct: number | null;
+  networkLock: "unlocked" | "locked";
+  /** Only meaningful when networkLock is "locked". */
+  carrier: string | null;
+  region: string | null;
+  warrantyMonths: number | null;
+  accessories: ("box" | "charger" | "cable" | "earphones")[];
+  imeiClean: boolean;
+  /** Escape hatch for whatever the structured fields above don't cover —
+   * shown to buyers as-is, right under the structured specs. */
+  customNotes: string | null;
+}
+
+export interface PcSpecs {
+  formFactor: "desktop" | "sff" | "laptop" | "mini" | "aio";
+  /** Free text with autocomplete — see PhoneSpecs.brand for why. */
+  cpu: string;
+  cpuTier: "budget" | "mid" | "high-end" | "workstation";
+  gpu: string;
+  gpuTier: "entry" | "mid" | "high-end" | "flagship";
+  ramGb: 16 | 32 | 64 | 128;
+  storageGb: 512 | 1024 | 2048 | 4096;
+  storageType: "sata-ssd" | "nvme-pcie4" | "nvme-pcie5";
+  /** Desktop/SFF only. */
+  psuWatts: number | null;
+  psuRating: "bronze" | "gold" | "platinum" | "titanium" | null;
+  os: "windows-home" | "windows-pro" | "macos" | "linux" | "none";
+  cooling: "air" | "aio" | "custom-loop";
+  /** Laptop/AIO only. */
+  displaySizeIn: number | null;
+  displayRefreshHz: number | null;
+  warrantyMonths: number | null;
+  /** Escape hatch — aftermarket cooling loops, custom cables, overclocking
+   * specs, anything that doesn't fit a standard database filter. */
+  customNotes: string | null;
+}
+
 export interface Product {
   id: string;
   name: string;
@@ -37,6 +88,12 @@ export interface Product {
    */
   sizePriceAdj: Record<string, number>;
   colorPriceAdj: Record<string, number>;
+  /** 'general' unless the seller explicitly listed this as a Phone or PC —
+   * see ProductType. Only one of phoneSpecs/pcSpecs is ever non-null, and
+   * only when productType matches it. */
+  productType: ProductType;
+  phoneSpecs: PhoneSpecs | null;
+  pcSpecs: PcSpecs | null;
   rating: number;
   reviewCount: number;
   summary: string | null;

@@ -16,9 +16,12 @@ import type {
   Paged,
   PaymentResult,
   PaymentStatus,
+  PcSpecs,
+  PhoneSpecs,
   PlacedOrderRef,
   Product,
   ProductReview,
+  ProductType,
   ShopFacets,
   ShopStatus,
 } from "@/types";
@@ -152,6 +155,12 @@ export interface ProductInput {
   colorPriceAdj: Record<string, number>;
   /** See Product.colorImages. Omit to leave unchanged on update. */
   colorImages?: Record<string, string>;
+  /** Omit all three to leave a product 'general' (the default). Set AT MOST
+   * ONE of phoneSpecs/pcSpecs, matching productType — both write the same
+   * `specs` column, so sending both means the second one silently wins. */
+  productType?: ProductType;
+  phoneSpecs?: PhoneSpecs;
+  pcSpecs?: PcSpecs;
   summary: string | null;
   description: string;
 }

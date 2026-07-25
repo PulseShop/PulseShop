@@ -585,6 +585,9 @@ export const mockServices: Services = {
         ...input,
         slug,
         metaDescription: input.metaDescription ?? null,
+        productType: input.productType ?? "general",
+        phoneSpecs: input.phoneSpecs ?? null,
+        pcSpecs: input.pcSpecs ?? null,
         id: `p${Date.now()}`,
         status: statusForQty(input.stockQty),
         rating: 0,
@@ -678,6 +681,11 @@ export const mockServices: Services = {
               sizePriceAdj: {},
               colorPriceAdj: {},
               metaDescription: null,
+              // CSV import doesn't carry Phone/PC specs — same as the real
+              // adapter, which only ever writes the columns the CSV has.
+              productType: "general",
+              phoneSpecs: null,
+              pcSpecs: null,
               rating: 0,
               reviewCount: 0,
               createdAt: new Date().toISOString(),

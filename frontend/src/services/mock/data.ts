@@ -31,7 +31,10 @@ const daysAgo = (n: number) => new Date(Date.now() - n * 86_400_000).toISOString
  * here matters: drift between the mock and the real adapter produces bugs that
  * only appear against the real backend, which is the worst place to find them.
  */
-const RAW_PRODUCTS: Omit<Product, "slug" | "metaDescription">[] = [
+const RAW_PRODUCTS: Omit<
+  Product,
+  "slug" | "metaDescription" | "productType" | "phoneSpecs" | "pcSpecs"
+>[] = [
   {
     id: "p1",
     name: "Classic White Tee",
@@ -290,5 +293,15 @@ export const PRODUCTS: Product[] = RAW_PRODUCTS.map((p, i, all) => {
   const base = slugify(p.name) || "item";
   // Same collision rule as the trigger: first one wins the bare slug.
   const earlier = all.slice(0, i).filter((q) => (slugify(q.name) || "item") === base).length;
-  return { ...p, metaDescription: null, slug: earlier === 0 ? base : `${base}-${earlier}` };
+  return {
+    ...p,
+    metaDescription: null,
+    slug: earlier === 0 ? base : `${base}-${earlier}`,
+    // Demo catalogue is all fashion — every seed product is 'general'. A
+    // couple of phone/PC demo listings can be added here later once the spec
+    // forms exist.
+    productType: "general",
+    phoneSpecs: null,
+    pcSpecs: null,
+  };
 });

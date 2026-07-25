@@ -218,6 +218,11 @@ export function ProductModal({
           colors: colors.length ? colors : null,
           sizePriceAdj: toAdjMap(sizeAdj, sizes),
           colorPriceAdj: toAdjMap(colorAdj, colors),
+          // This form doesn't edit specs yet — carry over whatever the product
+          // already has so the SEO preview doesn't lie about its type.
+          productType: product?.productType ?? "general",
+          phoneSpecs: product?.phoneSpecs ?? null,
+          pcSpecs: product?.pcSpecs ?? null,
           rating: 0,
           reviewCount: 0,
           summary: summaryValue || null,

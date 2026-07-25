@@ -1,4 +1,4 @@
-import type { Merchant, Product, StockStatus } from "@/types";
+import type { Merchant, PcSpecs, PhoneSpecs, Product, ProductType, StockStatus } from "@/types";
 import { toSocialHandle, toWhatsAppDigits } from "@/lib/phone";
 import type { MerchantUpdate, ProductInput } from "../types";
 
@@ -26,6 +26,8 @@ export interface ProductRow {
   size_price_adj?: Record<string, number> | null;
   color_price_adj?: Record<string, number> | null;
   color_images?: Record<string, string> | null;
+  product_type?: ProductType | null;
+  specs?: Record<string, unknown> | null;
   rating: number | string;
   review_count: number;
   summary?: string | null;
@@ -58,6 +60,7 @@ const avatarFor = (name: string) =>
   `https://ui-avatars.com/api/?name=${encodeURIComponent(name)}&background=0d9488&color=fff&size=160`;
 
 export function toProduct(row: ProductRow): Product {
+  const productType = row.product_type ?? "general";
   return {
     id: row.id,
     name: row.name,
@@ -78,6 +81,12 @@ export function toProduct(row: ProductRow): Product {
     sizePriceAdj: row.size_price_adj ?? {},
     colorPriceAdj: row.color_price_adj ?? {},
     colorImages: row.color_images ?? undefined,
+    productType,
+    // Gated on productType, not just "specs is non-empty" — a stray specs
+    // blob left over from a type change (general <-> phone/pc) must not leak
+    // into the wrong shape.
+    phoneSpecs: productType === "phone" ? ((row.specs ?? null) as PhoneSpecs | null) : null,
+    pcSpecs: productType === "pc" ? ((row.specs ?? null) as PcSpecs | null) : null,
     rating: Number(row.rating),
     reviewCount: row.review_count,
     summary: row.summary ?? null,
@@ -136,6 +145,11 @@ export function productInputToRow(patch: Partial<ProductInput>): Record<string, 
   if (patch.sizePriceAdj !== undefined) row.size_price_adj = patch.sizePriceAdj;
   if (patch.colorPriceAdj !== undefined) row.color_price_adj = patch.colorPriceAdj;
   if (patch.colorImages !== undefined) row.color_images = patch.colorImages;
+  if (patch.productType !== undefined) row.product_type = patch.productType;
+  // Both write the `specs` column — callers set at most one, matching
+  // productType (see the note on ProductInput.phoneSpecs).
+  if (patch.phoneSpecs !== undefined) row.specs = patch.phoneSpecs;
+  if (patch.pcSpecs !== undefined) row.specs = patch.pcSpecs;
   if (patch.summary !== undefined) row.summary = patch.summary;
   if (patch.description !== undefined) row.description = patch.description;
   return row;
