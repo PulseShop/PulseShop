@@ -263,3 +263,94 @@ export function specError(type: ProductType, phone: PhoneForm, pc: PcForm): stri
   if (type === "pc" && !pc.cpu.trim()) return "Add the processor (CPU).";
   return null;
 }
+
+// --- Buyer-facing display ---------------------------------------------------
+
+const labelOf = (opts: Opt[], value: string) =>
+  opts.find((o) => o.value === value)?.label ?? value;
+
+/** Human label for a stored phone condition value — used by the storefront
+ * condition filter and anywhere a raw condition needs displaying. */
+export const conditionLabel = (value: string) => labelOf(PHONE_CONDITIONS, value);
+
+const months = (n: number) => `${n} month${n === 1 ? "" : "s"}`;
+
+/** A rendered spec line. `warn` flags a value the buyer should notice (an
+ * unconfirmed IMEI) so the UI can colour it. */
+export interface SpecRow {
+  label: string;
+  value: string;
+  warn?: boolean;
+}
+
+/** The stored phone spec -> the rows shown on the product page. Null/blank
+ * optionals are dropped so the table only shows what the seller filled in. */
+export function phoneSpecRows(s: PhoneSpecs): SpecRow[] {
+  const rows: SpecRow[] = [];
+  const model = [s.brand, s.model].filter(Boolean).join(" ").trim();
+  if (model) rows.push({ label: "Model", value: model });
+  rows.push({ label: "Storage", value: capacityLabel(s.storageGb) });
+  rows.push({ label: "RAM", value: capacityLabel(s.ramGb) });
+  rows.push({ label: "Condition", value: labelOf(PHONE_CONDITIONS, s.condition) });
+  if (s.batteryPct != null) rows.push({ label: "Battery health", value: `${s.batteryPct}%` });
+  rows.push({
+    label: "Network",
+    value:
+      s.networkLock === "locked"
+        ? s.carrier
+          ? `Carrier-locked (${s.carrier})`
+          : "Carrier-locked"
+        : "Unlocked",
+  });
+  if (s.region) rows.push({ label: "Region / variant", value: s.region });
+  if (s.warrantyMonths) rows.push({ label: "Warranty left", value: months(s.warrantyMonths) });
+  if (s.accessories.length)
+    rows.push({
+      label: "In the box",
+      value: s.accessories.map((a) => labelOf(PHONE_ACCESSORIES, a)).join(", "),
+    });
+  rows.push({
+    label: "IMEI",
+    value: s.imeiClean ? "Clean" : "Not confirmed",
+    warn: !s.imeiClean,
+  });
+  return rows;
+}
+
+/** The stored PC spec -> the rows shown on the product page. */
+export function pcSpecRows(s: PcSpecs): SpecRow[] {
+  const rows: SpecRow[] = [];
+  rows.push({ label: "Type", value: labelOf(PC_FORM_FACTORS, s.formFactor) });
+  if (s.cpu) rows.push({ label: "Processor", value: s.cpu });
+  if (s.gpu) rows.push({ label: "Graphics", value: s.gpu });
+  rows.push({ label: "RAM", value: capacityLabel(s.ramGb) });
+  rows.push({
+    label: "Storage",
+    value: `${capacityLabel(s.storageGb)} ${labelOf(PC_STORAGE_TYPES, s.storageType)}`,
+  });
+  if (pcHasPsu(s.formFactor) && (s.psuWatts || s.psuRating)) {
+    rows.push({
+      label: "Power supply",
+      value: [s.psuWatts ? `${s.psuWatts}W` : null, s.psuRating ? labelOf(PC_PSU_RATINGS, s.psuRating) : null]
+        .filter(Boolean)
+        .join(" · "),
+    });
+  }
+  rows.push({ label: "Cooling", value: labelOf(PC_COOLING, s.cooling) });
+  rows.push({ label: "Operating system", value: labelOf(PC_OS, s.os) });
+  if (pcHasDisplay(s.formFactor) && (s.displaySizeIn || s.displayRefreshHz)) {
+    rows.push({
+      label: "Display",
+      value: [s.displaySizeIn ? `${s.displaySizeIn}"` : null, s.displayRefreshHz ? `${s.displayRefreshHz}Hz` : null]
+        .filter(Boolean)
+        .join(" · "),
+    });
+  }
+  if (s.warrantyMonths) rows.push({ label: "Warranty left", value: months(s.warrantyMonths) });
+  return rows;
+}
+
+/** The escape-hatch free text, whichever spec shape a product carries. */
+export function specNotes(phone: PhoneSpecs | null, pc: PcSpecs | null): string | null {
+  return phone?.customNotes ?? pc?.customNotes ?? null;
+}

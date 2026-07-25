@@ -220,6 +220,13 @@ export interface ShopFacets {
    * Returned alphabetically; run sizes through sortSizes() before rendering. */
   sizes: string[];
   colors: string[];
+  /** Structured Phone/PC spec facets (migration 0038) — only the values this
+   * shop actually stocks, so a spec filter is only shown when it can match
+   * something. `productTypes` excludes "general" (which has no specs). */
+  productTypes: ProductType[];
+  ram: number[];
+  storage: number[];
+  conditions: string[];
   priceCeiling: number;
   total: number;
   available: number;

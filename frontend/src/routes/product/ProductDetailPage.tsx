@@ -5,6 +5,7 @@ import { Link, useNavigate, useParams } from "react-router";
 import { MobileShell } from "@/components/layout/MobileShell";
 import { Gallery } from "@/components/product/Gallery";
 import { ProductCard } from "@/components/product/ProductCard";
+import { ProductSpecs } from "@/components/product/ProductSpecs";
 import { RatingRow } from "@/components/product/RatingRow";
 import { ReviewsSection } from "@/components/product/ReviewsSection";
 import { ShareMenu } from "@/components/product/ShareMenu";
@@ -543,6 +544,11 @@ export function ProductDetailPage() {
                 )}
               </div>
             )}
+
+            {/* Structured Phone/PC specs — the standardized half of the
+                description; renders nothing for a general product. */}
+            <ProductSpecs product={product} />
+
             {/* variant selectors — required before Add / Buy when present */}
             {hasSizes && (
               <div className="space-y-2">

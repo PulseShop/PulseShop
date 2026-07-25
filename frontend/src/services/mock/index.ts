@@ -124,6 +124,24 @@ function queryProducts(all: Product[], q: ProductQuery = {}): Paged<Product> {
   // Mirrors p_min_rating in search_products (migration 0030): rating 0 (no
   // reviews) never clears a set threshold.
   if (q.minRating != null) list = list.filter((p) => p.rating >= q.minRating!);
+  // Structured spec filters (migration 0038) — RAM/storage read the same
+  // ramGb/storageGb the generated columns are derived from; condition is a
+  // phone-only field.
+  if (q.productType) list = list.filter((p) => p.productType === q.productType);
+  if (q.ramMin != null) {
+    list = list.filter((p) => {
+      const ram = p.phoneSpecs?.ramGb ?? p.pcSpecs?.ramGb ?? null;
+      return ram != null && ram >= q.ramMin!;
+    });
+  }
+  if (q.storageMin != null) {
+    list = list.filter((p) => {
+      const storage = p.phoneSpecs?.storageGb ?? p.pcSpecs?.storageGb ?? null;
+      return storage != null && storage >= q.storageMin!;
+    });
+  }
+  if (q.conditions?.length)
+    list = list.filter((p) => p.phoneSpecs != null && q.conditions!.includes(p.phoneSpecs.condition));
 
   list = [...list];
   if (q.sort === "price-asc") list.sort((a, b) => price(a) - price(b));
@@ -652,10 +670,24 @@ export const mockServices: Services = {
 
     async getFacets(_merchantId?: string): Promise<ShopFacets> {
       await delay();
+      const ramOf = (p: Product) => p.phoneSpecs?.ramGb ?? p.pcSpecs?.ramGb ?? null;
+      const storageOf = (p: Product) => p.phoneSpecs?.storageGb ?? p.pcSpecs?.storageGb ?? null;
+      const nums = (xs: (number | null)[]) =>
+        [...new Set(xs.filter((n): n is number => n != null))].sort((a, b) => a - b);
       return {
         categories: [...new Set(products.map((p) => p.category))].sort(),
         sizes: [...new Set(products.flatMap((p) => p.sizes ?? []))].sort(),
         colors: [...new Set(products.flatMap((p) => p.colors ?? []))].sort(),
+        // Spec facets (migration 0038) — only what this shop stocks, 'general'
+        // excluded from productTypes since it has no specs.
+        productTypes: [
+          ...new Set(products.map((p) => p.productType).filter((t) => t !== "general")),
+        ].sort(),
+        ram: nums(products.map(ramOf)),
+        storage: nums(products.map(storageOf)),
+        conditions: [
+          ...new Set(products.flatMap((p) => (p.phoneSpecs ? [p.phoneSpecs.condition] : []))),
+        ].sort(),
         // Ceiling of the DISCOUNTED prices — it's the top of the price slider,
         // whose value is handed straight back to the discount-aware filter.
         priceCeiling: Math.max(0, ...products.map(minVariantPrice)),

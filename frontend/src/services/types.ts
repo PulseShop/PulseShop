@@ -195,6 +195,14 @@ export interface ProductQuery {
    * no rating constraint. Products with no reviews (rating 0) never match a set
    * value. */
   minRating?: number | null;
+  /** Structured Phone/PC spec filters (migration 0038). All optional.
+   * `productType` narrows to just phones or PCs; `ramMin`/`storageMin` match
+   * the generated ram_gb/storage_gb columns (`>=`); `conditions` matches any of
+   * the given phone conditions. */
+  productType?: "phone" | "pc";
+  ramMin?: number | null;
+  storageMin?: number | null;
+  conditions?: string[];
   sort?: "newest" | "price-asc" | "price-desc";
 }
 

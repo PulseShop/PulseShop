@@ -16,6 +16,7 @@ import { SocialLinks } from "@/components/shop/SocialLinks";
 import { Sheet } from "@/components/ui/Modal";
 import { ProductCardSkeleton, Skeleton } from "@/components/ui/Skeleton";
 import { colorHex, sortSizes } from "@/lib/constants";
+import { capacityLabel, conditionLabel } from "@/lib/productSpecs";
 import { formatKes } from "@/lib/currency";
 import { merchantSocialLinks } from "@/lib/deeplinks";
 import { shopSeo } from "@/lib/seo";
@@ -59,6 +60,12 @@ export function StorefrontPage() {
   const [sizes, setSizes] = useState<string[]>([]);
   const [colors, setColors] = useState<string[]>([]);
   const [minRating, setMinRating] = useState<number | null>(null);
+  // Structured Phone/PC spec filters (migration 0038). ramMin/storageMin are
+  // "at least" thresholds; conditions is multi-select like sizes.
+  const [productType, setProductType] = useState<"phone" | "pc" | null>(null);
+  const [ramMin, setRamMin] = useState<number | null>(null);
+  const [storageMin, setStorageMin] = useState<number | null>(null);
+  const [conditions, setConditions] = useState<string[]>([]);
   // Mobile has no room for the sidebar, so the same controls live in a sheet.
   const [filtersOpen, setFiltersOpen] = useState(false);
 
@@ -68,9 +75,13 @@ export function StorefrontPage() {
   const activeFilterCount =
     sizes.length +
     colors.length +
+    conditions.length +
     (availableOnly ? 1 : 0) +
     (maxPrice !== null ? 1 : 0) +
-    (minRating !== null ? 1 : 0);
+    (minRating !== null ? 1 : 0) +
+    (productType !== null ? 1 : 0) +
+    (ramMin !== null ? 1 : 0) +
+    (storageMin !== null ? 1 : 0);
 
   const clearFilters = () => {
     setSizes([]);
@@ -78,6 +89,10 @@ export function StorefrontPage() {
     setAvailableOnly(false);
     setMaxPrice(null);
     setMinRating(null);
+    setProductType(null);
+    setRamMin(null);
+    setStorageMin(null);
+    setConditions([]);
   };
 
   const cartItems = useCart((s) => s.items);
@@ -105,6 +120,10 @@ export function StorefrontPage() {
     sizes,
     colors,
     minRating,
+    productType: productType ?? undefined,
+    ramMin,
+    storageMin,
+    conditions,
     sort,
     pageSize: PAGE_SIZE,
   };
@@ -144,6 +163,11 @@ export function StorefrontPage() {
   // return nothing is worse than offering none.
   const sizeOptions = sortSizes(facetsQ.data?.sizes ?? []);
   const colorOptions = facetsQ.data?.colors ?? [];
+  // Spec filters only appear when this shop actually stocks phones/PCs.
+  const typeOptions = facetsQ.data?.productTypes ?? [];
+  const ramOptions = facetsQ.data?.ram ?? [];
+  const storageOptions = facetsQ.data?.storage ?? [];
+  const conditionOptions = facetsQ.data?.conditions ?? [];
 
   /**
    * Only the PUBLIC storefront gets indexable tags. `/shop` is the same
@@ -192,6 +216,70 @@ export function StorefrontPage() {
                 swatch={colorHex(c)}
                 active={colors.includes(c)}
                 onClick={() => toggleIn(setColors)(c)}
+              />
+            ))}
+          </div>
+        </div>
+      )}
+
+      {typeOptions.length > 0 && (
+        <div>
+          <h2 className="text-sm font-bold text-ink">Type</h2>
+          <div className="mt-3 flex flex-wrap gap-2">
+            {typeOptions.map((t) => (
+              <FilterChip
+                key={t}
+                label={t === "phone" ? "Phones" : "Computers"}
+                active={productType === t}
+                onClick={() => setProductType(productType === t ? null : (t as "phone" | "pc"))}
+              />
+            ))}
+          </div>
+        </div>
+      )}
+
+      {ramOptions.length > 0 && (
+        <div>
+          <h2 className="text-sm font-bold text-ink">RAM (minimum)</h2>
+          <div className="mt-3 flex flex-wrap gap-2">
+            {ramOptions.map((gb) => (
+              <FilterChip
+                key={gb}
+                label={`${capacityLabel(gb)}+`}
+                active={ramMin === gb}
+                onClick={() => setRamMin(ramMin === gb ? null : gb)}
+              />
+            ))}
+          </div>
+        </div>
+      )}
+
+      {storageOptions.length > 0 && (
+        <div>
+          <h2 className="text-sm font-bold text-ink">Storage (minimum)</h2>
+          <div className="mt-3 flex flex-wrap gap-2">
+            {storageOptions.map((gb) => (
+              <FilterChip
+                key={gb}
+                label={`${capacityLabel(gb)}+`}
+                active={storageMin === gb}
+                onClick={() => setStorageMin(storageMin === gb ? null : gb)}
+              />
+            ))}
+          </div>
+        </div>
+      )}
+
+      {conditionOptions.length > 0 && (
+        <div>
+          <h2 className="text-sm font-bold text-ink">Condition</h2>
+          <div className="mt-3 flex flex-wrap gap-2">
+            {conditionOptions.map((c) => (
+              <FilterChip
+                key={c}
+                label={conditionLabel(c)}
+                active={conditions.includes(c)}
+                onClick={() => toggleIn(setConditions)(c)}
               />
             ))}
           </div>
