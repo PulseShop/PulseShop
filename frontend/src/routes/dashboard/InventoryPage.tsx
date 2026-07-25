@@ -190,19 +190,20 @@ export function InventoryPage() {
   return (
     <DashboardShell>
       {/* top bar */}
-      <div className="mb-6 flex items-center justify-between">
+      <div className="mb-6 flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
         <div>
           <p className="text-xs font-semibold text-muted">Dashboard / Inventory</p>
-          <h1 className="text-2xl font-extrabold text-ink">Product Inventory</h1>
+          <h1 className="text-xl font-extrabold text-ink sm:text-2xl">Product Inventory</h1>
         </div>
-        <div className="flex items-center gap-3">
+        <div className="flex items-center gap-2 sm:gap-3">
           <Link
             to="/dashboard/discounts"
-            className="inline-flex h-11 items-center justify-center gap-2 rounded-btn border-2 border-stone-200 bg-card px-5 text-sm font-semibold text-ink transition-all hover:border-primary hover:text-primary"
+            className="inline-flex h-11 flex-1 items-center justify-center gap-2 rounded-btn border-2 border-stone-200 bg-card px-4 text-sm font-semibold text-ink transition-all hover:border-primary hover:text-primary sm:flex-none sm:px-5"
           >
             <Tag className="size-4" /> Discount codes
           </Link>
           <Button
+            className="flex-1 sm:flex-none"
             onClick={() => {
               setEditing(null);
               setModalOpen(true);
@@ -214,7 +215,7 @@ export function InventoryPage() {
       </div>
 
       {/* stat cards */}
-      <div className="mb-6 grid grid-cols-4 gap-4">
+      <div className="mb-6 grid grid-cols-2 gap-3 sm:gap-4 lg:grid-cols-4">
         <StatCard icon={Boxes} label="Total Products" value={stats.total} tone="text-primary bg-primary/10" />
         <StatCard icon={CheckCircle2} label="In Stock" value={stats.inStock} tone="text-success bg-success/10" />
         <StatCard icon={AlertTriangle} label="Low Stock" value={stats.low} tone="text-warning bg-warning/10" />
@@ -222,8 +223,8 @@ export function InventoryPage() {
       </div>
 
       {/* toolbar */}
-      <div className="mb-4 flex items-center gap-3">
-        <div className="relative flex-1 max-w-sm">
+      <div className="mb-4 flex flex-wrap items-center gap-2 sm:gap-3">
+        <div className="relative w-full sm:w-auto sm:flex-1 sm:max-w-sm">
           <Search className="absolute left-3 top-1/2 size-4 -translate-y-1/2 text-muted" />
           <input
             value={searchInput}
@@ -311,8 +312,8 @@ export function InventoryPage() {
         </div>
       )}
 
-      {/* table */}
-      <div className="overflow-hidden rounded-card bg-card shadow-soft">
+      {/* table — desktop only; the phone view uses the card list below */}
+      <div className="hidden overflow-hidden rounded-card bg-card shadow-soft lg:block">
         {productsQ.isLoading ? (
           <div className="space-y-3 p-6">
             {Array.from({ length: 5 }).map((_, i) => (
@@ -441,48 +442,126 @@ export function InventoryPage() {
           </table>
         )}
 
-        {/* pagination — `total` is the size of the full filtered result set on
-            the server, not of the page currently on screen */}
         {!productsQ.isLoading && total > 0 && (
-          <div className="flex items-center justify-between border-t border-stone-100 px-4 py-3">
-            <p className="text-xs font-medium text-muted">
-              Showing {(pageSafe - 1) * PAGE_SIZE + 1}–{Math.min(pageSafe * PAGE_SIZE, total)} of{" "}
-              {total}
-            </p>
-            <div className="flex items-center gap-1">
-              <button
-                type="button"
-                aria-label="Previous page"
-                disabled={pageSafe <= 1}
-                onClick={() => setPage(pageSafe - 1)}
-                className="flex size-8 items-center justify-center rounded-lg text-muted disabled:opacity-30 hover:bg-stone-100"
-              >
-                <ChevronLeft className="size-4" />
-              </button>
-              {Array.from({ length: totalPages }).map((_, i) => (
-                <button
-                  key={i}
-                  type="button"
-                  onClick={() => setPage(i + 1)}
-                  className={cn(
-                    "size-8 rounded-lg text-sm font-semibold",
-                    pageSafe === i + 1 ? "bg-primary text-white" : "text-muted hover:bg-stone-100",
-                  )}
-                >
-                  {i + 1}
-                </button>
-              ))}
-              <button
-                type="button"
-                aria-label="Next page"
-                disabled={pageSafe >= totalPages}
-                onClick={() => setPage(pageSafe + 1)}
-                className="flex size-8 items-center justify-center rounded-lg text-muted disabled:opacity-30 hover:bg-stone-100"
-              >
-                <ChevronRight className="size-4" />
-              </button>
-            </div>
+          <Pagination
+            className="border-t border-stone-100 px-4 py-3"
+            pageSafe={pageSafe}
+            totalPages={totalPages}
+            total={total}
+            pageSize={PAGE_SIZE}
+            onPage={setPage}
+          />
+        )}
+      </div>
+
+      {/* card list — phone only. Same data and actions as a table row, stacked
+          so nothing is clipped off the side of a narrow screen. */}
+      <div className="space-y-3 lg:hidden">
+        {productsQ.isLoading ? (
+          Array.from({ length: 5 }).map((_, i) => (
+            <Skeleton key={i} className="h-32 w-full rounded-card" />
+          ))
+        ) : pageItems.length === 0 ? (
+          <div className="rounded-card bg-card p-10 text-center text-sm text-muted shadow-soft">
+            No products match your filters.
           </div>
+        ) : (
+          pageItems.map((p) => (
+            <article key={p.id} className="rounded-card bg-card p-3 shadow-soft">
+              <div className="flex gap-3">
+                <input
+                  type="checkbox"
+                  aria-label={`Select ${p.name}`}
+                  checked={selected.has(p.id)}
+                  onChange={() => toggleSelect(p.id)}
+                  className="mt-1 size-4 shrink-0 accent-teal-600"
+                />
+                <ProductImage src={p.images[0]} alt="" className="size-14 shrink-0 rounded-lg object-cover" />
+                <div className="min-w-0 flex-1">
+                  <div className="flex items-start justify-between gap-2">
+                    <div className="min-w-0">
+                      <p className="truncate font-semibold text-ink">{p.name}</p>
+                      <p className="text-xs text-muted">{daysAgoLabel(p.createdAt)}</p>
+                    </div>
+                    <StockBadge status={p.status} />
+                  </div>
+                  <div className="mt-1.5 flex flex-wrap items-center gap-x-2 gap-y-1 text-xs">
+                    <span className="rounded-md bg-stone-100 px-2 py-0.5 font-mono font-semibold text-ink">
+                      {p.sku}
+                    </span>
+                    <span className="text-muted">{p.category}</span>
+                  </div>
+                </div>
+              </div>
+
+              <div className="mt-3 flex items-center justify-between border-t border-stone-100 pt-3">
+                <div>
+                  <span
+                    className={cn(
+                      "font-bold text-ink",
+                      p.discountPct && "text-xs text-muted line-through",
+                    )}
+                  >
+                    {formatKes(p.priceKes)}
+                  </span>
+                  {p.discountPct != null && (
+                    <p className="font-bold text-primary">
+                      {hasPriceRange(p) ? "from " : ""}
+                      {formatKes(minVariantPrice(p))}
+                    </p>
+                  )}
+                </div>
+                <StockAdjuster product={p} />
+              </div>
+
+              <div className="mt-2 flex items-center justify-between">
+                <div className="flex items-center gap-1.5 text-xs font-semibold text-muted">
+                  <span>Discount</span>
+                  <DiscountCell
+                    value={p.discountPct}
+                    onSave={(pct) => discountMut.mutate({ id: p.id, pct })}
+                  />
+                </div>
+                <div className="flex items-center gap-1">
+                  <ShareMenu
+                    product={p}
+                    triggerClassName="flex size-9 items-center justify-center rounded-lg text-muted transition-colors hover:bg-primary/10 hover:text-primary"
+                    iconClassName="size-4"
+                  />
+                  <button
+                    type="button"
+                    aria-label={`Edit ${p.name}`}
+                    onClick={() => {
+                      setEditing(p);
+                      setModalOpen(true);
+                    }}
+                    className="flex size-9 items-center justify-center rounded-lg text-muted transition-colors hover:bg-primary/10 hover:text-primary"
+                  >
+                    <Pencil className="size-4" />
+                  </button>
+                  <button
+                    type="button"
+                    aria-label={`Delete ${p.name}`}
+                    onClick={() => setDeleting(p)}
+                    className="flex size-9 items-center justify-center rounded-lg text-muted transition-colors hover:bg-danger/10 hover:text-danger"
+                  >
+                    <Trash2 className="size-4" />
+                  </button>
+                </div>
+              </div>
+            </article>
+          ))
+        )}
+
+        {!productsQ.isLoading && total > 0 && (
+          <Pagination
+            className="px-1 pt-1"
+            pageSafe={pageSafe}
+            totalPages={totalPages}
+            total={total}
+            pageSize={PAGE_SIZE}
+            onPage={setPage}
+          />
         )}
       </div>
 
@@ -552,13 +631,85 @@ function StatCard({
   tone: string;
 }) {
   return (
-    <div className="flex items-center gap-4 rounded-card bg-card p-5 shadow-soft">
-      <div className={cn("flex size-11 items-center justify-center rounded-xl", tone)}>
+    <div className="flex items-center gap-3 rounded-card bg-card p-4 shadow-soft sm:gap-4 sm:p-5">
+      <div
+        className={cn(
+          "flex size-10 shrink-0 items-center justify-center rounded-xl sm:size-11",
+          tone,
+        )}
+      >
         <Icon className="size-5" />
       </div>
-      <div>
-        <p className="text-2xl font-extrabold text-ink">{value}</p>
-        <p className="text-xs font-semibold text-muted">{label}</p>
+      <div className="min-w-0">
+        <p className="text-xl font-extrabold text-ink sm:text-2xl">{value}</p>
+        <p className="truncate text-xs font-semibold text-muted">{label}</p>
+      </div>
+    </div>
+  );
+}
+
+/**
+ * Server-side paging control shared by the desktop table and the phone card
+ * list. The numbered buttons can run long, so they're desktop-only; the phone
+ * gets a compact "page X / Y" between the arrows instead.
+ */
+function Pagination({
+  pageSafe,
+  totalPages,
+  total,
+  pageSize,
+  onPage,
+  className,
+}: {
+  pageSafe: number;
+  totalPages: number;
+  total: number;
+  pageSize: number;
+  onPage: (page: number) => void;
+  className?: string;
+}) {
+  return (
+    <div className={cn("flex items-center justify-between", className)}>
+      <p className="text-xs font-medium text-muted">
+        Showing {(pageSafe - 1) * pageSize + 1}–{Math.min(pageSafe * pageSize, total)} of {total}
+      </p>
+      <div className="flex items-center gap-1">
+        <button
+          type="button"
+          aria-label="Previous page"
+          disabled={pageSafe <= 1}
+          onClick={() => onPage(pageSafe - 1)}
+          className="flex size-8 items-center justify-center rounded-lg text-muted disabled:opacity-30 hover:bg-stone-100"
+        >
+          <ChevronLeft className="size-4" />
+        </button>
+        <div className="hidden items-center gap-1 sm:flex">
+          {Array.from({ length: totalPages }).map((_, i) => (
+            <button
+              key={i}
+              type="button"
+              onClick={() => onPage(i + 1)}
+              className={cn(
+                "size-8 rounded-lg text-sm font-semibold",
+                pageSafe === i + 1 ? "bg-primary text-white" : "text-muted hover:bg-stone-100",
+              )}
+            >
+              {i + 1}
+            </button>
+          ))}
+        </div>
+        <span className="px-2 text-xs font-semibold text-muted sm:hidden">
+          {pageSafe} / {totalPages}
+        </span>
+        <button
+          type="button"
+          aria-label="Next page"
+          disabled={pageSafe >= totalPages}
+          onClick={() => onPage(pageSafe + 1)}
+          className="flex size-8 items-center justify-center rounded-lg text-muted disabled:opacity-30 hover:bg-stone-100"
+        >
+          <ChevronRight className="size-4" />
+        </button>
       </div>
     </div>
   );

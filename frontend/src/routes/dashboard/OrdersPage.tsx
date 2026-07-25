@@ -126,11 +126,11 @@ export function OrdersDashboardPage() {
       <div className="mx-auto max-w-3xl">
         <div className="mb-6">
           <p className="text-xs font-semibold text-muted">Dashboard / Orders</p>
-          <h1 className="text-2xl font-extrabold text-ink">Orders</h1>
+          <h1 className="text-xl font-extrabold text-ink sm:text-2xl">Orders</h1>
         </div>
 
         {/* stats */}
-        <div className="mb-6 grid grid-cols-3 gap-4">
+        <div className="mb-6 grid grid-cols-3 gap-3 sm:gap-4">
           <StatCard icon={ShoppingCart} label="Total" value={stats.total} tone="text-primary bg-primary/10" />
           <StatCard icon={CheckCircle2} label="Paid" value={stats.paid} tone="text-success bg-success/10" />
           <StatCard icon={Clock} label="Pending" value={stats.pending} tone="text-warning bg-warning/10" />
@@ -275,13 +275,13 @@ function StatCard({
   tone: string;
 }) {
   return (
-    <div className="flex items-center gap-4 rounded-card bg-card p-5 shadow-soft">
-      <div className={cn("flex size-11 items-center justify-center rounded-xl", tone)}>
-        <Icon className="size-5" />
+    <div className="flex flex-col items-center gap-1 rounded-card bg-card p-3 text-center shadow-soft sm:flex-row sm:gap-4 sm:p-5 sm:text-left">
+      <div className={cn("flex size-9 items-center justify-center rounded-xl sm:size-11", tone)}>
+        <Icon className="size-4 sm:size-5" />
       </div>
-      <div>
-        <p className="text-2xl font-extrabold text-ink">{value}</p>
-        <p className="text-xs font-semibold text-muted">{label}</p>
+      <div className="min-w-0">
+        <p className="text-lg font-extrabold text-ink sm:text-2xl">{value}</p>
+        <p className="text-[11px] font-semibold text-muted sm:text-xs">{label}</p>
       </div>
     </div>
   );

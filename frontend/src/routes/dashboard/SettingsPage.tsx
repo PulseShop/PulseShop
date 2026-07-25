@@ -175,7 +175,7 @@ export function SettingsPage() {
       <div className="mx-auto max-w-2xl">
         <div className="mb-6">
           <p className="text-xs font-semibold text-muted">Dashboard / Settings</p>
-          <h1 className="text-2xl font-extrabold text-ink">Account Settings</h1>
+          <h1 className="text-xl font-extrabold text-ink sm:text-2xl">Account Settings</h1>
         </div>
 
         {!merchant ? (
@@ -211,7 +211,7 @@ export function SettingsPage() {
                 />
               </div>
 
-              <div className="mt-5 grid grid-cols-2 gap-4">
+              <div className="mt-5 grid grid-cols-1 gap-4 sm:grid-cols-2">
                 <Input label="Shop name" value={form.name} onChange={set("name")} />
                 <Input
                   label="Username"
@@ -219,12 +219,12 @@ export function SettingsPage() {
                   onChange={set("handle")}
                   error={form.handle ? (handleIssue ?? undefined) : undefined}
                 />
-                <div className="col-span-2">
+                <div className="sm:col-span-2">
                   <Input label="Location" value={form.location} onChange={set("location")} />
                 </div>
                 <Input label="WhatsApp" value={form.whatsapp} onChange={set("whatsapp")} />
                 <Input label="Instagram" value={form.instagram} onChange={set("instagram")} />
-                <div className="col-span-2">
+                <div className="sm:col-span-2">
                   <Input label="Facebook" value={form.facebook} onChange={set("facebook")} />
                 </div>
               </div>
@@ -235,7 +235,7 @@ export function SettingsPage() {
                 <p className="mt-0.5 text-xs text-muted">
                   Shown to buyers on your shop and at checkout.
                 </p>
-                <div className="mt-3 grid grid-cols-3 gap-2">
+                <div className="mt-3 grid grid-cols-1 gap-2 sm:grid-cols-3">
                   {(
                     [
                       { value: "both", label: "Pickup & delivery" },
@@ -268,7 +268,7 @@ export function SettingsPage() {
                 <p className="mt-0.5 text-xs text-muted">
                   Shown to buyers as a status dot on your shop.
                 </p>
-                <div className="mt-3 grid grid-cols-3 gap-2">
+                <div className="mt-3 grid grid-cols-1 gap-2 sm:grid-cols-3">
                   {STATUS_OPTIONS.map((opt) => (
                     <button
                       key={opt.value}
