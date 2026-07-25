@@ -133,7 +133,7 @@ export function CheckoutPage() {
   const merchant = merchantQ.data;
   if (!merchant) {
     return (
-      <MobileShell nav={false}>
+      <MobileShell nav={false} wide>
         <div className="space-y-4 p-4">
           <Skeleton className="h-24 w-full" />
           <Skeleton className="h-40 w-full" />
@@ -279,8 +279,11 @@ export function CheckoutPage() {
   };
 
   return (
-    <MobileShell nav={false}>
-      <header className="glass-header sticky top-0 z-30 flex items-center gap-3 px-3 py-3">
+    // `wide` past lg: checkout used to be a 430px column on a 1440px screen, so
+    // a desktop buyer scrolled through four stacked cards to reach a button that
+    // could have been on the first screen. See the two-column grid below.
+    <MobileShell nav={false} wide>
+      <header className="glass-header sticky top-0 z-30 flex items-center gap-3 px-3 py-3 lg:px-6">
         {/* mobile's back lives in the floating button (MobileShell) */}
         <button
           type="button"
@@ -293,177 +296,201 @@ export function CheckoutPage() {
         <h1 className="text-base font-extrabold text-ink">Checkout</h1>
       </header>
 
-      <div className="space-y-4 px-4 pb-10 pt-1">
-        {/* order summary */}
-        <div className="space-y-3 rounded-card bg-card p-4 shadow-soft">
-          <h2 className="text-sm font-bold text-ink">Order summary</h2>
-          {items.map((item) => (
-            <div
-              key={`${item.productId}-${variantKey(item.size, item.color)}`}
-              className="flex items-center gap-3"
-            >
-              <ProductImage src={item.image} alt={item.name} className="size-12 rounded-lg object-cover" />
-              <div className="flex-1">
-                <p className="text-sm font-semibold text-ink">{item.name}</p>
-                <p className="text-xs text-muted">
-                  {variantLabel(item.size, item.color) ? `${variantLabel(item.size, item.color)} · ` : ""}
-                  Qty {item.qty}
-                </p>
+      <div className="px-4 pb-10 pt-1 lg:px-6 lg:pb-14 lg:pt-4">
+        {/*
+          Two columns past lg: what you're buying on the left, what we need from
+          you on the right.
+
+          Stacked, this page was four full-height cards deep, so a desktop buyer
+          had to scroll past the summary, the form and the channel picker before
+          the order button existed on screen at all — the classic way to lose
+          someone who had already decided. Side by side, the form and the button
+          sit in the first viewport and the summary stays visible beside them
+          instead of scrolling away the moment they start typing.
+
+          Phones are untouched: single column, same order as before, because the
+          summary-then-details reading order is right when there's only one
+          column to read.
+        */}
+        <div className="lg:grid lg:grid-cols-[minmax(0,1fr)_minmax(0,480px)] lg:items-start lg:gap-6">
+          {/* order summary */}
+          <div className="space-y-3 rounded-card bg-card p-4 shadow-soft lg:sticky lg:top-24">
+            <h2 className="text-sm font-bold text-ink">Order summary</h2>
+            {items.map((item) => (
+              <div
+                key={`${item.productId}-${variantKey(item.size, item.color)}`}
+                className="flex items-center gap-3"
+              >
+                <ProductImage src={item.image} alt={item.name} className="size-12 rounded-lg object-cover" />
+                <div className="flex-1">
+                  <p className="text-sm font-semibold text-ink">{item.name}</p>
+                  <p className="text-xs text-muted">
+                    {variantLabel(item.size, item.color) ? `${variantLabel(item.size, item.color)} · ` : ""}
+                    Qty {item.qty}
+                  </p>
+                </div>
+                <p className="text-sm font-bold text-ink">{formatKes(item.unitPrice * item.qty)}</p>
               </div>
-              <p className="text-sm font-bold text-ink">{formatKes(item.unitPrice * item.qty)}</p>
-            </div>
-          ))}
+            ))}
 
-          {/* discount code */}
-          <div className="border-t border-stone-100 pt-3">
-            <DiscountCodeSection
-              merchantId={merchant.id}
-              items={items.map((i) => ({ productId: i.productId, qty: i.qty }))}
-              getPhone={() => getValues("phone") || undefined}
-              applied={applied}
-              onApply={(a) => {
-                setApplied(a);
-                setStoredCode(a.code);
-              }}
-              onClear={clearDiscount}
-              initialCode={storedCode}
-            />
+            {/* discount code */}
+            <div className="border-t border-stone-100 pt-3">
+              <DiscountCodeSection
+                merchantId={merchant.id}
+                items={items.map((i) => ({ productId: i.productId, qty: i.qty }))}
+                getPhone={() => getValues("phone") || undefined}
+                applied={applied}
+                onApply={(a) => {
+                  setApplied(a);
+                  setStoredCode(a.code);
+                }}
+                onClear={clearDiscount}
+                initialCode={storedCode}
+              />
+            </div>
+
+            <div className="space-y-1.5 border-t border-stone-100 pt-3">
+              {applied?.preview.valid && (
+                <>
+                  <div className="flex items-center justify-between text-sm">
+                    <span className="text-muted">Subtotal</span>
+                    <span className="text-ink">{formatKes(total)}</span>
+                  </div>
+                  <div className="flex items-center justify-between text-sm">
+                    <span className="text-muted">Discount ({applied.code})</span>
+                    <span className="font-semibold text-success">−{formatKes(discountKes)}</span>
+                  </div>
+                </>
+              )}
+              <div className="flex items-center justify-between">
+                <span className="text-base font-bold text-ink">Total</span>
+                <span className="text-lg font-extrabold text-primary">{formatKes(displayTotal)}</span>
+              </div>
+            </div>
           </div>
 
-          <div className="space-y-1.5 border-t border-stone-100 pt-3">
-            {applied?.preview.valid && (
-              <>
-                <div className="flex items-center justify-between text-sm">
-                  <span className="text-muted">Subtotal</span>
-                  <span className="text-ink">{formatKes(total)}</span>
-                </div>
-                <div className="flex items-center justify-between text-sm">
-                  <span className="text-muted">Discount ({applied.code})</span>
-                  <span className="font-semibold text-success">−{formatKes(discountKes)}</span>
-                </div>
-              </>
+          {/* everything the buyer still has to do, in one column */}
+          <div className="mt-4 space-y-4 lg:mt-0">
+            {/* customer fields */}
+            <div className="space-y-3 rounded-card bg-card p-4 shadow-soft">
+              <h2 className="text-sm font-bold text-ink">Your details</h2>
+              <Input
+                label="Full Name"
+                placeholder="Jane Wanjiku"
+                error={errors.name?.message}
+                {...register("name")}
+              />
+              <Input
+                label="Phone"
+                placeholder="+254 712 345 678"
+                inputMode="tel"
+                error={errors.phone?.message}
+                {...register("phone")}
+              />
+              <Textarea
+                label="Notes (optional)"
+                placeholder="Delivery location, color preference…"
+                error={errors.notes?.message}
+                {...register("notes")}
+              />
+            </div>
+
+            {/* channel selector + context notice — only channels the seller set up are pickable */}
+            <div className="space-y-3 rounded-card bg-card p-4 shadow-soft">
+              <div className="grid grid-cols-3 gap-2 rounded-btn bg-stone-100 p-1">
+                {channels.map(({ id: ch, label, icon: Icon }) => {
+                  const available = Boolean(merchant.contacts[ch]);
+                  return (
+                    <button
+                      key={ch}
+                      type="button"
+                      onClick={() => available && setChannel(ch)}
+                      disabled={!available}
+                      aria-label={available ? label : `${label} — not set up by this seller`}
+                      className={cn(
+                        "flex h-11 items-center justify-center gap-1.5 rounded-[10px] text-xs font-bold transition-all focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary",
+                        !available && "cursor-not-allowed opacity-35",
+                        available && channel === ch ? "bg-card text-ink shadow-soft" : "text-muted",
+                      )}
+                    >
+                      <Icon
+                        className={cn(
+                          "size-4",
+                          available && ch === "whatsapp" && "text-whatsapp",
+                          available && ch === "instagram" && "text-instagram",
+                          available && ch === "facebook" && "text-facebook",
+                        )}
+                      />
+                      {label}
+                    </button>
+                  );
+                })}
+              </div>
+              <p className="text-xs leading-relaxed text-muted">
+                Once you pay, your order will be sent to{" "}
+                <span className="font-bold text-ink">{merchant.name}</span> via{" "}
+                <span className="font-bold text-ink capitalize">{channel}</span>. They'll confirm stock
+                and delivery.
+              </p>
+              <div className="flex items-center gap-2 rounded-btn bg-stone-50 px-3 py-2 text-xs">
+                <Truck className="size-4 shrink-0 text-primary" />
+                <span className="text-muted">
+                  This shop offers{" "}
+                  <span className="font-bold text-ink">{fulfillmentLabel(merchant.fulfillment)}</span>.
+                </span>
+              </div>
+            </div>
+
+            {shopClosed && (
+              <div className="flex items-center gap-2 rounded-card border border-warning/30 bg-warning/5 px-4 py-3 text-sm">
+                <AlertTriangle className="size-4 shrink-0 text-warning" />
+                <span className="text-ink">
+                  <span className="font-bold">{merchant.name}</span> isn't accepting orders right now.
+                </span>
+              </div>
             )}
-            <div className="flex items-center justify-between">
-              <span className="text-base font-bold text-ink">Total</span>
-              <span className="text-lg font-extrabold text-primary">{formatKes(displayTotal)}</span>
-            </div>
+
+            {/* Order placement decrements stock before anyone has paid, so it is
+                captcha-gated like the auth forms. Renders nothing when no site key
+                is set (dev/mock), and the button stays enabled in that case. */}
+            <Captcha
+              key={captcha.nonce}
+              onToken={captcha.setToken}
+              onExpire={() => captcha.setToken(undefined)}
+            />
+
+            <Button
+              variant="dark"
+              size="lg"
+              className="w-full"
+              onClick={openPayment}
+              disabled={placing || !captcha.ready || shopClosed}
+            >
+              {placing ? (
+                <>
+                  <Loader2 className="size-5 animate-spin" />
+                  PLACING ORDER…
+                </>
+              ) : (
+                "COMPLETE ORDER, PAY NOW"
+              )}
+            </Button>
           </div>
         </div>
-
-        {/* customer fields */}
-        <div className="space-y-3 rounded-card bg-card p-4 shadow-soft">
-          <h2 className="text-sm font-bold text-ink">Your details</h2>
-          <Input
-            label="Full Name"
-            placeholder="Jane Wanjiku"
-            error={errors.name?.message}
-            {...register("name")}
-          />
-          <Input
-            label="Phone"
-            placeholder="+254 712 345 678"
-            inputMode="tel"
-            error={errors.phone?.message}
-            {...register("phone")}
-          />
-          <Textarea
-            label="Notes (optional)"
-            placeholder="Delivery location, color preference…"
-            error={errors.notes?.message}
-            {...register("notes")}
-          />
-        </div>
-
-        {/* channel selector + context notice — only channels the seller set up are pickable */}
-        <div className="space-y-3 rounded-card bg-card p-4 shadow-soft">
-          <div className="grid grid-cols-3 gap-2 rounded-btn bg-stone-100 p-1">
-            {channels.map(({ id: ch, label, icon: Icon }) => {
-              const available = Boolean(merchant.contacts[ch]);
-              return (
-                <button
-                  key={ch}
-                  type="button"
-                  onClick={() => available && setChannel(ch)}
-                  disabled={!available}
-                  aria-label={available ? label : `${label} — not set up by this seller`}
-                  className={cn(
-                    "flex h-11 items-center justify-center gap-1.5 rounded-[10px] text-xs font-bold transition-all focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary",
-                    !available && "cursor-not-allowed opacity-35",
-                    available && channel === ch ? "bg-card text-ink shadow-soft" : "text-muted",
-                  )}
-                >
-                  <Icon
-                    className={cn(
-                      "size-4",
-                      available && ch === "whatsapp" && "text-whatsapp",
-                      available && ch === "instagram" && "text-instagram",
-                      available && ch === "facebook" && "text-facebook",
-                    )}
-                  />
-                  {label}
-                </button>
-              );
-            })}
-          </div>
-          <p className="text-xs leading-relaxed text-muted">
-            Once you pay, your order will be sent to{" "}
-            <span className="font-bold text-ink">{merchant.name}</span> via{" "}
-            <span className="font-bold text-ink capitalize">{channel}</span>. They'll confirm stock
-            and delivery.
-          </p>
-          <div className="flex items-center gap-2 rounded-btn bg-stone-50 px-3 py-2 text-xs">
-            <Truck className="size-4 shrink-0 text-primary" />
-            <span className="text-muted">
-              This shop offers{" "}
-              <span className="font-bold text-ink">{fulfillmentLabel(merchant.fulfillment)}</span>.
-            </span>
-          </div>
-        </div>
-
-        {shopClosed && (
-          <div className="flex items-center gap-2 rounded-card border border-warning/30 bg-warning/5 px-4 py-3 text-sm">
-            <AlertTriangle className="size-4 shrink-0 text-warning" />
-            <span className="text-ink">
-              <span className="font-bold">{merchant.name}</span> isn't accepting orders right now.
-            </span>
-          </div>
-        )}
-
-        {/* Order placement decrements stock before anyone has paid, so it is
-            captcha-gated like the auth forms. Renders nothing when no site key
-            is set (dev/mock), and the button stays enabled in that case. */}
-        <Captcha
-          key={captcha.nonce}
-          onToken={captcha.setToken}
-          onExpire={() => captcha.setToken(undefined)}
-        />
-
-        <Button
-          variant="dark"
-          size="lg"
-          className="w-full"
-          onClick={openPayment}
-          disabled={placing || !captcha.ready || shopClosed}
-        >
-          {placing ? (
-            <>
-              <Loader2 className="size-5 animate-spin" />
-              PLACING ORDER…
-            </>
-          ) : (
-            "COMPLETE ORDER — PAY NOW"
-          )}
-        </Button>
 
         {/* One more nudge before they pay — more from the same shop (the cart is
-            single-shop), minus what's already in the cart. */}
-        <RecommendedProducts
-          title="You may also like"
-          shopId={merchant.id}
-          exclude={items.map((i) => i.productId)}
-          limit={6}
-          layout="rail"
-        />
+            single-shop), minus what's already in the cart. Full width under both
+            columns: it is a browsing rail, not part of the checkout flow, and it
+            must not push the order button further down the page. */}
+        <div className="mt-4 lg:mt-10">
+          <RecommendedProducts
+            title="You may also like"
+            shopId={merchant.id}
+            exclude={items.map((i) => i.productId)}
+            limit={6}
+            layout="rail"
+          />
+        </div>
       </div>
 
       <PaymentSheet

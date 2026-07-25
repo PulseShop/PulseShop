@@ -140,31 +140,165 @@ export function sortSizes(sizes: string[]): string[] {
 }
 
 /**
- * The ten colours a seller can pick from, with the swatch each one paints.
+ * The colours a seller can put on a product, grouped into families.
  *
- * A fixed list for the same reason sizes are: "navy", "Navy Blue" and "dark
- * blue" cannot be filtered together. The `hex` is presentation only — `name` is
- * what's stored on the product, sent to the seller, and matched by the filter,
- * so re-theming a swatch later never orphans existing products.
+ * Still a fixed list, for the same reason sizes are: "navy", "Navy Blue" and
+ * "dark blue" cannot be filtered together, and the buyer-side colour facet is
+ * only useful if two sellers stocking the same colour spell it the same way.
+ * What changed is its SIZE — ten colours could not describe a lipstick range, a
+ * paint stock or a phone in Desert Titanium, so sellers were rounding real
+ * products to the nearest of ten and the filter inherited the error.
+ *
+ * Thirty-two named colours across eight families is the compromise: wide enough
+ * that "the nearest one" is genuinely near, small enough to stay a shared
+ * vocabulary. Sellers who think in hex reach for the colour wheel instead
+ * (see nearestColorName below), which snaps their pick to one of these.
+ *
+ * `hex` is presentation only — `name` is what is stored on the product, sent to
+ * the seller and matched by the filter, so re-theming a swatch later never
+ * orphans existing products. Never RENAME an entry for the same reason: a
+ * rename orphans every product already carrying the old name.
  */
-export const PRODUCT_COLORS = [
-  { name: "Black", hex: "#111111" },
-  { name: "White", hex: "#FFFFFF" },
-  { name: "Grey", hex: "#9CA3AF" },
-  { name: "Navy", hex: "#1E3A8A" },
-  { name: "Blue", hex: "#2563EB" },
-  { name: "Red", hex: "#DC2626" },
-  { name: "Green", hex: "#16A34A" },
-  { name: "Beige", hex: "#D6C7AE" },
-  { name: "Brown", hex: "#78350F" },
-  { name: "Pink", hex: "#EC4899" },
-] as const;
+export interface ProductColor {
+  name: string;
+  hex: string;
+}
+
+export const COLOR_FAMILIES: readonly { family: string; colors: readonly ProductColor[] }[] = [
+  {
+    family: "Neutrals",
+    colors: [
+      { name: "Black", hex: "#111111" },
+      { name: "Charcoal", hex: "#3F3F46" },
+      { name: "Grey", hex: "#9CA3AF" },
+      { name: "Silver", hex: "#D4D4D8" },
+      { name: "White", hex: "#FFFFFF" },
+      { name: "Cream", hex: "#F5EFE0" },
+      { name: "Beige", hex: "#D6C7AE" },
+      { name: "Khaki", hex: "#A88F5F" },
+    ],
+  },
+  {
+    family: "Blues",
+    colors: [
+      { name: "Navy", hex: "#1E3A8A" },
+      { name: "Blue", hex: "#2563EB" },
+      { name: "Sky Blue", hex: "#38BDF8" },
+      { name: "Teal", hex: "#0D9488" },
+    ],
+  },
+  {
+    family: "Greens",
+    colors: [
+      { name: "Green", hex: "#16A34A" },
+      { name: "Olive", hex: "#65733C" },
+      { name: "Mint", hex: "#A7F3D0" },
+      { name: "Forest Green", hex: "#14532D" },
+    ],
+  },
+  {
+    family: "Reds & Pinks",
+    colors: [
+      { name: "Red", hex: "#DC2626" },
+      { name: "Maroon", hex: "#7F1D1D" },
+      { name: "Coral", hex: "#FB7185" },
+      { name: "Pink", hex: "#EC4899" },
+      { name: "Peach", hex: "#FFC9A3" },
+    ],
+  },
+  {
+    family: "Yellows & Oranges",
+    colors: [
+      { name: "Orange", hex: "#F97316" },
+      { name: "Yellow", hex: "#FACC15" },
+      { name: "Mustard", hex: "#CA8A04" },
+    ],
+  },
+  {
+    family: "Purples",
+    colors: [
+      { name: "Purple", hex: "#7C3AED" },
+      { name: "Lilac", hex: "#C4B5FD" },
+      { name: "Burgundy", hex: "#6B1839" },
+    ],
+  },
+  {
+    family: "Browns",
+    colors: [
+      { name: "Brown", hex: "#78350F" },
+      { name: "Tan", hex: "#C08552" },
+      { name: "Chocolate", hex: "#4A2511" },
+    ],
+  },
+  {
+    family: "Metallics",
+    colors: [
+      { name: "Gold", hex: "#C9A227" },
+      { name: "Rose Gold", hex: "#DFA1A0" },
+      { name: "Bronze", hex: "#8C6239" },
+    ],
+  },
+];
+
+/** Every selectable colour, flattened. */
+export const PRODUCT_COLORS: readonly ProductColor[] = COLOR_FAMILIES.flatMap((f) => [...f.colors]);
 
 const COLOR_HEX = new Map<string, string>(PRODUCT_COLORS.map((c) => [c.name, c.hex]));
 
 /** Swatch colour for a stored colour name; falls back to grey for anything
  * saved before this list existed (or added to it and later removed). */
 export const colorHex = (name: string) => COLOR_HEX.get(name) ?? "#D1D5DB";
+
+/** `#RGB` / `#RRGGBB` -> channel triple, or null if it isn't a hex colour. */
+function parseHex(hex: string): [number, number, number] | null {
+  const m = /^#?([0-9a-f]{3}|[0-9a-f]{6})$/i.exec(hex.trim());
+  if (!m) return null;
+  const raw = m[1].length === 3 ? m[1].replace(/./g, (c) => c + c) : m[1];
+  return [
+    parseInt(raw.slice(0, 2), 16),
+    parseInt(raw.slice(2, 4), 16),
+    parseInt(raw.slice(4, 6), 16),
+  ];
+}
+
+/**
+ * The named colour closest to an arbitrary hex — what the seller-side colour
+ * wheel resolves a free pick to.
+ *
+ * This is the bridge between "let me choose the actual colour of my product"
+ * and "the buyer's colour filter has to be able to group products". The seller
+ * picks anything; we store the nearest shared name and show them which one they
+ * landed on, so the compromise is visible rather than silent.
+ *
+ * Distance is redmean, not plain RGB Euclidean: at these palette sizes a naive
+ * distance sends mid-tone reds to Brown and pale yellows to White, because it
+ * weights the three channels equally when human vision does not. Redmean is a
+ * cheap approximation of perceptual distance and is enough to fix that without
+ * pulling in a colour-space library.
+ */
+export function nearestColorName(hex: string): string | null {
+  const target = parseHex(hex);
+  if (!target) return null;
+
+  let best = PRODUCT_COLORS[0].name;
+  let bestDistance = Number.POSITIVE_INFINITY;
+
+  for (const { name, hex: swatch } of PRODUCT_COLORS) {
+    const candidate = parseHex(swatch);
+    if (!candidate) continue;
+    const rMean = (target[0] + candidate[0]) / 2;
+    const dr = target[0] - candidate[0];
+    const dg = target[1] - candidate[1];
+    const db = target[2] - candidate[2];
+    const distance =
+      (2 + rMean / 256) * dr * dr + 4 * dg * dg + (2 + (255 - rMean) / 256) * db * db;
+    if (distance < bestDistance) {
+      bestDistance = distance;
+      best = name;
+    }
+  }
+  return best;
+}
 
 /** Human phrase for a shop's fulfillment setting (migration 0031). Undefined
  * (a directory row that doesn't carry it) reads as the "both" default. */

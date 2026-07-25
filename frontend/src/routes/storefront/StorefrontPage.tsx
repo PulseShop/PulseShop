@@ -10,6 +10,7 @@ import { Logo } from "@/components/common/Logo";
 import { ProductCard } from "@/components/product/ProductCard";
 import { QueryError } from "@/components/common/QueryError";
 import { FollowButton } from "@/components/shop/FollowButton";
+import { FulfillmentBadge } from "@/components/shop/FulfillmentBadge";
 import { ShopFooter } from "@/components/shop/ShopFooter";
 import { ShopStatusDot } from "@/components/shop/ShopStatusDot";
 import { SocialLinks } from "@/components/shop/SocialLinks";
@@ -527,6 +528,11 @@ export function StorefrontPage() {
                   @{merchant.handle} · {merchant.location}
                 </p>
                 <p className="mt-2 max-w-xs text-sm text-ink/80 lg:max-w-sm">{merchant.bio}</p>
+                {/* How orders reach the buyer, stated up front rather than at
+                    the end of checkout — see FulfillmentBadge. */}
+                <div className="mt-2 flex justify-center lg:justify-start">
+                  <FulfillmentBadge fulfillment={merchant.fulfillment} />
+                </div>
                 {merchant.shopStatus === "closed" && (
                   <span className="mt-2 inline-flex items-center rounded-full bg-warning/10 px-3 py-1 text-xs font-bold text-warning">
                     Temporarily closed — not accepting orders right now

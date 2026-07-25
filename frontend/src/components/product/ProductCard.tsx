@@ -100,7 +100,9 @@ export function ProductCard({ product, className }: { product: Product; classNam
         <div className="relative aspect-square overflow-hidden bg-stone-100">
           <ProductImage
             src={product.images[0]}
-            alt={product.name}
+            // The seller's own description of the cover photo when they wrote
+            // one (migration 0039); the product name otherwise.
+            alt={product.imageAlts?.[0]?.trim() || product.name}
             loading="lazy"
             className={cn(
               "size-full object-cover transition-transform duration-300 group-hover:scale-[1.03]",

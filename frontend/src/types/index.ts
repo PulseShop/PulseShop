@@ -70,6 +70,13 @@ export interface Product {
   stockQty: number;
   status: StockStatus;
   images: string[];
+  /**
+   * Seller-written alt text, one per photo, positionally aligned with `images`
+   * (migration 0039). Shorter than `images` — or blank at a given index — means
+   * that photo has none, and every reader falls back to the product name. It is
+   * what Google Images has to go on, and what a screen reader announces.
+   */
+  imageAlts?: string[];
   sizes: string[] | null;
   /** Colours the seller offers. Null/empty = this product has no colour choice. */
   colors: string[] | null;
@@ -114,12 +121,19 @@ export interface ProductReview {
   comment: string;
   reviewerName: string | null;
   createdAt: string;
+  /** The seller's public answer to this review (migration 0040), or null if
+   * they haven't written one. Optional replies, always shown when present. */
+  merchantReply?: string | null;
+  merchantRepliedAt?: string | null;
 }
 
 /** One review row on the merchant-facing Reviews page — unlike ProductReview
  *  (public, one product, text-only), this carries which product it's for and
  *  includes star-only ratings with no written comment. */
 export interface MerchantReviewItem {
+  /** Opaque per-review handle (migration 0040) — what replyToReview() addresses.
+   * Deliberately not the reviewer's user id, which never leaves the server. */
+  reviewId: string;
   productId: string;
   productName: string;
   image: string;
@@ -127,6 +141,9 @@ export interface MerchantReviewItem {
   comment: string | null;
   reviewerName: string | null;
   createdAt: string;
+  /** The seller's own reply, if they've already written one. */
+  merchantReply: string | null;
+  merchantRepliedAt: string | null;
 }
 
 export interface MerchantReviewsSummary {
@@ -174,6 +191,13 @@ export type Fulfillment = "pickup" | "delivery" | "both";
  */
 export type ShopStatus = "open" | "closed" | "closing";
 
+/**
+ * The shop's subscription plan (migration 0041), and the only thing that
+ * decides what a seller is entitled to — see lib/entitlements.ts. Billing isn't
+ * built, so every shop is 'explorer' until support sets it.
+ */
+export type Plan = "explorer" | "boutique" | "influencer";
+
 export interface Merchant {
   id: string;
   name: string;
@@ -189,6 +213,12 @@ export interface Merchant {
    * The full getShop/getMerchant reads always populate it.
    */
   fulfillment?: Fulfillment;
+  /**
+   * The shop's plan. Optional for the same reason fulfillment is: directory
+   * rows don't carry it. Read it as `?? "explorer"` — lib/entitlements.ts
+   * already does. Sellers cannot write this (0041 revokes the column grant).
+   */
+  plan?: Plan;
   /** Search & sharing, set by the seller. Both may be empty, in which case
    * lib/seo.ts generates a title/description from the shop's own data. */
   tagline: string;

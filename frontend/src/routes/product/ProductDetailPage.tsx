@@ -14,6 +14,7 @@ import { SizeSelector } from "@/components/product/SizeSelector";
 import { StockBadge, stockDetailLabel } from "@/components/product/StockBadge";
 import { Button } from "@/components/ui/Button";
 import { FacebookIcon, InstagramIcon, WhatsAppIcon } from "@/components/ui/BrandIcons";
+import { FulfillmentBadge } from "@/components/shop/FulfillmentBadge";
 import { ShopFooter } from "@/components/shop/ShopFooter";
 import { SocialLinks } from "@/components/shop/SocialLinks";
 import { Skeleton } from "@/components/ui/Skeleton";
@@ -461,6 +462,7 @@ export function ProductDetailPage() {
           <Gallery
             images={product.images}
             alt={product.name}
+            imageAlts={product.imageAlts}
             frameClassName="mx-auto aspect-square w-full max-w-[320px] lg:mx-0 lg:max-w-md"
             thumbnails
             thumbnailsClassName="hidden lg:flex"
@@ -509,10 +511,16 @@ export function ProductDetailPage() {
               onRate={!ownsProduct && canReview ? rate : undefined}
               pending={rateMut.isPending}
             />
-            <StockBadge
-              status={product.status}
-              label={stockDetailLabel(product.status, product.stockQty)}
-            />
+            <div className="flex flex-wrap items-center gap-2">
+              <StockBadge
+                status={product.status}
+                label={stockDetailLabel(product.status, product.stockQty)}
+              />
+              {/* Next to stock because it answers the same question: can I
+                  actually get this? A "pickup only" shop two towns away is as
+                  much of a dead end as an out-of-stock item. */}
+              {merchant && <FulfillmentBadge fulfillment={merchant.fulfillment} />}
+            </div>
             {descriptionBullets.length > 0 && (
               <div className="space-y-2 text-sm leading-relaxed text-ink/80">
                 <ul className="list-disc space-y-1.5 pl-5 marker:text-primary">
@@ -684,6 +692,7 @@ export function ProductDetailPage() {
           signedIn={Boolean(session)}
           myRating={myRatingQ.data ?? null}
           onRated={invalidateProduct}
+          shopName={merchant?.name}
         />
 
         {/* related products — same shop, same category first */}

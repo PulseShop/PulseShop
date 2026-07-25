@@ -21,6 +21,7 @@ export interface ProductRow {
   stock_qty: number;
   status: StockStatus;
   images: string[] | null;
+  image_alt?: string[] | null;
   sizes: string[] | null;
   colors: string[] | null;
   size_price_adj?: Record<string, number> | null;
@@ -53,6 +54,7 @@ export interface MerchantRow {
   facebook: string | null;
   rating: number | string;
   fulfillment?: string | null;
+  plan?: string | null;
 }
 
 /** Fallback avatar so an empty profile still renders a face on the storefront. */
@@ -76,6 +78,7 @@ export function toProduct(row: ProductRow): Product {
     stockQty: row.stock_qty,
     status: row.status,
     images: row.images ?? [],
+    imageAlts: row.image_alt ?? undefined,
     sizes: row.sizes,
     colors: row.colors,
     sizePriceAdj: row.size_price_adj ?? {},
@@ -110,6 +113,7 @@ export function toMerchant(
     bannerUrl: row.banner_url ?? "",
     shopStatus: (row.shop_status as Merchant["shopStatus"]) ?? "open",
     fulfillment: (row.fulfillment as Merchant["fulfillment"]) ?? "both",
+    plan: (row.plan as Merchant["plan"]) ?? "explorer",
     tagline: row.tagline ?? "",
     metaDescription: row.meta_description ?? "",
     stats: {
@@ -140,6 +144,15 @@ export function productInputToRow(patch: Partial<ProductInput>): Record<string, 
   if (patch.discountPct !== undefined) row.discount_pct = patch.discountPct;
   if (patch.stockQty !== undefined) row.stock_qty = patch.stockQty;
   if (patch.images !== undefined) row.images = patch.images;
+  // Trailing blanks are trimmed off rather than stored: an array of empty
+  // strings the same length as `images` is indistinguishable from "no alt text
+  // anywhere" to every reader, and the column has a total-length CHECK to
+  // respect. Interior blanks stay, because position is the identity here.
+  if (patch.imageAlts !== undefined) {
+    const alts = [...patch.imageAlts];
+    while (alts.length > 0 && !alts[alts.length - 1].trim()) alts.pop();
+    row.image_alt = alts.map((a) => a.trim());
+  }
   if (patch.sizes !== undefined) row.sizes = patch.sizes;
   if (patch.colors !== undefined) row.colors = patch.colors;
   if (patch.sizePriceAdj !== undefined) row.size_price_adj = patch.sizePriceAdj;

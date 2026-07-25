@@ -149,6 +149,9 @@ export interface ProductInput {
   discountPct: number | null;
   stockQty: number;
   images: string[];
+  /** See Product.imageAlts. Sent positionally alongside `images`; omit to leave
+   * unchanged on update. */
+  imageAlts?: string[];
   sizes: string[] | null;
   colors: string[] | null;
   sizePriceAdj: Record<string, number>;
@@ -334,6 +337,19 @@ export interface ReviewService {
     limit?: number;
     offset?: number;
   }): Promise<MerchantReviewsSummary>;
+  /**
+   * Merchant-facing: post, edit or retract the seller's public answer to one
+   * review. Blank/whitespace clears it. Only the merchant who owns the reviewed
+   * product may call it — reply_to_review() (migration 0040) enforces that
+   * server-side and rejects anything else with the same error either way.
+   *
+   * Returns what was actually stored, so the caller renders the server's answer
+   * rather than assuming its own optimistic one won.
+   */
+  replyToReview(
+    reviewId: string,
+    reply: string,
+  ): Promise<{ merchantReply: string | null; merchantRepliedAt: string | null }>;
 }
 
 /**

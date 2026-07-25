@@ -452,12 +452,32 @@ function loadMyRatings(): Record<string, number> {
 }
 
 const REVIEW_TEXTS_KEY = "pulseshop-mock-review-texts";
-type MockReviewText = { productId: string; stars: number; comment: string; reviewerName: string | null; createdAt: string };
+type MockReviewText = {
+  /** Mirrors reviews.id (migration 0040) — the handle a reply is addressed to.
+   * Backfilled on read for records written before replies existed. */
+  id: string;
+  productId: string;
+  stars: number;
+  comment: string;
+  reviewerName: string | null;
+  createdAt: string;
+  merchantReply?: string | null;
+  merchantRepliedAt?: string | null;
+};
 function loadReviewTexts(): MockReviewText[] {
   try {
-    return JSON.parse(localStorage.getItem(REVIEW_TEXTS_KEY) ?? "[]") as MockReviewText[];
+    const rows = JSON.parse(localStorage.getItem(REVIEW_TEXTS_KEY) ?? "[]") as MockReviewText[];
+    return rows.map((r) => ({ ...r, id: r.id || `${r.productId}:${r.createdAt}` }));
   } catch {
     return [];
+  }
+}
+
+function saveReviewTexts(rows: MockReviewText[]) {
+  try {
+    localStorage.setItem(REVIEW_TEXTS_KEY, JSON.stringify(rows));
+  } catch {
+    /* storage full/unavailable — nothing to do */
   }
 }
 
@@ -1180,15 +1200,17 @@ export const mockServices: Services = {
         const trimmed = comment?.trim() ?? "";
         const texts = loadReviewTexts().filter((t) => t.productId !== productId);
         if (trimmed.length > 0) {
+          const createdAt = new Date().toISOString();
           texts.unshift({
+            id: `${productId}:${createdAt}`,
             productId,
             stars,
             comment: trimmed,
             reviewerName: "You",
-            createdAt: new Date().toISOString(),
+            createdAt,
           });
         }
-        localStorage.setItem(REVIEW_TEXTS_KEY, JSON.stringify(texts));
+        saveReviewTexts(texts);
       }
     },
 
@@ -1196,7 +1218,29 @@ export const mockServices: Services = {
       await delay();
       return loadReviewTexts()
         .filter((t) => t.productId === productId)
-        .map(({ stars, comment, reviewerName, createdAt }) => ({ stars, comment, reviewerName, createdAt }));
+        .map(({ stars, comment, reviewerName, createdAt, merchantReply, merchantRepliedAt }) => ({
+          stars,
+          comment,
+          reviewerName,
+          createdAt,
+          merchantReply: merchantReply ?? null,
+          merchantRepliedAt: merchantRepliedAt ?? null,
+        }));
+    },
+
+    async replyToReview(reviewId: string, reply: string) {
+      await delay();
+      const trimmed = reply.trim();
+      const stored = trimmed.length > 0 ? trimmed : null;
+      const repliedAt = stored ? new Date().toISOString() : null;
+      const rows = loadReviewTexts();
+      const idx = rows.findIndex((t) => t.id === reviewId);
+      // The real RPC raises review_not_found rather than silently succeeding,
+      // so the mock has to fail the same way or the UI's error path is untested.
+      if (idx === -1) throw new Error("review_not_found");
+      rows[idx] = { ...rows[idx], merchantReply: stored, merchantRepliedAt: repliedAt };
+      saveReviewTexts(rows);
+      return { merchantReply: stored, merchantRepliedAt: repliedAt };
     },
 
     // Mock mode only simulates WRITTEN reviews (loadReviewTexts) — there's no
@@ -1225,6 +1269,7 @@ export const mockServices: Services = {
         items: all.slice(offset, offset + limit).map((t) => {
           const p = products.find((pr) => pr.id === t.productId);
           return {
+            reviewId: t.id,
             productId: t.productId,
             productName: p?.name ?? "Unknown product",
             image: p?.images[0] ?? "",
@@ -1232,6 +1277,8 @@ export const mockServices: Services = {
             comment: t.comment,
             reviewerName: t.reviewerName,
             createdAt: t.createdAt,
+            merchantReply: t.merchantReply ?? null,
+            merchantRepliedAt: t.merchantRepliedAt ?? null,
           };
         }),
       };

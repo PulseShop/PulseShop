@@ -1,5 +1,5 @@
-import { keepPreviousData, useQuery } from "@tanstack/react-query";
-import { ChevronLeft, ChevronRight, MessageSquare, Star } from "lucide-react";
+import { keepPreviousData, useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
+import { ChevronLeft, ChevronRight, Loader2, MessageSquare, Star, Store } from "lucide-react";
 import { useState } from "react";
 import { DashboardShell } from "@/components/layout/DashboardShell";
 import { ProductImage } from "@/components/product/ProductImage";
@@ -7,9 +7,13 @@ import { QueryError } from "@/components/common/QueryError";
 import { Skeleton } from "@/components/ui/Skeleton";
 import { cn } from "@/lib/utils";
 import { services } from "@/services";
+import { useToasts } from "@/stores/toast";
+import type { MerchantReviewItem } from "@/types";
 
 const PAGE_SIZE = 20;
 const STARS = [5, 4, 3, 2, 1] as const;
+/** Matches the reviews_merchant_reply_len CHECK in migration 0040. */
+const MAX_REPLY = 500;
 
 function StarRow({ stars, size = "size-3.5" }: { stars: number; size?: string }) {
   return (
@@ -20,6 +24,122 @@ function StarRow({ stars, size = "size-3.5" }: { stars: number; size?: string })
           className={cn(size, s <= stars ? "fill-amber-400 text-amber-400" : "text-stone-300")}
         />
       ))}
+    </div>
+  );
+}
+
+/**
+ * The seller's public answer to one review.
+ *
+ * Optional, and deliberately collapsed to a single link until they want it: a
+ * reply box open under every review reads as an inbox demanding to be cleared,
+ * when in practice a seller answers the two reviews that need answering and
+ * leaves the rest.
+ *
+ * Replies are PUBLIC — they render under the review on the product page, which
+ * is the whole point of having them, and the copy says so. Saving an empty box
+ * retracts an existing reply, which is the only way to take one back.
+ */
+function ReplyBox({ review }: { review: MerchantReviewItem }) {
+  const qc = useQueryClient();
+  const push = useToasts((s) => s.push);
+  const existing = review.merchantReply ?? "";
+  const [open, setOpen] = useState(false);
+  const [draft, setDraft] = useState(existing);
+
+  const mutation = useMutation({
+    mutationFn: () => services.reviews.replyToReview(review.reviewId, draft),
+    onSuccess: (saved) => {
+      // Refetch rather than patching the cache: the server trims and may reject,
+      // and the same review is also being read by the public product page.
+      qc.invalidateQueries({ queryKey: ["merchant-reviews"] });
+      qc.invalidateQueries({ queryKey: ["reviews", review.productId] });
+      setOpen(false);
+      push(saved.merchantReply ? "Reply posted" : "Reply removed", "success");
+    },
+    onError: () => push("Couldn't save your reply — try again", "danger"),
+  });
+
+  // Nothing to address a reply to. Only reachable in mock mode against records
+  // written before replies existed; the RPC always returns an id.
+  if (!review.reviewId) return null;
+
+  if (!open) {
+    return (
+      <div className="mt-3">
+        {existing ? (
+          <div className="rounded-btn border-l-2 border-primary/40 bg-stone-50 py-2.5 pl-3 pr-3">
+            <div className="flex items-center gap-1.5">
+              <Store className="size-3.5 shrink-0 text-primary" aria-hidden />
+              <span className="text-xs font-bold text-ink">Your reply</span>
+              <span className="text-xs text-muted">· shown on the product page</span>
+            </div>
+            <p className="mt-1 whitespace-pre-line text-sm text-ink/80">{existing}</p>
+            <button
+              type="button"
+              onClick={() => {
+                setDraft(existing);
+                setOpen(true);
+              }}
+              className="mt-1.5 text-xs font-bold text-primary hover:underline"
+            >
+              Edit reply
+            </button>
+          </div>
+        ) : (
+          <button
+            type="button"
+            onClick={() => {
+              setDraft("");
+              setOpen(true);
+            }}
+            className="text-xs font-bold text-primary hover:underline"
+          >
+            Reply to this review
+          </button>
+        )}
+      </div>
+    );
+  }
+
+  return (
+    <div className="mt-3 space-y-2 rounded-btn border border-stone-200 bg-stone-50 p-3">
+      <label className="block text-xs font-bold text-ink" htmlFor={`reply-${review.reviewId}`}>
+        Your reply <span className="font-medium text-muted">— shown publicly under this review</span>
+      </label>
+      <textarea
+        id={`reply-${review.reviewId}`}
+        value={draft}
+        onChange={(e) => setDraft(e.target.value.slice(0, MAX_REPLY))}
+        rows={3}
+        placeholder="Thanks for the feedback — we've switched couriers since, so delivery is now next-day."
+        className="w-full resize-none rounded-btn border border-stone-200 bg-card px-3 py-2 text-sm outline-none focus:border-primary focus:ring-2 focus:ring-primary/20"
+      />
+      <div className="flex items-center justify-between gap-2">
+        <span className="text-xs text-muted">
+          {draft.length}/{MAX_REPLY}
+          {existing && !draft.trim() && " · saving blank removes your reply"}
+        </span>
+        <div className="flex items-center gap-2">
+          <button
+            type="button"
+            onClick={() => setOpen(false)}
+            disabled={mutation.isPending}
+            className="rounded-btn px-3 py-1.5 text-xs font-bold text-muted hover:text-ink"
+          >
+            Cancel
+          </button>
+          <button
+            type="button"
+            onClick={() => mutation.mutate()}
+            disabled={mutation.isPending || draft.trim() === existing.trim()}
+            className="flex items-center gap-1.5 rounded-btn bg-primary px-3 py-1.5 text-xs font-bold text-white disabled:opacity-40"
+          >
+            {mutation.isPending && <Loader2 className="size-3.5 animate-spin" />}
+            {!draft.trim() && existing ? "Remove reply" : "Post reply"}
+          </button>
+        </div>
+      </div>
     </div>
   );
 }
@@ -144,7 +264,7 @@ export function ReviewsDashboardPage() {
             ) : (
               <ul className="space-y-3">
                 {data.items.map((r, i) => (
-                  <li key={`${r.productId}-${r.createdAt}-${i}`} className="rounded-card bg-card p-4 shadow-soft">
+                  <li key={r.reviewId || `${r.productId}-${r.createdAt}-${i}`} className="rounded-card bg-card p-4 shadow-soft">
                     <div className="flex items-start gap-3">
                       <ProductImage src={r.image} alt="" className="size-11 shrink-0 rounded-lg object-cover" />
                       <div className="min-w-0 flex-1">
@@ -167,6 +287,7 @@ export function ReviewsDashboardPage() {
                         ) : (
                           <p className="mt-2 text-sm italic text-muted">No written comment.</p>
                         )}
+                        <ReplyBox review={r} />
                       </div>
                     </div>
                   </li>

@@ -1,6 +1,8 @@
 import type { ReactNode } from "react";
-import { Cpu, Smartphone, Tag } from "lucide-react";
+import { Cpu, Lock, Smartphone, Sparkles, Tag } from "lucide-react";
+import { Link } from "react-router";
 import { Input, Textarea } from "@/components/ui/Input";
+import { PLAN_LABEL, planNeededFor } from "@/lib/entitlements";
 import { cn } from "@/lib/utils";
 import type { ProductType } from "@/types";
 import {
@@ -47,6 +49,7 @@ export function ProductSpecFields({
   onPhone,
   pc,
   onPc,
+  locked = false,
 }: {
   productType: ProductType;
   onType: (t: ProductType) => void;
@@ -54,43 +57,80 @@ export function ProductSpecFields({
   onPhone: (f: PhoneForm) => void;
   pc: PcForm;
   onPc: (f: PcForm) => void;
+  /**
+   * The seller's plan doesn't include structured listings, so Phone and
+   * Computer are shown but not selectable. Never passed as true for a product
+   * that is ALREADY a phone/PC — see the grandfather clause in ProductModal.
+   * Locking someone out of editing a listing they've already published is a
+   * different, much worse thing than not letting them create a new one.
+   */
+  locked?: boolean;
 }) {
   const setPhone = (patch: Partial<PhoneForm>) => onPhone({ ...phone, ...patch });
   const setPc = (patch: Partial<PcForm>) => onPc({ ...pc, ...patch });
+  const requiredPlan = PLAN_LABEL[planNeededFor("structuredListings")];
 
   return (
     <fieldset className="col-span-2 flex flex-col gap-3 rounded-card border border-stone-200 bg-stone-50/60 p-4">
-      <legend className="px-1 text-sm font-semibold text-ink">Listing type</legend>
+      <legend className="flex items-center gap-2 px-1 text-sm font-semibold text-ink">
+        Listing type
+        {locked && (
+          <span className="inline-flex items-center gap-1 rounded-full bg-primary/10 px-2 py-0.5 text-[11px] font-bold text-primary">
+            <Sparkles className="size-3" aria-hidden />
+            {requiredPlan}
+          </span>
+        )}
+      </legend>
 
       {/* type picker */}
       <div className="grid grid-cols-3 gap-2">
         {TYPE_OPTIONS.map(({ value, label, icon: Icon }) => {
           const on = productType === value;
+          // General is never gated: it is the default every product already
+          // has, and a seller must always be able to save an ordinary listing.
+          const gated = locked && value !== "general";
           return (
             <button
               key={value}
               type="button"
               aria-pressed={on}
+              disabled={gated}
+              aria-describedby={gated ? "listing-type-locked" : undefined}
+              title={gated ? `${label} listings are on the ${requiredPlan} plan` : undefined}
               onClick={() => onType(value)}
               className={cn(
-                "flex flex-col items-center gap-1 rounded-btn border-2 px-3 py-2.5 text-sm font-semibold transition-colors",
-                on
-                  ? "border-primary bg-primary/5 text-primary"
-                  : "border-stone-200 bg-card text-ink hover:border-primary/50",
+                "relative flex flex-col items-center gap-1 rounded-btn border-2 px-3 py-2.5 text-sm font-semibold transition-colors",
+                gated
+                  ? "cursor-not-allowed border-stone-200 bg-stone-100 text-muted"
+                  : on
+                    ? "border-primary bg-primary/5 text-primary"
+                    : "border-stone-200 bg-card text-ink hover:border-primary/50",
               )}
             >
-              <Icon className="size-4" />
+              {gated ? <Lock className="size-4" aria-hidden /> : <Icon className="size-4" />}
               {label}
             </button>
           );
         })}
       </div>
 
-      {productType === "general" && (
-        <p className="text-xs text-muted">
-          Most products are General. Pick Phone or Computer to add searchable specs like storage,
-          RAM and condition.
+      {locked ? (
+        <p id="listing-type-locked" className="text-xs text-muted">
+          Phone and Computer listings add searchable specs, so buyers can filter your catalogue by
+          storage, RAM and condition. They're part of the{" "}
+          <span className="font-semibold text-ink">{requiredPlan}</span> plan.{" "}
+          <Link to="/prices" className="font-semibold text-primary hover:underline">
+            See what's included
+          </Link>
+          .
         </p>
+      ) : (
+        productType === "general" && (
+          <p className="text-xs text-muted">
+            Most products are General. Pick Phone or Computer to add searchable specs like storage,
+            RAM and condition.
+          </p>
+        )
       )}
 
       {productType === "phone" && (

@@ -47,6 +47,7 @@ export const seoProductFrom = (product: Product, shop: Merchant | undefined): Se
   description: product.description,
   metaDescription: product.metaDescription ?? "",
   images: product.images,
+  imageAlts: product.imageAlts ?? [],
   minPrice: minVariantPrice(product),
   maxPrice: maxVariantPrice(product),
   inStock: product.status !== "out",

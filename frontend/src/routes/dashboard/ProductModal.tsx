@@ -1,5 +1,5 @@
 import { zodResolver } from "@hookform/resolvers/zod";
-import { useMutation, useQueryClient } from "@tanstack/react-query";
+import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { Database, ImagePlus, KeyRound, Loader2, Minus, Plus, X } from "lucide-react";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useForm } from "react-hook-form";
@@ -10,14 +10,13 @@ import { Input, Textarea } from "@/components/ui/Input";
 import { Modal } from "@/components/ui/Modal";
 import {
   CATEGORY_GROUPS,
-  PRODUCT_COLORS,
   categoryHasSizes,
-  colorHex,
   isLegacyCategory,
   sizeOptionsFor,
   sortSizes,
   statusForQty,
 } from "@/lib/constants";
+import { planHas } from "@/lib/entitlements";
 import { formatKes } from "@/lib/currency";
 import { processProductImage } from "@/lib/imageProcess";
 import { generateProductKey } from "@/lib/productKey";
@@ -41,6 +40,7 @@ import { services, type ProductInput } from "@/services";
 import type { Product, ProductType } from "@/types";
 import { useToasts } from "@/stores/toast";
 import { useAuth } from "@/stores/auth";
+import { ColorPalettePicker } from "./ColorPalettePicker";
 import { ProductSpecFields } from "./ProductSpecFields";
 
 // The product key isn't here: it's generated, not entered, so there's nothing
@@ -124,6 +124,10 @@ export function ProductModal({
   const push = useToasts((s) => s.push);
 
   const [images, setImages] = useState<string[]>([]);
+  // Alt text, one per photo, indexed alongside `images` — the column is a
+  // parallel array (migration 0039), so removing a photo has to remove its alt
+  // by the same index or every later photo inherits the wrong description.
+  const [imageAlts, setImageAlts] = useState<string[]>([]);
   const [sizes, setSizes] = useState<string[]>([]);
   const [colors, setColors] = useState<string[]>([]);
   // Which uploaded photo shows each colour. A colour with no entry here just
@@ -174,6 +178,7 @@ export function ProductModal({
         slug: product.slug,
       });
       setImages(product.images);
+      setImageAlts(product.imageAlts ?? []);
       setSizes(product.sizes ?? []);
       setColors(product.colors ?? []);
       setColorImages(product.colorImages ?? {});
@@ -191,6 +196,7 @@ export function ProductModal({
     } else {
       reset({ name: "", category: "", priceKes: 0, discountPct: null, summary: "", description: "", metaDescription: "", slug: "" });
       setImages([]);
+      setImageAlts([]);
       setSizes([]);
       setColors([]);
       setColorImages({});
@@ -205,6 +211,18 @@ export function ProductModal({
   }, [open, product, reset]);
 
   const category = watch("category");
+
+  // --- Entitlements ---------------------------------------------------------
+  // Shares the ["merchant"] cache key the dashboard shell already primes, so
+  // opening the modal costs no extra round trip.
+  const merchantQ = useQuery({ queryKey: ["merchant"], queryFn: services.products.getMerchant });
+  const structuredAllowed = planHas(merchantQ.data?.plan, "structuredListings");
+  // Grandfather clause: a product ALREADY listed as a phone/PC stays fully
+  // editable whatever the plan says. A gate that reaches backwards turns a
+  // downgrade (or the day this gate shipped) into "you can no longer fix a
+  // typo in a listing you published", which is not what a paywall is for.
+  const wasStructured = Boolean(product && product.productType !== "general");
+  const listingTypeLocked = !structuredAllowed && !wasStructured;
 
   // --- Search & sharing -----------------------------------------------------
   const session = useAuth((st) => st.session);
@@ -240,6 +258,7 @@ export function ProductModal({
           stockQty: Number(stockQty) || 0,
           status: statusForQty(Number(stockQty) || 0),
           images,
+          imageAlts,
           sizes: sizes.length ? sizes : null,
           colors: colors.length ? colors : null,
           sizePriceAdj: toAdjMap(sizeAdj, sizes),
@@ -267,7 +286,7 @@ export function ProductModal({
     );
   }, [
     nameValue, summaryValue, metaDescriptionValue, slugValue, priceValue, discountValue,
-    category, images, sizes, colors, sizeAdj, colorAdj, productKey, stockQty, productType,
+    category, images, imageAlts, sizes, colors, sizeAdj, colorAdj, productKey, stockQty, productType,
     product, shopHandle, session?.shopName, origin,
   ]);
 
@@ -414,6 +433,9 @@ export function ProductModal({
       discountPct: data.discountPct || null,
       stockQty: stockNumber,
       images,
+      // Trimmed to the photos that actually exist: an alt left behind by a
+      // removed photo would re-attach itself to whatever now sits at that index.
+      imageAlts: images.map((_, i) => imageAlts[i] ?? ""),
       sizes: categoryHasSizes(data.category) && sizes.length ? sortSizes(sizes) : null,
       colors: colors.length ? colors : null,
       // Pruned to the options actually offered: an adjustment left behind by a
@@ -494,24 +516,76 @@ export function ProductModal({
           />
         </div>
 
+        {/*
+          Uploaded photos, each with its own alt text.
+
+          A row per photo rather than a grid of thumbnails, because the alt text
+          is the point: it is the ONLY thing Google Images has to go on for a
+          photo, and the only thing a screen reader can announce. Left as a
+          thumbnail grid with the field hidden behind a disclosure, nobody would
+          ever fill it in. Optional, though — blank falls back to the product
+          name everywhere, exactly as before this existed.
+        */}
         {images.length > 0 && (
-          <div className="flex flex-wrap gap-2">
+          <div className="space-y-2">
+            <p className="text-sm font-semibold text-ink">
+              Photos{" "}
+              <span className="font-medium text-muted">
+                — describe each one so it can be found in Google Images
+              </span>
+            </p>
             {images.map((src, i) => (
-              <div key={i} className="relative">
-                <ProductImage src={src} alt="" className="size-16 rounded-xl object-cover" />
+              <div key={`${src}-${i}`} className="flex items-center gap-3 rounded-card bg-stone-50 p-2">
+                <ProductImage
+                  src={src}
+                  alt=""
+                  className="size-16 shrink-0 rounded-xl object-cover"
+                />
+                <div className="min-w-0 flex-1">
+                  <input
+                    type="text"
+                    maxLength={160}
+                    autoComplete="off"
+                    aria-label={`Alt text for photo ${i + 1}`}
+                    value={imageAlts[i] ?? ""}
+                    onChange={(e) =>
+                      setImageAlts((alts) => {
+                        // Pad rather than assign into a hole: a sparse array
+                        // would serialise nulls into a text[] column.
+                        const next = [...alts];
+                        while (next.length <= i) next.push("");
+                        next[i] = e.target.value;
+                        return next;
+                      })
+                    }
+                    placeholder={
+                      i === 0
+                        ? `e.g. ${nameValue?.trim() || "Black leather tote"} front view`
+                        : "Describe what this photo shows"
+                    }
+                    className="h-10 w-full rounded-btn border border-stone-200 bg-card px-3 text-sm text-ink outline-none transition-colors focus:border-primary focus:ring-2 focus:ring-primary/20"
+                  />
+                  <p className="mt-1 text-xs text-muted">
+                    Photo {i + 1}
+                    {i === 0 && " — also used as the preview when your link is shared"}
+                  </p>
+                </div>
                 <button
                   type="button"
-                  aria-label="Remove image"
+                  aria-label={`Remove photo ${i + 1}`}
                   onClick={() => {
                     setImages((imgs) => imgs.filter((_, j) => j !== i));
+                    // The alt array is positional: drop the same index or every
+                    // later photo silently inherits the wrong description.
+                    setImageAlts((alts) => alts.filter((_, j) => j !== i));
                     // A colour matched to this exact photo can't point at it anymore.
                     setColorImages((m) =>
                       Object.fromEntries(Object.entries(m).filter(([, url]) => url !== src)),
                     );
                   }}
-                  className="absolute -right-1.5 -top-1.5 flex size-5 items-center justify-center rounded-full bg-ink text-white"
+                  className="flex size-8 shrink-0 items-center justify-center rounded-full bg-ink text-white transition-transform active:scale-90"
                 >
-                  <X className="size-3" />
+                  <X className="size-3.5" />
                 </button>
               </div>
             ))}
@@ -629,6 +703,7 @@ export function ProductModal({
             onPhone={setPhoneForm}
             pc={pcForm}
             onPc={setPcForm}
+            locked={listingTypeLocked}
           />
 
           {/* Sizes — a fixed preset per category, not free text. Typed sizes
@@ -692,37 +767,7 @@ export function ProductModal({
               Available colours{" "}
               <span className="font-medium text-muted">— tap the ones you stock</span>
             </legend>
-            <div className="flex flex-wrap gap-2">
-              {PRODUCT_COLORS.map(({ name }) => {
-                const on = colors.includes(name);
-                return (
-                  <button
-                    key={name}
-                    type="button"
-                    aria-pressed={on}
-                    onClick={() => toggleColor(name)}
-                    className={cn(
-                      "flex h-10 items-center gap-2 rounded-btn border-2 pl-2 pr-3 text-sm font-semibold transition-colors",
-                      on
-                        ? "border-primary bg-primary text-white"
-                        : "border-stone-200 bg-card text-ink hover:border-primary/50",
-                    )}
-                  >
-                    <span
-                      aria-hidden
-                      style={{ backgroundColor: colorHex(name) }}
-                      className="size-5 shrink-0 rounded-full ring-1 ring-inset ring-black/15"
-                    />
-                    {name}
-                  </button>
-                );
-              })}
-            </div>
-            <p className="text-xs text-muted">
-              {colors.length
-                ? "Buyers must pick one of these before they can order."
-                : "Leave all unselected if this product only comes one way."}
-            </p>
+            <ColorPalettePicker selected={colors} onToggle={toggleColor} />
 
             {colors.length > 0 && (
               <div className="mt-2 space-y-1 rounded-card bg-stone-50 p-3">

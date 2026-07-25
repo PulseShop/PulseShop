@@ -6,13 +6,23 @@ import { ProductImage } from "./ProductImage";
 export function Gallery({
   images,
   alt,
+  imageAlts,
   frameClassName = "aspect-square",
   thumbnails = true,
   thumbnailsClassName,
   focusIndex,
 }: {
   images: string[];
+  /** Fallback description, used for any photo with no alt of its own. */
   alt: string;
+  /**
+   * Seller-written alt text, positionally aligned with `images` (migration
+   * 0039). A missing or blank entry falls back to `alt` plus the photo's
+   * position — "Product name, image 2" says nothing useful about the photo, but
+   * it is still better than an empty alt, which tells a screen reader the image
+   * is decorative when it is the entire product.
+   */
+  imageAlts?: string[];
   /** Sizes the image frame. Defaults to a square; pass a height to cap it. */
   frameClassName?: string;
   /** Thumbnail strip below the frame. Off on narrow screens, where the swipe
@@ -30,6 +40,7 @@ export function Gallery({
   focusIndex?: number;
 }) {
   const safeImages = images.length > 0 ? images : [PRODUCT_IMAGE_FALLBACK];
+  const altFor = (i: number) => imageAlts?.[i]?.trim() || `${alt}, image ${i + 1}`;
   const [active, setActive] = useState(0);
   const trackRef = useRef<HTMLDivElement>(null);
 
@@ -65,7 +76,7 @@ export function Gallery({
             <ProductImage
               key={src}
               src={src}
-              alt={`${alt} — image ${i + 1}`}
+              alt={altFor(i)}
               className="h-full w-full shrink-0 snap-center object-cover"
             />
           ))}
@@ -94,7 +105,7 @@ export function Gallery({
             <button
               key={src}
               type="button"
-              aria-label={`Show image ${i + 1}`}
+              aria-label={`Show ${altFor(i)}`}
               onClick={() => scrollTo(i)}
               className={cn(
                 "size-14 shrink-0 overflow-hidden rounded-xl ring-2 ring-offset-2 transition-all",

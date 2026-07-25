@@ -45,6 +45,7 @@ export const TIERS: TierDef[] = [
       { text: "Analytics locked", locked: true },
       { text: "Pickup fulfilment only", locked: true },
       { text: "Reviews & discount codes locked", locked: true },
+      { text: "Phone & Computer listing types locked", locked: true },
     ],
     included: [
       "Your own shop link, pulseshop.space/yourshop",
@@ -60,6 +61,7 @@ export const TIERS: TierDef[] = [
       "Reviews dashboard",
       "Discount codes",
       "Instagram Story image generator",
+      "Phone & Computer listing types with searchable specs",
       "Delivery fulfilment options",
       "Search & sharing (SEO) tools",
     ],
@@ -94,6 +96,7 @@ export const TIERS: TierDef[] = [
     missing: [
       "Full analytics history",
       "Instagram Story image generator",
+      "Phone & Computer listing types with searchable specs",
       "Delivery fulfilment options",
       "Search & sharing (SEO) tools",
     ],
@@ -104,7 +107,7 @@ export const TIERS: TierDef[] = [
     priceKes: 6500,
     audience: "All access",
     pitch:
-      "The whole platform, no ceilings. Unlimited catalogue and storage, your full sales history, delivery options for buyers, SEO tools that put your shop in search results, and the Instagram Story generator that turns products into ready-to-post content.",
+      "The whole platform, no ceilings. Unlimited catalogue and storage, your full sales history, delivery options for buyers, Phone and Computer listings buyers can filter by spec, SEO tools that put your shop in search results, and the Instagram Story generator that turns products into ready-to-post content.",
     highlight: true,
     available: false,
     cta: "Go Influencer",
@@ -112,6 +115,7 @@ export const TIERS: TierDef[] = [
       { text: "Unlimited product listings" },
       { text: "Unlimited media storage" },
       { text: "Instagram Story image generator" },
+      { text: "Phone & Computer listing types" },
       { text: "Full analytics, all-time history" },
       { text: "Pickup, delivery or both" },
       { text: "Search & sharing (SEO) tools" },
@@ -122,6 +126,7 @@ export const TIERS: TierDef[] = [
       "Unlimited product listings",
       "Unlimited media storage",
       "Instagram Story image generator for ready-to-post product content",
+      "Phone & Computer listing types, so buyers can filter by storage, RAM and condition",
       "Full analytics with your complete sales history",
       "All fulfilment options, pickup, delivery or both",
       "Search & sharing tools, custom descriptions, Google & WhatsApp previews",
@@ -150,6 +155,7 @@ export const COMPARISON: ComparisonRow[] = [
   { feature: "Reviews dashboard", values: [false, true, true] },
   { feature: "Discount codes", values: [false, true, true] },
   { feature: "Instagram Story generator", values: [false, false, true] },
+  { feature: "Phone & Computer listing types", values: [false, false, true] },
   { feature: "Fulfilment options", values: ["Pickup only", "Pickup only", "Pickup, delivery or both"] },
   { feature: "Search & sharing (SEO) tools", values: [false, false, true] },
 ];

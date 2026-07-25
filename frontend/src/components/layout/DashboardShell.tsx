@@ -12,6 +12,7 @@ import {
 import type { ReactNode } from "react";
 import { Link, NavLink } from "react-router";
 import { cn } from "@/lib/utils";
+import { APP_VERSION_LABEL } from "@/lib/version";
 import { services } from "@/services";
 import { Logo } from "@/components/common/Logo";
 
@@ -123,7 +124,7 @@ export function DashboardShell({ children }: { children: ReactNode }) {
           </div>
         ) : null}
 
-        <p className="px-5 pb-4 text-[11px] font-medium text-muted">PulseShop v25.2201</p>
+        <p className="px-5 pb-4 text-[11px] font-medium text-muted">{APP_VERSION_LABEL}</p>
       </aside>
 
       {/* mobile top bar — the sidebar's identity + "view as buyer" collapsed to

@@ -111,19 +111,26 @@ export function truncate(text: string, max: number): string {
 const formatKes = (amount: number) => `${CURRENCY} ${Math.round(amount).toLocaleString("en-KE")}`;
 
 /**
- * `<lead> — <detail> | PulseShop`, with the detail sacrificed before the lead.
+ * `<lead> | <detail> | PulseShop`, with the detail sacrificed before the lead.
  *
  * Most-distinctive term first is not cosmetic: the tail is what gets cut, so a
  * "PulseShop | ..." prefix would spend the visible half of every title in the
  * index on the one word that is identical across every page on the domain.
+ *
+ * One separator for the whole title, and it is the pipe. Mixing an em dash for
+ * the first join with a pipe for the second ("Gaming PC — GamerHQ | PulseShop")
+ * reads as two different kinds of boundary when there is only one: three
+ * equal-weight labels, narrowing left to right.
  */
+const TITLE_SEP = " | ";
+
 function composeTitle(lead: string, detail: string): string {
-  const suffix = ` | ${SITE_NAME}`;
+  const suffix = `${TITLE_SEP}${SITE_NAME}`;
   const head = plain(lead);
   const tail = plain(detail);
-  const room = TITLE_BUDGET - suffix.length - head.length - 3; // 3 = " — "
+  const room = TITLE_BUDGET - suffix.length - head.length - TITLE_SEP.length;
   if (!tail || room < 12) return truncate(head, TITLE_BUDGET - suffix.length) + suffix;
-  return `${head} — ${truncate(tail, room)}${suffix}`;
+  return `${head}${TITLE_SEP}${truncate(tail, room)}${suffix}`;
 }
 
 // ---------------------------------------------------------------------------
@@ -153,6 +160,12 @@ export interface SeoProduct {
   description: string;
   metaDescription: string;
   images: string[];
+  /**
+   * Seller-written alt text, positionally aligned with `images` (migration
+   * 0039). Shorter than `images`, or holding a blank at some index, simply means
+   * that photo has none — every reader falls back to the product name.
+   */
+  imageAlts?: string[];
   minPrice: number;
   maxPrice: number;
   inStock: boolean;
@@ -168,6 +181,12 @@ export interface PageSeo {
   description: string;
   canonical: string;
   image: string;
+  /**
+   * Alt text for `image`, emitted as og:image:alt / twitter:image:alt. Blank
+   * omits both tags — an empty alt attribute on a share card is worse than none,
+   * since it tells a reader the image is decorative when it is the product.
+   */
+  imageAlt?: string;
   robots: boolean;
   /** OG type — "website" for listings, "product" for a product page. */
   ogType: string;
@@ -213,7 +232,7 @@ const DEFAULT_IMAGE = "/icons/icon-512.png";
 
 export function homeSeo(origin: string): PageSeo {
   return {
-    title: `${SITE_NAME} — Buy from local shops on WhatsApp`,
+    title: `${SITE_NAME} | Buy from local shops on WhatsApp`,
     description:
       "Discover independent shops in Kenya, browse their products, and order straight over WhatsApp. No app required.",
     canonical: `${origin}/`,
@@ -234,7 +253,7 @@ export function homeSeo(origin: string): PageSeo {
 export function shopsSeo(origin: string): PageSeo {
   return {
     title: `All shops | ${SITE_NAME}`,
-    description: `Browse every shop on ${SITE_NAME} — fashion, beauty, electronics and more from independent Kenyan sellers.`,
+    description: `Browse every shop on ${SITE_NAME}: fashion, beauty, electronics and more from independent Kenyan sellers.`,
     canonical: `${origin}/shops`,
     image: absolute(origin, DEFAULT_IMAGE),
     robots: true,
@@ -256,9 +275,9 @@ export function shopsSeo(origin: string): PageSeo {
 
 export function pricesSeo(origin: string): PageSeo {
   return {
-    title: `Pricing — plans for every seller | ${SITE_NAME}`,
+    title: `Pricing, plans for every seller | ${SITE_NAME}`,
     description:
-      "Start free with 5 products, or grow with the Boutique and Influencer plans. Simple KES pricing for Kenyan sellers — no card needed to open your shop.",
+      "Start free with 5 products, or grow with the Boutique and Influencer plans. Simple KES pricing for Kenyan sellers, and no card is needed to open your shop.",
     canonical: `${origin}/prices`,
     image: absolute(origin, DEFAULT_IMAGE),
     robots: true,
@@ -276,9 +295,9 @@ export function pricesSeo(origin: string): PageSeo {
 
 export function aboutSeo(origin: string): PageSeo {
   return {
-    title: `About ${SITE_NAME} — helping local shops sell online`,
+    title: `About ${SITE_NAME} | Helping local shops sell online`,
     description:
-      `${SITE_NAME} helps local Kenyan shops evolve into the new generation of online selling — a real storefront behind the social posts they already make.`,
+      `${SITE_NAME} helps local Kenyan shops evolve into the new generation of online selling, giving them a real storefront behind the social posts they already make.`,
     canonical: `${origin}/about`,
     image: absolute(origin, DEFAULT_IMAGE),
     robots: true,
@@ -303,15 +322,15 @@ export function aboutSeo(origin: string): PageSeo {
 export const FAQ_ITEMS: { q: string; a: string }[] = [
   {
     q: "What is PulseShop?",
-    a: "PulseShop gives sellers a hosted online shop that lives behind their social posts. You get a link — pulseshop.space/yourshop — to put in your bio; shoppers browse your catalogue in their browser and their orders come straight to your WhatsApp, Instagram or Facebook.",
+    a: "PulseShop gives sellers a hosted online shop that lives behind their social posts. You get a link, pulseshop.space/yourshop, to put in your bio; shoppers browse your catalogue in their browser and their orders come straight to your WhatsApp, Instagram or Facebook.",
   },
   {
     q: "How much does it cost?",
-    a: "Explorer is free forever — up to 5 products and 1 GB of storage. Boutique is KES 1,950/month with 100 products and 50 GB. Influencer is KES 6,500/month with everything unlimited. Paid billing is launching soon; today every shop starts free on Explorer.",
+    a: "Explorer is free forever, with up to 5 products and 1 GB of storage. Boutique is KES 1,950/month with 100 products and 50 GB. Influencer is KES 6,500/month with everything unlimited. Paid billing is launching soon; today every shop starts free on Explorer.",
   },
   {
     q: "What's the difference between the plans?",
-    a: "Explorer covers the essentials: your shop link, product listings and order management. Boutique adds a full dashboard, 30-day analytics, buyer reviews and discount codes. Influencer unlocks everything — unlimited products and storage, full analytics history, the Instagram Story image generator, delivery fulfilment options and search & sharing (SEO) tools.",
+    a: "Explorer covers the essentials: your shop link, product listings and order management. Boutique adds a full dashboard, 30-day analytics, buyer reviews and discount codes. Influencer unlocks everything: unlimited products and storage, full analytics history, the Instagram Story image generator, Phone and Computer listing types with searchable specs, delivery fulfilment options, and search & sharing (SEO) tools.",
   },
   {
     q: "What counts toward my storage?",
@@ -319,33 +338,33 @@ export const FAQ_ITEMS: { q: string; a: string }[] = [
   },
   {
     q: "How do orders reach me?",
-    a: "A shopper checks out on your shop page and the order lands in your dashboard, with a prefilled message sent to you on WhatsApp, Instagram or Facebook — whichever channels you've connected. You confirm and arrange fulfilment directly with the buyer.",
+    a: "A shopper checks out on your shop page and the order lands in your dashboard, with a prefilled message sent to you on WhatsApp, Instagram or Facebook, whichever channels you've connected. You confirm and arrange fulfilment directly with the buyer.",
   },
   {
     q: "How do I get paid?",
-    a: "Today you arrange payment directly with your buyer — M-Pesa, cash on pickup or delivery, whatever works for you both. Integrated M-Pesa and PayPal checkout is on the way.",
+    a: "Today you arrange payment directly with your buyer: M-Pesa, cash on pickup or delivery, whatever works for you both. Integrated M-Pesa and PayPal checkout is on the way.",
   },
   {
     q: "Do my customers need to install anything?",
-    a: "No. Your shop link opens in any browser on any phone — no app, no account required to browse or order. Signed-in shoppers additionally get synced carts, favourites and order history across devices.",
+    a: "No. Your shop link opens in any browser on any phone, with no app and no account required to browse or order. Signed-in shoppers additionally get synced carts, favourites and order history across devices.",
   },
   {
     q: "How do discount codes work?",
-    a: "Sellers on Boutique and Influencer can create percentage-off codes with an expiry date, a redemption cap, and optionally limited to specific products. Buyers enter the code in their cart or at checkout. If a product already has its own discount, the better of the two applies — discounts never stack.",
+    a: "Sellers on Boutique and Influencer can create percentage-off codes with an expiry date, a redemption cap, and optionally limited to specific products. Buyers enter the code in their cart or at checkout. If a product already has its own discount, the better of the two applies; discounts never stack.",
   },
   {
     q: "How do product reviews work?",
-    a: "Only verified buyers — people who actually ordered a product — can rate and review it. Reviews appear on your product pages on every plan; the seller-side reviews dashboard is available from Boutique up.",
+    a: "Only verified buyers, meaning people who actually ordered a product, can rate and review it. Reviews appear on your product pages on every plan; the seller-side reviews dashboard is available from Boutique up.",
   },
   {
     q: "What happens if I reach my product limit?",
-    a: "Nothing is ever deleted. Your existing products stay live and sellable — you just can't add new listings until you upgrade or remove one. The same applies if you ever downgrade.",
+    a: "Nothing is ever deleted. Your existing products stay live and sellable; you just can't add new listings until you upgrade or remove one. The same applies if you ever downgrade.",
   },
 ];
 
 export function faqSeo(origin: string): PageSeo {
   return {
-    title: `FAQ — common questions, answered | ${SITE_NAME}`,
+    title: `FAQ, common questions answered | ${SITE_NAME}`,
     description:
       `How ${SITE_NAME} works: pricing and plans, storage, how orders reach you on WhatsApp, getting paid, discount codes and reviews.`,
     canonical: `${origin}/faq`,
@@ -394,7 +413,7 @@ export function shopSeo(shop: SeoShop, origin: string): PageSeo {
     truncate(
       `Shop ${shop.productCount} ${shop.productCount === 1 ? "item" : "items"} from ${shop.name}` +
         `${shop.location ? ` in ${shop.location}` : ""}` +
-        `${shop.categories.length ? ` — ${shop.categories.slice(0, 3).join(", ")}` : ""}. ` +
+        `${shop.categories.length ? `, stocking ${shop.categories.slice(0, 3).join(", ")}` : ""}. ` +
         `Order on ${SITE_NAME}.`,
       DESC_MAX,
     );
@@ -448,12 +467,16 @@ export function productSeo(product: SeoProduct, origin: string): PageSeo {
     truncate(product.description, DESC_MAX) ||
     truncate(
       `${product.name} from ${product.shopName}` +
-        `${product.shopLocation ? ` in ${product.shopLocation}` : ""} — ${priced}. ` +
+        `${product.shopLocation ? ` in ${product.shopLocation}` : ""}, ${priced}. ` +
         `Order on ${SITE_NAME}.`,
       DESC_MAX,
     );
 
   const images = product.images.map((i) => absolute(origin, i)).filter(Boolean);
+  // The share card shows images[0], so its alt is the one that matters here.
+  // Falls back to the product name rather than going blank: a card whose image
+  // announces nothing is worse for a screen reader than a slightly generic one.
+  const imageAlt = plain(product.imageAlts?.[0]) || plain(product.name);
 
   const offer =
     product.minPrice === product.maxPrice
@@ -478,6 +501,7 @@ export function productSeo(product: SeoProduct, origin: string): PageSeo {
     description,
     canonical: url,
     image: images[0] || absolute(origin, DEFAULT_IMAGE),
+    imageAlt,
     robots: true,
     ogType: "product",
     jsonLd: [
@@ -557,11 +581,15 @@ export function renderHead(seo: PageSeo): string {
   tags.push(meta("property", "og:description", seo.description));
   tags.push(meta("property", "og:url", seo.canonical));
   tags.push(meta("property", "og:image", seo.image));
+  // Only alongside an actual image — an alt for an image that isn't there is
+  // an orphan tag, and both consumers ignore it anyway.
+  if (seo.image) tags.push(meta("property", "og:image:alt", seo.imageAlt ?? ""));
 
   tags.push(meta("name", "twitter:card", seo.image ? "summary_large_image" : "summary"));
   tags.push(meta("name", "twitter:title", seo.title));
   tags.push(meta("name", "twitter:description", seo.description));
   tags.push(meta("name", "twitter:image", seo.image));
+  if (seo.image) tags.push(meta("name", "twitter:image:alt", seo.imageAlt ?? ""));
 
   for (const block of seo.jsonLd) tags.push(jsonLdScript(block));
 

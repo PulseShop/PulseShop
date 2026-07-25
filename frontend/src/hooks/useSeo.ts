@@ -71,10 +71,12 @@ export function applySeo(seo: PageSeo) {
   meta("property", "og:description", seo.description);
   meta("property", "og:url", seo.canonical);
   meta("property", "og:image", seo.image);
+  if (seo.image) meta("property", "og:image:alt", seo.imageAlt ?? "");
   meta("name", "twitter:card", seo.image ? "summary_large_image" : "summary");
   meta("name", "twitter:title", seo.title);
   meta("name", "twitter:description", seo.description);
   meta("name", "twitter:image", seo.image);
+  if (seo.image) meta("name", "twitter:image:alt", seo.imageAlt ?? "");
 
   for (const block of seo.jsonLd) addTag(jsonLdScript(block));
 }

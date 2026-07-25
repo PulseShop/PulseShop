@@ -1,5 +1,5 @@
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { Loader2, Lock, Star } from "lucide-react";
+import { Loader2, Lock, Star, Store } from "lucide-react";
 import { useState } from "react";
 import { services } from "@/services";
 import { useToasts } from "@/stores/toast";
@@ -21,6 +21,7 @@ export function ReviewsSection({
   signedIn,
   myRating,
   onRated,
+  shopName,
 }: {
   productId: string;
   canReview: boolean;
@@ -28,6 +29,9 @@ export function ReviewsSection({
   signedIn: boolean;
   myRating: number | null;
   onRated: () => void;
+  /** Named on the seller's replies, so a shopper can tell an answer from the
+   * shop apart from another buyer's review at a glance. */
+  shopName?: string;
 }) {
   const qc = useQueryClient();
   const push = useToasts((s) => s.push);
@@ -154,6 +158,31 @@ export function ReviewsSection({
                 ))}
               </div>
               <p className="mt-2 whitespace-pre-line text-sm text-ink/90">{r.comment}</p>
+
+              {/* The seller's answer, indented under the review it answers.
+                  Visually subordinate on purpose: it is a response, not a
+                  second review, and it must never read as one. */}
+              {r.merchantReply?.trim() && (
+                <div className="mt-3 rounded-btn border-l-2 border-primary/40 bg-stone-50 py-2.5 pl-3 pr-3">
+                  <div className="flex items-center gap-1.5">
+                    <Store className="size-3.5 shrink-0 text-primary" aria-hidden />
+                    <span className="text-xs font-bold text-ink">
+                      {shopName ? `Reply from ${shopName}` : "Reply from the seller"}
+                    </span>
+                    {r.merchantRepliedAt && (
+                      <span className="text-xs text-muted">
+                        ·{" "}
+                        {new Date(r.merchantRepliedAt).toLocaleDateString(undefined, {
+                          year: "numeric",
+                          month: "short",
+                          day: "numeric",
+                        })}
+                      </span>
+                    )}
+                  </div>
+                  <p className="mt-1 whitespace-pre-line text-sm text-ink/80">{r.merchantReply}</p>
+                </div>
+              )}
             </li>
           ))}
         </ul>

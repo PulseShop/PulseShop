@@ -62,12 +62,36 @@ export const reviewsApi: ReviewService = {
       comment: string;
       reviewer_name: string | null;
       created_at: string;
+      merchant_reply: string | null;
+      merchant_replied_at: string | null;
     }[]).map((r) => ({
       stars: r.stars,
       comment: r.comment,
       reviewerName: r.reviewer_name,
       createdAt: r.created_at,
+      merchantReply: r.merchant_reply,
+      merchantRepliedAt: r.merchant_replied_at,
     }));
+  },
+
+  async replyToReview(reviewId: string, reply: string) {
+    const { data, error } = await supabase.rpc("reply_to_review", {
+      p_review_id: reviewId,
+      p_reply: reply,
+    });
+    if (error) throw error;
+    // The function returns a one-row table, which PostgREST hands back as an
+    // array. An empty one can't happen — reply_to_review raises rather than
+    // returning nothing — but reading it defensively costs nothing. The column
+    // names are reply_text/replied_at, not the merchant_* the table uses; see
+    // the note on the function in migration 0040.
+    const row = (Array.isArray(data) ? data[0] : data) as
+      | { reply_text: string | null; replied_at: string | null }
+      | undefined;
+    return {
+      merchantReply: row?.reply_text ?? null,
+      merchantRepliedAt: row?.replied_at ?? null,
+    };
   },
 
   async getMerchantReviews(opts): Promise<MerchantReviewsSummary> {

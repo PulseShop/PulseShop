@@ -13,6 +13,11 @@ export const MERCHANT: Merchant = {
   avatarUrl: img("photo-1494790108377-be9c29b29330"),
   bannerUrl: img("photo-1441984904996-e0b6ba687e04"),
   shopStatus: "open",
+  fulfillment: "both",
+  // The demo shop is on the top plan so mock mode can exercise the gated
+  // features (see lib/entitlements.ts) instead of showing only their locked
+  // state. Real shops default to 'explorer' — migration 0041.
+  plan: "influencer",
   tagline: "Curated fashion, delivered countrywide",
   metaDescription: "",
   stats: { products: 12, orders: 348, followers: 1284, rating: 4.8 },
