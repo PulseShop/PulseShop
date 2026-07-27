@@ -7,7 +7,7 @@ import type {
   ProductQuery,
   ProductService,
 } from "../types";
-import { readFunctionError, requireUserId, supabase } from "./client";
+import { readFunctionErrorBody, requireUserId, supabase } from "./client";
 import type { MerchantUpdate } from "../types";
 
 /**
@@ -21,7 +21,18 @@ const EXPORT_ERRORS: Record<string, string> = {
     "Emailed exports are not set up for this shop yet. Ask support to enable them.",
   no_products: "There is nothing to export yet.",
   too_many_products: "This catalogue is too large to email. Contact support for a full export.",
+  // 503 from the function: the throttle itself could not be evaluated, so it
+  // failed closed. Deployment state, not seller error, and not retryable by
+  // hammering the button.
+  export_unavailable: "Exports are briefly unavailable. Please try again in a few minutes.",
 };
+
+/** "in about 4 minutes" / "in about 40 seconds", from a Retry-After in seconds. */
+function waitPhrase(seconds: number): string {
+  if (seconds < 90) return `in about ${Math.max(1, Math.round(seconds))} seconds`;
+  const mins = Math.ceil(seconds / 60);
+  return `in about ${mins} minute${mins === 1 ? "" : "s"}`;
+}
 import {
   type MerchantRow,
   type ProductRow,
@@ -314,7 +325,20 @@ export const productsApi: ProductService = {
     }>("export-products", { body: {} });
 
     if (error) {
-      const detail = await readFunctionError(error);
+      const body = await readFunctionErrorBody<{ error?: string; retry_after?: number }>(error);
+      const detail = body?.error ?? null;
+
+      // Handled here rather than in EXPORT_ERRORS because the message has to
+      // carry the server's own wait: telling a seller "try again later" when the
+      // server knows it is 4 minutes just means they retry immediately.
+      if (detail === "export_rate_limited") {
+        throw new Error(
+          `You just requested an export. You can request another ${waitPhrase(
+            Number(body?.retry_after ?? 300),
+          )}.`,
+        );
+      }
+
       throw new Error(EXPORT_ERRORS[detail ?? ""] ?? detail ?? error.message);
     }
     if (!data?.email) throw new Error(data?.error ?? "The export could not be sent.");

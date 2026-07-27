@@ -46,11 +46,25 @@ export async function requireUserId(): Promise<string> {
  * email_not_configured) is in the JSON body hanging off `context`.
  */
 export async function readFunctionError(error: unknown): Promise<string | null> {
+  return (await readFunctionErrorBody(error))?.error ?? null;
+}
+
+/**
+ * The whole JSON error body, for the callers that need more than the code.
+ *
+ * `readFunctionError` covers the common case, but a 429 from export-products
+ * also carries `retry_after`, and the response body can only be read once — so
+ * a caller wanting both cannot simply call the code helper and then reach for
+ * the body itself. Reading it here once, and letting `readFunctionError`
+ * delegate, keeps that from becoming a trap.
+ */
+export async function readFunctionErrorBody<T extends { error?: string }>(
+  error: unknown,
+): Promise<T | null> {
   const res = (error as { context?: Response }).context;
   if (!res || typeof res.json !== "function") return null;
   try {
-    const body = (await res.json()) as { error?: string };
-    return body?.error ?? null;
+    return (await res.json()) as T;
   } catch {
     return null;
   }

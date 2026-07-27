@@ -223,7 +223,12 @@ export interface Merchant {
    * lib/seo.ts generates a title/description from the shop's own data. */
   tagline: string;
   metaDescription: string;
-  stats: { products: number; orders: number; followers: number; rating: number };
+  stats: {
+    products: number;
+    orders: number;
+    followers: number;
+    rating: number;
+  };
   contacts: { whatsapp: string; instagram: string; facebook: string };
   /**
    * Up to 3 recent products, present only on rows from the shop directory. The
@@ -271,11 +276,21 @@ export interface Analytics {
   orderCount: number;
   paidCount: number;
   pendingCount: number;
-  topProducts: { name: string; units: number; revenue: number; image: string }[];
+  topProducts: {
+    name: string;
+    units: number;
+    revenue: number;
+    image: string;
+  }[];
   channels: Record<OrderChannel, number>;
   /** `date` is an ISO calendar day in the caller's timezone. */
   days: { date: string; total: number }[];
-  lowStock: { id: string; name: string; stockQty: number; status: StockStatus }[];
+  lowStock: {
+    id: string;
+    name: string;
+    stockQty: number;
+    status: StockStatus;
+  }[];
   lowStockCount: number;
 }
 
@@ -353,7 +368,12 @@ export interface OrderDraft extends OrderSubmission {
 /** A multi-item order from the cart checkout. All items belong to one shop. */
 export interface CartOrderDraft extends OrderSubmission {
   shopSlug: string;
-  items: { productId: string; size: string | null; color: string | null; qty: number }[];
+  items: {
+    productId: string;
+    size: string | null;
+    color: string | null;
+    qty: number;
+  }[];
   customer: { name: string; phone: string; notes: string };
   channel: OrderChannel;
   payment: null | { method: PaymentMethod; status: PaymentStatus };

@@ -22,11 +22,28 @@
  */
 
 import { createClient } from "jsr:@supabase/supabase-js@2";
+import { z } from "npm:zod@3";
 
 const SUPABASE_URL = Deno.env.get("SUPABASE_URL")!;
 const SERVICE_ROLE_KEY = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
 const ANON_KEY = Deno.env.get("SUPABASE_ANON_KEY")!;
 const TURNSTILE_SECRET = Deno.env.get("TURNSTILE_SECRET_KEY") ?? "";
+
+/**
+ * Set to "true" in every deployment that faces the public internet.
+ *
+ * captchaOk() returns true when no Turnstile secret is configured, so that a dev
+ * stack with no Cloudflare keys still works. That fallback is correct locally
+ * and catastrophic in production: this endpoint decrements stock for orders
+ * nobody has paid for, and the captcha is the only control on who may call it.
+ * If the secret were ever dropped from the project's function secrets, the door
+ * would swing open silently and nothing would report it.
+ *
+ * With this set, a missing secret is a hard 503 at request time instead. The
+ * default is "off" so that existing deployments and local stacks are unaffected
+ * until the flag is deliberately turned on; see docs/OPERATIONS.md.
+ */
+const CAPTCHA_REQUIRED = (Deno.env.get("CAPTCHA_REQUIRED") ?? "").toLowerCase() === "true";
 
 const CORS = {
   "Access-Control-Allow-Origin": "*",
@@ -40,33 +57,90 @@ const json = (body: unknown, status = 200) =>
     headers: { ...CORS, "Content-Type": "application/json" },
   });
 
-interface OrderItem {
-  product_id: string;
-  size: string | null;
+/**
+ * The request body, validated at runtime.
+ *
+ * This used to be a bare `interface`, which is erased at compile time and so
+ * checked nothing: `body.items` was asserted to be an array of items and then
+ * handed to the RPC, meaning a payload of `{"items":[{"qty":"lots"}]}` reached
+ * Postgres and came back as a type-cast error. The database was never actually
+ * at risk (place_order() has its own guards, and PostgREST parameterises every
+ * query), but the caller got a database error message where a 400 belongs, and
+ * malformed input travelled two layers deeper than it should have.
+ *
+ * The bounds below mirror the schema deliberately: 80/30/500 are the
+ * orders_cust_*_len CHECK constraints from migration 0021, 50 items and qty 100
+ * are place_order()'s own limits, and 4 to 24 is the discount code length from
+ * 0035. Where they disagree the database still wins, which is the point of
+ * having them there as well; this layer exists to give a clean answer, not to
+ * be the last line.
+ */
+const OrderItemSchema = z.object({
+  product_id: z.string().uuid(),
+  size: z.string().max(40).nullish(),
   /** The chosen colour. place_order() rejects one the seller doesn't offer, so
    * this is forwarded, never trusted. */
-  color: string | null;
-  qty: number;
-}
+  color: z.string().max(40).nullish(),
+  qty: z.number().int().positive().max(100),
+});
 
-interface Payload {
-  captcha_token?: string;
-  idempotency_key?: string;
-  customer_name?: string;
-  customer_phone?: string;
-  customer_notes?: string;
-  channel?: string;
-  payment_method?: string | null;
-  items?: OrderItem[];
+const PayloadSchema = z.object({
+  captcha_token: z.string().max(4096).nullish(),
+  idempotency_key: z.string().max(128).nullish(),
+  customer_name: z.string().trim().min(1).max(80),
+  customer_phone: z.string().trim().min(1).max(30),
+  customer_notes: z.string().max(500).nullish(),
+  channel: z.enum(["whatsapp", "instagram", "facebook", "direct"]).default("direct"),
+  payment_method: z.enum(["mpesa", "paypal"]).nullish(),
+  items: z.array(OrderItemSchema).min(1).max(50),
   /** Optional seller-created discount code. place_order() validates and
-   * applies it server-side — this is forwarded, never trusted. */
-  discount_code?: string | null;
-}
+   * applies it server-side, so this is forwarded, never trusted. */
+  discount_code: z.string().trim().min(4).max(24).nullish(),
+});
+
+/**
+ * Errors from place_order() that are safe, and useful, to show the shopper.
+ *
+ * The RPC raises these itself for situations the buyer can act on, so flattening
+ * them to "something went wrong" would be a real loss: "insufficient stock for
+ * Blue Hoodie" tells someone exactly what to change, and a generic message sends
+ * them back to the cart to guess.
+ *
+ * Anything NOT listed here is an error we did not anticipate, which in Postgres
+ * means the message can carry column names, type-cast detail or fragments of a
+ * query. Those go to the logs and the caller gets a stable, generic reply. The
+ * allowlist is the mechanism: an unrecognised message is never passed through
+ * just because it looks harmless.
+ */
+const SAFE_RPC_ERRORS = new Set([
+  "order must have at least one item",
+  "too many items in one order",
+  "customer name and phone are required",
+  "invalid quantity",
+  "quantity too large",
+  "all items in an order must belong to the same shop",
+  "this shop is not accepting orders right now",
+  "discount code is no longer valid for this order",
+  "could not generate a unique order reference",
+]);
+
+/** The same, for the messages that interpolate a product name or a variant. */
+const SAFE_RPC_PATTERNS = [
+  /^insufficient stock for /,
+  /^product not found: /,
+  /^size .+ is not available for /,
+  /^color .+ is not available for /,
+];
+
+const isSafeRpcError = (message: string) =>
+  SAFE_RPC_ERRORS.has(message) || SAFE_RPC_PATTERNS.some((re) => re.test(message));
 
 /** Cloudflare's verdict on the token. Fails closed: any error is a rejection. */
 async function captchaOk(token: string | undefined, ip: string | null): Promise<boolean> {
   // No secret configured = captcha disabled for this deployment (mirrors
-  // lib/captcha.ts, so a dev stack with no Turnstile keys still works).
+  // lib/captcha.ts, so a dev stack with no Turnstile keys still works). Any
+  // deployment where that is not acceptable sets CAPTCHA_REQUIRED, which is
+  // checked in the handler before this is ever reached.
   if (!TURNSTILE_SECRET) return true;
   if (!token) return false;
 
@@ -91,19 +165,41 @@ Deno.serve(async (req) => {
   if (req.method === "OPTIONS") return new Response("ok", { headers: CORS });
   if (req.method !== "POST") return json({ error: "method not allowed" }, 405);
 
-  let body: Payload;
+  // Refuse to run at all, rather than run without the captcha, when the
+  // deployment has declared that it must have one. Checked before the body is
+  // even read: if this is misconfigured there is no request worth processing.
+  if (CAPTCHA_REQUIRED && !TURNSTILE_SECRET) {
+    console.error(
+      "CAPTCHA_REQUIRED is set but TURNSTILE_SECRET_KEY is missing. " +
+        "Refusing to place orders without captcha verification.",
+    );
+    return json({ error: "ordering_unavailable" }, 503);
+  }
+
+  let raw: unknown;
   try {
-    body = await req.json();
+    raw = await req.json();
   } catch {
     return json({ error: "invalid JSON body" }, 400);
   }
 
+  const parsed = PayloadSchema.safeParse(raw);
+  if (!parsed.success) {
+    // The zod report names paths and expected types, which is operator detail;
+    // the caller gets the field and nothing else. The app validates the same
+    // fields before it ever gets here, so a failure at this point is either a
+    // client bug or a hand-made request, and neither deserves a schema dump.
+    console.error("place-order rejected payload", parsed.error.issues);
+    const first = parsed.error.issues[0];
+    const field = first?.path.join(".") || "request";
+    return json({ error: `invalid order: check ${field}` }, 400);
+  }
+  const body = parsed.data;
+
   const ip = req.headers.get("cf-connecting-ip") ?? req.headers.get("x-forwarded-for");
-  if (!(await captchaOk(body.captcha_token, ip))) {
+  if (!(await captchaOk(body.captcha_token ?? undefined, ip))) {
     return json({ error: "captcha_failed" }, 403);
   }
-
-  if (!body.items?.length) return json({ error: "order must have at least one item" }, 400);
 
   // Resolve the buyer, if they're signed in. An invalid or expired token is not
   // an error — it just means this is a guest checkout, which is supported.
@@ -123,10 +219,12 @@ Deno.serve(async (req) => {
 
   const admin = createClient(SUPABASE_URL, SERVICE_ROLE_KEY);
   const { data, error } = await admin.rpc("place_order", {
-    p_customer_name: body.customer_name ?? "",
-    p_customer_phone: body.customer_phone ?? "",
+    // name, phone and channel are guaranteed present by PayloadSchema; the
+    // remaining fallbacks are for fields the schema genuinely allows to be absent.
+    p_customer_name: body.customer_name,
+    p_customer_phone: body.customer_phone,
     p_customer_notes: body.customer_notes ?? "",
-    p_channel: body.channel ?? "direct",
+    p_channel: body.channel,
     p_payment_method: body.payment_method ?? null,
     p_items: body.items,
     p_idempotency_key: body.idempotency_key ?? null,
@@ -136,8 +234,14 @@ Deno.serve(async (req) => {
 
   if (error) {
     // The RPC's own guards (stock, single-shop, quantity) are user-actionable,
-    // so pass the message through rather than flattening it to "server error".
-    return json({ error: error.message }, 400);
+    // so those pass through rather than being flattened to "server error".
+    // Anything else is an unexpected database error whose message is not ours to
+    // hand a stranger, so it is logged and answered generically.
+    if (isSafeRpcError(error.message)) {
+      return json({ error: error.message }, 400);
+    }
+    console.error("place_order failed", { code: error.code, message: error.message });
+    return json({ error: "Your order could not be placed. Please try again." }, 500);
   }
 
   const row = Array.isArray(data) ? data[0] : data;

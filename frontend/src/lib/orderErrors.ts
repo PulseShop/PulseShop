@@ -45,5 +45,16 @@ export function orderErrorMessage(err: unknown): string {
   if (msg.includes("shop is not accepting orders")) {
     return "This shop isn't accepting orders right now.";
   }
+  if (msg.includes("ordering_unavailable")) {
+    // The function refused to run because its captcha secret is missing. Nothing
+    // the shopper can fix, and retrying in a loop will not help, so this says
+    // "later" rather than "try again".
+    return "Ordering is temporarily unavailable. Please try again later.";
+  }
+  if (msg.startsWith("invalid order:")) {
+    // The Edge Function's schema rejected the payload, which means the app sent
+    // something it shouldn't have. Nothing useful to name for the shopper.
+    return "Some of your order details look wrong. Check your cart and details, then try again.";
+  }
   return "Couldn't place your order. Please try again.";
 }

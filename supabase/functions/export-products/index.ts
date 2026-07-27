@@ -43,11 +43,23 @@ const CORS = {
   "Access-Control-Allow-Methods": "POST, OPTIONS",
 };
 
-const json = (body: unknown, status = 200) =>
+const json = (body: unknown, status = 200, extraHeaders: Record<string, string> = {}) =>
   new Response(JSON.stringify(body), {
     status,
-    headers: { ...CORS, "Content-Type": "application/json" },
+    headers: { ...CORS, "Content-Type": "application/json", ...extraHeaders },
   });
+
+/**
+ * Minimum gap between two exports for one seller, enforced atomically by
+ * claim_export_slot() (migration 0042).
+ *
+ * This endpoint bills real money on every call: it hands a CSV to a third-party
+ * mail provider that charges per send, against a domain whose reputation is
+ * worth more than the sends. Five minutes is far longer than any honest use
+ * needs (the file lands in your inbox; you do not ask for it twice) and short
+ * enough that a seller who mistyped their own filter is not stuck for long.
+ */
+const EXPORT_MIN_INTERVAL = "5 minutes";
 
 /**
  * MUST stay identical, in name and order, to PRODUCT_CSV_COLUMNS in
@@ -172,6 +184,38 @@ Deno.serve(async (req) => {
   if (products.length === 0) return json({ error: "no_products" }, 400);
   if ((count ?? products.length) > MAX_EXPORT_PRODUCTS) {
     return json({ error: "too_many_products" }, 413);
+  }
+
+  // ---------------------------------------------------------------------------
+  // Throttle. Everything above this line is an authenticated, indexed read
+  // bounded at MAX_EXPORT_PRODUCTS — about the cost of loading a storefront, and
+  // not worth rationing. Everything below it builds a file in memory and pays a
+  // mail provider to deliver it, which is the part an account can be made to
+  // repeat for money.
+  //
+  // The claim sits AFTER the no_products check on purpose. Claiming earlier
+  // would mean a seller with an empty catalogue burns a slot on a request that
+  // sent nothing, and is then locked out of their first real export for five
+  // minutes because of it.
+  // ---------------------------------------------------------------------------
+  const { data: waitSeconds, error: throttleError } = await admin.rpc("claim_export_slot", {
+    p_user_id: user.id,
+    p_min_interval: EXPORT_MIN_INTERVAL,
+  });
+
+  // Fails closed. If the throttle cannot be evaluated we do not know whether
+  // this is the caller's first export or their fiftieth, and the failure mode of
+  // guessing wrong is an unmetered paid endpoint.
+  if (throttleError) {
+    console.error("claim_export_slot failed", throttleError);
+    return json({ error: "export_unavailable" }, 503);
+  }
+
+  const wait = Number(waitSeconds ?? 0);
+  if (wait > 0) {
+    return json({ error: "export_rate_limited", retry_after: wait }, 429, {
+      "Retry-After": String(wait),
+    });
   }
 
   const day = new Date().toISOString().slice(0, 10);

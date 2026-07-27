@@ -1,0 +1,54 @@
+# Pull-request gate.
+#
+# Runs the same build the release runs, so the checks already wired into it fire
+# before merge rather than during a deploy: check-seo-routes.mjs (a new route in
+# main.tsx that api/render.ts would serve as a 404), then `tsc -b` across the
+# app, then the Vite build, then emit-shell.
+#
+# Deliberately does NOT touch the database or any secret. It builds with no
+# Supabase env vars set, which is a useful property in itself: services/index.ts
+# falls back to the mock adapter, so this also proves the zero-config path still
+# works for a fresh clone.
+name: CI
+
+on:
+  pull_request:
+  push:
+    branches: [main]
+
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  build:
+    name: Typecheck and build
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+          cache-dependency-path: frontend/package-lock.json
+
+      - name: Install
+        run: npm ci
+        working-directory: frontend
+
+      - name: Build
+        run: npm run build
+        working-directory: frontend
+
+      # emit-shell.mjs writes api/_shell.ts and api/_seo.ts on every build. If
+      # either differs from what is committed, the checked-in copy is stale and
+      # api/render.ts would serve a shell pointing at asset hashes that no longer
+      # exist, which is a blank page for every crawler and link preview.
+      - name: Check generated server files are current
+        run: |
+          if ! git diff --quiet -- api/_seo.ts; then
+            echo "::error file=api/_seo.ts::Stale. Run 'npm run build' in frontend/ and commit api/_seo.ts."
+            git diff --stat -- api/_seo.ts
+            exit 1
+          fi

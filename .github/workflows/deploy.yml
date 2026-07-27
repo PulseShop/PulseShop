@@ -1,0 +1,110 @@
+# Production release: database first, code second.
+#
+# THE PROBLEM THIS SOLVES. Vercel's Git integration deploys the frontend the
+# moment a push lands, and migrations were applied by hand with the Supabase
+# CLI. Nothing sequenced the two. A push that ships a feature depending on a new
+# column goes live whether or not the migration has run, and the failure surfaces
+# as runtime errors for real sellers rather than as a failed build. With 41
+# migrations and a habit of shipping schema alongside features, that ordering
+# has to be enforced somewhere, so it is enforced here.
+#
+# THE ORDER IS THE POINT. `migrate` must finish green before `deploy` starts.
+# Old code against a new schema is survivable (the migrations here are additive);
+# new code against an old schema is not. If the migration fails, no code ships.
+#
+# ONE-TIME SETUP. This workflow OWNS production deploys, so Vercel's own Git
+# auto-deploy has to be turned off or every push deploys twice, unsequenced:
+#
+#   Vercel → Project → Settings → Git → "Ignored Build Step"
+#     set to: Only build Production when triggered by CI  (or `exit 0` to skip)
+#   Simplest reliable option: Settings → Git → disconnect the Git integration
+#   and let this workflow be the only deploy path.
+#
+# Required repository secrets (Settings → Secrets and variables → Actions):
+#   SUPABASE_ACCESS_TOKEN   Supabase account token (Account → Access Tokens)
+#   SUPABASE_PROJECT_REF    the project ref
+#   SUPABASE_DB_PASSWORD    database password; the CLI reads this env var directly
+#   VERCEL_TOKEN            Vercel account token
+#   VERCEL_ORG_ID           from .vercel/project.json after `vercel link`
+#   VERCEL_PROJECT_ID       likewise
+name: Deploy
+
+on:
+  push:
+    branches: [main]
+  # Lets you re-run a release without an empty commit, e.g. after fixing a secret.
+  workflow_dispatch:
+
+# Two releases running at once can interleave a migration with the other's
+# deploy, which is the exact failure this workflow exists to prevent. Queue them.
+# Not cancel-in-progress: a half-applied migration run is worse than a slow queue.
+concurrency:
+  group: production-release
+  cancel-in-progress: false
+
+jobs:
+  migrate:
+    name: Apply migrations and edge functions
+    runs-on: ubuntu-latest
+    environment: production
+    env:
+      SUPABASE_ACCESS_TOKEN: ${{ secrets.SUPABASE_ACCESS_TOKEN }}
+      SUPABASE_DB_PASSWORD: ${{ secrets.SUPABASE_DB_PASSWORD }}
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: supabase/setup-cli@v1
+        with:
+          version: latest
+
+      - name: Link project
+        run: supabase link --project-ref "${{ secrets.SUPABASE_PROJECT_REF }}"
+
+      # Prints what is about to run before it runs, so the log is a record of
+      # which migrations this release applied. `db push --dry-run` lists pending
+      # files without touching the database.
+      - name: List pending migrations
+        run: supabase db push --dry-run
+
+      - name: Apply migrations
+        run: supabase db push
+
+      # The edge functions hold the service-role key and are the only callers of
+      # place_order(); deploying them by hand has the same drift problem as the
+      # migrations, so they ship on the same trigger, after the schema they
+      # depend on exists.
+      - name: Deploy edge functions
+        run: supabase functions deploy --project-ref "${{ secrets.SUPABASE_PROJECT_REF }}"
+
+  deploy:
+    name: Build and deploy frontend
+    runs-on: ubuntu-latest
+    needs: migrate # the whole point: no code ships until the schema is in place
+    environment: production
+    env:
+      VERCEL_ORG_ID: ${{ secrets.VERCEL_ORG_ID }}
+      VERCEL_PROJECT_ID: ${{ secrets.VERCEL_PROJECT_ID }}
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+          cache-dependency-path: frontend/package-lock.json
+
+      - name: Install Vercel CLI
+        run: npm install --global vercel@latest
+
+      - name: Pull production environment
+        run: vercel pull --yes --environment=production --token="${{ secrets.VERCEL_TOKEN }}"
+
+      # Runs the real build (check-seo-routes → tsc → vite build → emit-shell),
+      # so a route added to main.tsx without a matching entry in api/render.ts
+      # fails the release rather than shipping a page search engines are told
+      # does not exist.
+      - name: Build
+        run: vercel build --prod --token="${{ secrets.VERCEL_TOKEN }}"
+
+      - name: Deploy
+        run: vercel deploy --prebuilt --prod --token="${{ secrets.VERCEL_TOKEN }}"

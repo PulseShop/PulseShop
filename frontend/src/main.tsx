@@ -11,6 +11,7 @@ import "@fontsource/plus-jakarta-sans/800.css";
 import "./styles/tokens.css";
 
 import { ErrorBoundary } from "@/components/ErrorBoundary";
+import { installGlobalErrorReporting } from "@/lib/reportError";
 import { InstallPrompt } from "@/components/layout/InstallPrompt";
 import { Toaster } from "@/components/ui/Toaster";
 import { useCartSync } from "@/hooks/useCart";
@@ -51,6 +52,11 @@ import { AuthCallbackPage } from "./routes/auth/AuthCallbackPage";
 
 registerSW({ immediate: true });
 
+// Before anything else can throw. ErrorBoundary only sees render-time errors;
+// this catches the rest (event handlers, timers, unhandled promise rejections),
+// which is where most real failures on a phone actually happen.
+installGlobalErrorReporting();
+
 // Keep the persisted Zustand session (stores/auth) in sync with Supabase's own
 // auth state. Without this, a token that expires or is revoked server-side —
 // or a sign-out in another tab — leaves the Zustand store still saying
@@ -74,9 +80,54 @@ window.addEventListener("online", () =>
   useToasts.getState().push("Back online", "success"),
 );
 
+/**
+ * Retry policy.
+ *
+ * There is no connection pool to lose here: supabase-js speaks stateless HTTPS
+ * to PostgREST, so "the database went away" reaches the app as a failed fetch on
+ * one request, not as a dead client. What that makes worth retrying is the
+ * transient case, a phone changing masts mid-request or an edge hiccup, and the
+ * fix for it is a second attempt a moment later rather than a reconnect.
+ *
+ * A flat `retry: 1` retried the wrong things at the wrong time: it fired again
+ * immediately (React Query's default backoff only stretches out from the second
+ * attempt) and it retried failures that will never succeed. A 404 from a
+ * mistyped shop handle, or an RLS denial, is not going to come good on attempt
+ * two; retrying it just makes the user wait longer to see the same error.
+ */
+const NON_RETRYABLE = new Set(["PGRST301", "PGRST302", "42501", "22P02", "23505"]);
+
+function shouldRetry(failureCount: number, error: unknown): boolean {
+  if (failureCount >= 3) return false;
+
+  const code = (error as { code?: string })?.code;
+  if (code && NON_RETRYABLE.has(code)) return false;
+
+  const status = (error as { status?: number })?.status;
+  // 4xx is the caller being wrong, with one exception: 408 and 429 are explicit
+  // "ask again" answers.
+  if (status && status >= 400 && status < 500 && status !== 408 && status !== 429) return false;
+
+  return true;
+}
+
 const queryClient = new QueryClient({
   defaultOptions: {
-    queries: { staleTime: 30_000, retry: 1 },
+    queries: {
+      staleTime: 30_000,
+      retry: shouldRetry,
+      // 500ms, 1s, 2s, capped. Long enough for a mast handover to settle, short
+      // enough that a shopper does not think the app has hung.
+      retryDelay: (attempt) => Math.min(500 * 2 ** attempt, 5_000),
+    },
+    mutations: {
+      // Deliberately not retried. Mutations here place orders, adjust stock and
+      // send emails; a blind second attempt on a request whose response was lost
+      // is how one order becomes two. place-order is the only mutation safe to
+      // repeat (it carries an idempotency key) and it manages its own retry at
+      // the point where that key is generated.
+      retry: 0,
+    },
   },
 });
 

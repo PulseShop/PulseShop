@@ -12,7 +12,7 @@
  * (x.y.z) and belongs to a private package that is never published, so keeping
  * the two in sync would mean maintaining two numbers to serve one purpose.
  */
-export const APP_VERSION = "10.88";
+export const APP_VERSION = "10.98";
 
 /** As shown to the user, e.g. in the dashboard sidebar. */
 export const APP_VERSION_LABEL = `PulseShop v${APP_VERSION}`;

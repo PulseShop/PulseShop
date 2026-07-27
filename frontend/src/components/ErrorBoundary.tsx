@@ -1,6 +1,8 @@
 import { AlertTriangle } from "lucide-react";
 import { Component, type ErrorInfo, type ReactNode } from "react";
 
+import { reportError } from "@/lib/reportError";
+
 interface Props {
   children: ReactNode;
 }
@@ -23,6 +25,11 @@ export class ErrorBoundary extends Component<Props, State> {
 
   componentDidCatch(error: Error, info: ErrorInfo) {
     console.error("Unhandled UI error", error, info);
+    // The component stack is the useful half of a render crash: the message
+    // alone rarely says which screen died. Trimmed to the top few frames, since
+    // the rest is React internals and the endpoint truncates anyway.
+    const stack = info.componentStack?.trim().split("\n").slice(0, 6).join("\n");
+    reportError(error, "render", stack);
   }
 
   render() {
