@@ -23,6 +23,7 @@ import { useOrderStore } from "@/stores/order";
 import { useToasts } from "@/stores/toast";
 import { LoginPage } from "@/routes/auth/LoginPage";
 import { ResetPasswordPage } from "@/routes/auth/ResetPasswordPage";
+import { ShopDetailsOnboardingPage } from "@/routes/auth/ShopDetailsOnboardingPage";
 import { ShopperSignupPage } from "@/routes/auth/ShopperSignupPage";
 import { SignupPage } from "@/routes/auth/SignupPage";
 import { ShopsPage } from "@/routes/shops/ShopsPage";
@@ -190,6 +191,12 @@ createRoot(document.getElementById("root")!).render(
             <Route path="/login" element={<LoginPage />} />
             <Route path="/signup" element={<SignupPage />} />
             <Route path="/signup/shopper" element={<ShopperSignupPage />} />
+            {/* where AuthCallbackPage sends a Google user with no merchant row
+                yet. The page guards itself (it re-checks the session and bounces
+                an already-onboarded merchant to the dashboard), so it needs no
+                RequireAuth wrapper — and RequireMerchant would be wrong here,
+                since becoming a merchant is precisely what this page does. */}
+            <Route path="/signup/shop-details" element={<ShopDetailsOnboardingPage />} />
             {/* where the emailed recovery link lands — must be on Supabase's
                 Auth "Redirect URLs" allowlist */}
             <Route path="/reset-password" element={<ResetPasswordPage />} />

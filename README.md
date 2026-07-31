@@ -1,229 +1,447 @@
-# PulseShop — Web App Build Plan
+# PulseShop
 
-*Social-commerce storefront builder. Merchants create a hosted shop linked to their socials; shoppers browse and order via WhatsApp/Instagram/Facebook. A lightweight Shopify for sellers who only have a social-media bio link.*
+Social-commerce storefront builder for the Kenyan market. Sellers get a hosted
+shop linked from their social bio; shoppers browse and order through WhatsApp,
+Instagram, Facebook or direct checkout. KES pricing, M-Pesa and PayPal.
+
+Ships as a mobile-first PWA on Vercel, backed by Supabase, and packaged for
+Android as a Trusted Web Activity.
+
+- **Live:** https://pulseshop.space
+- **Supabase project:** `ztktdjckrppwzvxgnujn` (eu-central-1)
 
 ---
 
-## 0. What the mockups actually tell us
+## Contents
 
-The seven screens decompose into **two products sharing one database**:
+1. [Quick start](#quick-start)
+2. [Languages and runtimes](#languages-and-runtimes)
+3. [Repository structure](#repository-structure)
+4. [Frontend](#frontend)
+5. [Backend](#backend)
+6. [Automation](#automation)
+7. [Android app](#android-app)
+8. [Operations checklist](#operations-checklist)
+9. [Deliberately not done](#deliberately-not-done)
+10. [Known issues](#known-issues)
 
-| Surface | Who uses it | Screens in mockups |
+---
+
+## Quick start
+
+```bash
+cd frontend
+npm install
+npm run dev        # http://localhost:5173
+```
+
+With no Supabase environment variables set, the app runs against the in-memory
+mock adapter, so a fresh clone works with zero configuration. To use the real
+backend, copy `frontend/.env.example` to `frontend/.env.local` and fill in
+`VITE_SUPABASE_URL` and `VITE_SUPABASE_ANON_KEY`.
+
+| Command | What it does |
+|---|---|
+| `npm run dev` | Vite dev server |
+| `npm run build` | Route check, `tsc -b`, Vite build, shell emit |
+| `npm run preview` | Serve the production build on :4173 |
+| `npm run icons` | Regenerate the PWA icon set |
+| `node scripts/smoke.mjs` | Headless route checks (needs `preview` running) |
+| `node scripts/verify-pwa.mjs` | Offline-load check plus screenshots |
+
+PWA behaviour (service worker, install prompt, offline) exists only in the
+production build. Use `npm run preview`, not `npm run dev`, to test it.
+
+---
+
+## Languages and runtimes
+
+| Layer | Language and runtime | Location |
 |---|---|---|
-| **Merchant app** (private) | The seller | Inventory Dashboard, Add/Edit Product modal |
-| **Storefront** (public) | The shopper | Desktop storefront, mobile storefront, product detail, place-order page |
-| **Marketing site** (public) | Prospective sellers | Homepage ("Your Store. Your Link. Your Sales.") |
-
-Every shop is one tenant. The system is **multi-tenant SaaS**: one codebase, many isolated shops.
-
-### Inconsistencies to resolve before coding (not after)
-- **Branding drift**: mockups say "BioCart", "PulseShop", and shop names "Maria's Chic Boutique" / "Zawadi Styles". Lock the platform name (PulseShop) and treat shop names as tenant data.
-- **URL scheme**: the described `pulseshop@zawadistore.com` is an email format. Pick one real pattern (see Decision D1).
-- **Currency/region**: ₱ (Philippines) and Ksh (Kenya) both appear. Decide single-region MVP vs multi-currency (Decision D2).
-- **Order flow**: "Send Order via WhatsApp" and "Pay Now" are two flows. WhatsApp handoff is MVP; payment is later (Decision D3).
-
----
-
-## Locked decisions
-
-**D1 — Shop URL scheme: path-based** (`pulseshop.com/zawadistyles`). Shop slug resolves a tenant at the route level. Migrate to subdomains later only if merchants demand it.
-
-**D2 — Currency: Kenyan Shillings (KES).** Kenya-first launch. Single currency stored on the shop record; no FX. This also fixes the payment choice below toward M-Pesa.
-
-**D3 — Payments: PayPal + M-Pesa integration.** M-Pesa (Safaricom Daraja API, STK Push) is the primary rail for a Kenyan audience; PayPal covers card/diaspora buyers. Built in Phase 4. **Note the scope shift:** the moment money flows through PulseShop you inherit settlement, refunds, reconciliation, and payout logic — this is real backend work, not a plugin. The WhatsApp handoff (Phase 3) still ships first so the storefront works before payments exist; "pay now" is layered on top.
-
-**D4 — Real-time inventory: no websockets for MVP.** Standard DB writes + refresh-on-load. Revisit only if merchants report overselling at scale.
-
----
-
-## Stack
-
-**Frontend (`/frontend`)**
-- React 18 + TypeScript
-- Vite + Tailwind CSS v4
-- Zustand — state management (auth session, cart, UI state)
-- TanStack Query — server-state / data fetching + caching
-- React Router v7 — routing
-- Radix UI — accessible primitives (modal, dropdown, dialog — maps directly to the Add-Product modal and filters in the mockups)
-
-**Backend — Supabase (Option B: Supabase *is* the backend)**
-- Supabase Postgres — the database + auto-generated data API the frontend calls directly via `@supabase/supabase-js`
-- Supabase Auth — merchant login/session; the frontend holds the session (Zustand)
-- **Row Level Security (RLS)** — the tenant-isolation boundary. Every shop-owned table gets policies scoping rows to the owner. This replaces the Node middleware layer. **See the RLS gate below — this is now your security perimeter.**
-- Supabase Storage — product images (replaces separate S3)
-- Supabase Edge Functions (Deno/TS) — server-only logic that must NOT run in the client: M-Pesa/PayPal webhooks, order state transitions, and anything using service-role keys
-- Payment adapters live in Edge Functions: Daraja (M-Pesa STK Push) + PayPal SDK
-
-**Automation (`/automation`)** — Python scripts/workers (see the Python section below), connecting to the same Supabase Postgres via the service-role key.
-
-### Hosting
-- **Vercel** — frontend (Vite static bundle) + the storefront SEO edge function (below). Connect the repo, auto-deploy on push.
-- **Supabase** (managed cloud) — Postgres, Auth, Storage, Edge Functions.
-- Python automation runs off-Vercel (a cron host / small worker / Supabase scheduled function calling out), since Vercel is not the place for long-running batch jobs.
-
-### RLS security gate (mandatory, not optional)
-With Option B, a mistake in one RLS policy leaks every shop's data — there's no server-side middleware behind it to catch the error. Treat RLS policies as production code:
-- **Automated policy test suite** that runs on every migration in CI: for each table, assert that shop A's session cannot read/update/delete shop B's rows, and that anon/public sessions see only what the public storefront should.
-- No migration merges without passing policy tests. This is the "test vigorously before beta" commitment, made enforceable.
-- Keep the `service_role` key server-side only (Edge Functions, Python). It bypasses RLS — never ship it to the frontend bundle.
-
-### The SEO fix (Vite + Vercel, no Node server)
-A Vite SPA serves an empty HTML shell to crawlers and link-preview bots, and choosing Vercel + Supabase means there's no Node server to inject meta tags. So the storefront meta-injection moves to a **Vercel Edge Function / middleware** that intercepts `/[slug]` and product routes, fetches the shop's title/`og:image`/description from Supabase, and returns HTML with those tags filled in before the SPA hydrates. Fixes WhatsApp/IG/Facebook link previews and Google. (Alternative: prerender those routes. Do not skip this — shareable links are the product.)
+| Frontend | TypeScript, React 18, Vite 6 | `frontend/` |
+| SEO and sitemap functions | TypeScript on Node (Vercel Functions) | `api/` |
+| Privileged endpoints | TypeScript on Deno (Supabase Edge Functions) | `supabase/functions/` |
+| Data, logic, access control | SQL and PL/pgSQL on Postgres | `supabase/migrations/` |
+| Operational scripts | Python 3 (supabase-py, Pillow) | `automation/` |
+| Build and verification | Node ESM, Playwright, sharp | `frontend/scripts/` |
+| Android wrapper | Gradle, Bubblewrap TWA | `android/` |
 
 ---
 
 ## Repository structure
 
 ```
-pulseshop/
-├── frontend/                  # React 18 + TS + Vite SPA
-│   ├── src/
-│   │   ├── routes/            # React Router v7 route modules
-│   │   │   ├── marketing/     # public homepage
-│   │   │   ├── merchant/      # protected dashboard, inventory, orders, settings
-│   │   │   └── storefront/    # public /[slug], product detail, place-order
-│   │   ├── components/        # shared UI (Radix-based: modal, dropdown, dialog)
-│   │   ├── stores/            # Zustand stores (auth, cart, ui)
-│   │   ├── queries/           # TanStack Query hooks
-│   │   ├── lib/               # supabase client, formatting (KES currency, wa.me links)
-│   │   └── types/             # TS types generated from Supabase schema
-│   ├── tailwind.config.ts
-│   └── vite.config.ts
-│
-├── api/                       # Vercel Edge Functions (frontend-adjacent)
-│   └── storefront-meta.ts     # SEO meta-injection for /[slug] + product routes
-│
-├── supabase/                  # Supabase project (backend-as-config)
-│   ├── migrations/            # SQL schema migrations (version-controlled)
-│   ├── policies/              # RLS policies per table — reviewed like prod code
-│   ├── functions/             # Edge Functions: mpesa-webhook, paypal-webhook, order-state
-│   ├── tests/                 # RLS policy test suite (CI gate)
-│   └── seed.sql
-│
-├── automation/                # Python — batch jobs & workers (see below)
-│   ├── image_pipeline/
-│   ├── bulk_import/
-│   ├── reports/
-│   └── requirements.txt
-│
-└── PulseAppPlan.md
+frontend/          the PWA
+  src/
+    routes/        route-level pages (marketing, auth, storefront, product,
+                   cart, checkout, order, account, dashboard/*)
+    components/    presentational and composite UI (ui/, product/, shop/, layout/, seo/)
+    hooks/         cross-cutting behaviour (useCart, useFavorites, useSeo, useProfileSync)
+    stores/        Zustand slices: auth, cart, favorites, order, orderHistory, shop, toast
+    services/      types.ts  the interface contract both adapters satisfy
+                   api/      Supabase implementation, plus mappers.ts (row <-> domain)
+                   mock/     in-memory implementation
+    lib/           pure helpers: currency, slug, phone, seo, productCsv, entitlements
+    types/         domain model shared by both adapters
+  scripts/         build gates and headless verification
+api/               Vercel Functions: render.ts, sitemap.ts, log.ts (+ generated _seo/_shell)
+supabase/
+  migrations/      42 sequential SQL migrations; the real backend
+  functions/       Deno edge functions: place-order, export-products
+automation/        Python operational scripts
+android/           Bubblewrap TWA config
+.github/workflows/ CI gate and the migrate-then-deploy release pipeline
 ```
 
-*Frontend + the `api/` edge function deploy together on Vercel. Supabase is managed cloud, configured via versioned migrations/policies/functions in `/supabase`. Python automation deploys separately (cron host / worker).*
+---
+
+## Frontend
+
+**TypeScript 5.6 in strict mode, React 18.3, Vite 6, Tailwind CSS 4.**
+React Router 7 for routing, TanStack Query 5 for server state, Zustand 5 for
+client state, react-hook-form with zod for forms, Radix UI primitives, Recharts
+for dashboard charts, `vite-plugin-pwa` over Workbox.
+
+### The service adapter
+
+The single most important structural decision. Everything imports one `services`
+object from `services/index.ts`, which resolves at module load to either the
+Supabase adapter or an in-memory mock, based on whether the environment
+variables are present. No component imports the Supabase client directly.
+
+### Key patterns
+
+- **Two-tier state.** TanStack Query owns server-derived data; Zustand owns
+  device-local state. `AppSync` in `main.tsx` reconciles them: it syncs cart and
+  favorites to the database for signed-in shoppers, and on sign-out wipes every
+  piece of personal state plus the entire Query cache. These are frequently
+  shared devices, and the rule being enforced is that signing out leaves nothing
+  personal behind.
+- **Session integrity.** The app subscribes to `onAuthStateChange` at startup.
+  Without it, a token revoked server-side or a sign-out in another tab leaves the
+  persisted store still claiming a live session.
+- **Row and domain separation.** `services/api/mappers.ts` converts snake_case
+  rows into camelCase domain types, so schema changes stay in one file.
+- **Route ordering.** Static routes first; `/:shopSlug` and
+  `/:shopSlug/:productSlug` last, since an unrecognised single segment is a shop
+  handle. `RequireMerchant` gates every `/dashboard/*` route.
+- **Retry policy.** Reads retry three times with exponential backoff, skipping
+  4xx and RLS errors that will never come good. Mutations never retry; a blind
+  retry is how one order becomes two.
 
 ---
 
-## Where Python earns its place
+## Backend
 
-Supabase (client SDK + Edge Functions) handles the request path. Python is the right tool for **out-of-band batch and automation work** — things that run on a schedule or a queue, not on a user click. Keep it in `/automation` as standalone scripts/workers that connect to Supabase Postgres (service-role key) and Supabase Storage; do **not** put Python in the live request path.
+There is no traditional application server. Three runtimes, each for a specific job.
 
-Good fits:
+### Postgres on Supabase, the system of record
 
-1. **Product image pipeline** — merchants upload phone photos (the mockups show inconsistent, uncropped product shots). A Python worker (Pillow / `rembg`) resizes, compresses to WebP, generates thumbnails, and optionally removes backgrounds. Triggered by an upload event or run as a queue worker. This is the highest-value Python use here.
-2. **Bulk product import** — a script that ingests a merchant's CSV/Excel catalog (pandas) and creates products via the API or direct DB insert. Sellers migrating from a spreadsheet will want this.
-3. **Scheduled reports & digests** — nightly job that emails/WhatsApps each merchant a low-stock alert (mockups have a "Low Stock" state) and a daily orders summary. Cron + a simple script.
-4. **Analytics rollups** — batch-aggregate views/orders/top-products into a summary table the dashboard reads, instead of computing heavy queries live.
-5. **Data cleanup & seeding** — migration helpers, demo-shop seeding, currency/formatting backfills.
+42 sequential migrations in `supabase/migrations/`.
 
-Where Python does **not** belong: request handling, auth, payment callbacks (M-Pesa/PayPal webhooks land on Supabase Edge Functions), or anything latency-sensitive. If you find yourself calling a Python service synchronously to render a page, you've put it in the wrong layer.
+- **Tables:** `merchants` (one-to-one with `auth.users`), `products`, `orders`,
+  `order_items`, `cart_items`, `favorites`, `follows`, `follow_events`,
+  `reviews`, `discount_codes`, `discount_code_products`, `discount_redemptions`,
+  `export_requests`.
+- **Enums mirror the TypeScript string unions**, so the database and frontend
+  cannot drift apart on vocabulary.
+- **Row Level Security is the real security boundary.** The anon key ships in
+  the JS bundle by design and grants no trust on its own. Around 32 policies
+  decide who reads what.
+- **Roughly 40 SQL functions** carry the logic RLS makes impossible from the
+  client. `SECURITY DEFINER` functions exist where RLS would otherwise return
+  zeroes to a legitimate viewer; `merchant_stats` returns product, order,
+  follower and rating counts in one round trip for exactly that reason.
+- **Field constraints (0021)** cap every user-writable field at the database
+  level, because zod runs in the browser and is therefore advice, not enforcement.
 
----
+### Supabase Edge Functions (Deno)
 
-## Phase 1 — Foundation & data model *(Week 1–2)*
+- **`place-order`** is the only path to the `place_order()` RPC, which decrements
+  stock for an order nobody has paid for yet. Execute rights were revoked from
+  `anon` and `authenticated` in migration 0024 and granted to `service_role`
+  alone. This function holds that key and refuses to use it until Cloudflare
+  Turnstile confirms a real browser. Payloads are validated with zod; RPC errors
+  pass through an allowlist so unexpected Postgres detail never reaches a user.
+- **`export-products`** builds a catalogue CSV and emails it via Resend, only
+  ever to the caller's own verified account email read from the JWT. There is no
+  recipient parameter: an endpoint that mails an arbitrary address is an open
+  relay. Throttled to one export per seller per five minutes (migration 0042).
 
-Goal: schema, auth, tenancy, empty app that runs.
+### Vercel Functions (Node)
 
-- Core tables: `users`, `shops` (one owner → one shop for MVP), `categories`, `products`, `product_images`, `orders`, `order_items`.
-- Multi-tenancy: every shop-owned row carries `shop_id`; isolation enforced by **RLS policies** (Option B), written and tested alongside each migration.
-- `shops` fields from the mockups: name, handle/slug, avatar, cover image, bio, city, socials (whatsapp, instagram, facebook), currency, rating, order count.
-- `products` fields: name, SKU, category, price, compare-at price (for the "-20%" discount badge), stock quantity, status (Available / Low Stock / Out of Stock — **derive from stock, don't store separately**), images, description, sizes/variants.
-- Auth: merchant signup/login, session, password reset.
-- Routing skeleton: marketing site, merchant app (protected), public storefront by slug (per D1).
+- **`api/render.ts`** injects a real per-URL `<head>` into the built shell.
+  WhatsApp, Instagram and Facebook read raw bytes and run no JavaScript, and the
+  way PulseShop spreads is sellers pasting links into WhatsApp, so without this
+  every shared product previews as the same generic blurb. Head injection, not
+  SSR: the body is still an empty root.
+- **`api/sitemap.ts`** serves a sitemap index plus paginated shop and product
+  sitemaps. Pagination is clamped in SQL and again in code.
+- **`api/log.ts`** proxies browser error reports to Axiom, holding the token
+  server-side. Falls back to Vercel runtime logs when unconfigured.
+- All read with the **anon key only**, never service role, forward no request
+  header or cookie, and HTML-escape every interpolated value. This is the app's
+  only raw-HTML path, so React's automatic escaping does not apply.
 
-**Exit criteria:** a seeded shop renders at its URL; a merchant can log in and see an empty dashboard.
+### Payments
 
----
-
-## Phase 2 — Merchant app (inventory) *(Week 2–4)*
-
-Goal: a seller can fully manage their catalog. *(Mockup screens 4 & 5.)*
-
-- Dashboard shell: sidebar (Dashboard, Inventory, Orders, Analytics, Settings), merchant profile footer.
-- Inventory table: image, name, SKU, category, price, stock-status pill, edit/delete row actions.
-- Stat cards: Total Products, In Stock, Low Stock, Out of Stock (computed from the catalog).
-- **Add/Edit Product modal**: image upload, name, SKU, category, price, stock quantity with +/− stepper, save/cancel. (Skip the websocket sync — D4.)
-- Filter + category dropdown + search.
-- Image upload pipeline to object storage; thumbnail generation.
-
-**Exit criteria:** merchant can add, edit, delete, and categorize products; stats and status pills update correctly.
-
----
-
-## Phase 3 — Public storefront *(Week 4–6)*
-
-Goal: a shopper can browse a shop and place a WhatsApp order. *(Mockup screens 6 & 7, plus place-order.)*
-
-- **Storefront page** (`/[slug]`): shop header (avatar, cover, bio, city, socials, stats), category filter, price-range + availability filters, sort, responsive product grid. Must work well on mobile — the mockups are mobile-first.
-- **Product detail page**: image gallery/thumbnails, breadcrumb, title, price, rating/reviews, stock count, description, size/variant selector, favorite button, social "ask about this product" buttons, **Order Now** CTA.
-- Favorites (client-side/local for MVP; no account needed for shoppers).
-- Cart (the header shows a cart badge) — decide: single-item quick-order vs multi-item cart. *Recommendation: single-item order for MVP, cart in Phase 5.*
-- **Place-order page**: order summary, buyer name + phone + notes, channel selector (WhatsApp/Instagram/Facebook), **Send Order** → composes a pre-filled message to the merchant's WhatsApp (`wa.me` deep link with order details). Persist the order as `pending` so the merchant sees it in their app.
-- SEO: server-render storefronts, per-shop meta tags, shareable link previews.
-
-**Exit criteria:** a shopper lands on a shop link, picks a product, and the merchant receives a structured WhatsApp message + a pending order in their dashboard.
-
----
-
-## Phase 4 — Orders, discounts, payments *(Week 6–9)*
-
-Goal: close the loop.
-
-- **Merchant Orders view**: incoming orders (mockup shows an Orders nav badge), statuses (pending → confirmed → fulfilled/cancelled), buyer contact, notes.
-- **Discounts**: compare-at price → auto "-20%" style badge; optional discount section per shop.
-- **Payments (D3, optional/gated)**: integrate pay-now. If Kenya → M-Pesa (Daraja API); else Stripe/PayPal. Order state machine handles paid vs unpaid. *Only build this once WhatsApp-order demand is validated.*
-- Notifications: email/WhatsApp to merchant on new order.
-
-**Exit criteria:** merchant manages order lifecycle end to end; discounts render; (if built) a shopper can pay online.
+`services/api/payments.ts` is a deliberate placeholder. M-Pesa Daraja and PayPal
+secrets must never reach the browser, so the adapter talks only to
+`VITE_PAYMENTS_API`. Until that is set, both methods simulate success. Expected
+contracts are documented in the file header.
 
 ---
 
-## Phase 5 — Marketing site, onboarding, polish *(Week 9–11)*
+## Automation
 
-Goal: sellers can discover, sign up, and launch unaided. *(Mockup screen 3.)*
+### Python operational scripts
 
-- Marketing homepage: hero, feature sections, pricing, social proof, "Start for Free" CTA.
-- Merchant onboarding wizard: create shop → set slug → add bio/socials → add first product → share link.
-- Settings: profile, socials, currency, shop appearance.
-- Analytics (light): views, top products, order counts.
-- Multi-item cart if deferred from Phase 3.
+`automation/` runs server-side with the **service role key**, which bypasses RLS
+and must never reach the frontend.
 
-**Exit criteria:** a new merchant self-serves from landing page to a live, shareable shop.
+```bash
+cd automation
+python -m venv .venv
+.venv\Scripts\activate          # Windows;  source .venv/bin/activate elsewhere
+pip install -r requirements.txt
+cp .env.example .env            # fill in SUPABASE_URL and SUPABASE_SERVICE_KEY
+```
+
+- **`image_processor.py`** auto-orients from EXIF, resizes, re-encodes as
+  optimized JPEG, uploads to the public `media` bucket, and writes an
+  original-to-URL CSV. Per-image failures are caught so one bad file does not
+  abort the batch.
+
+  ```bash
+  python image_processor.py --input ./photos --merchant <uuid> \
+      --folder products --max-size 1200 --quality 82 --out urls.csv
+  ```
+
+- **`analytics_report.py`** prints revenue, order counts, average order value,
+  top products, channel breakdown and low-stock items; optionally writes JSON.
+
+  ```bash
+  python analytics_report.py --merchant <uuid> --json report.json
+
+  # daily at 06:00
+  0 6 * * *  cd /path/to/PulseShop/automation && \
+             ./.venv/bin/python analytics_report.py --json /var/log/pulseshop/report.json
+  ```
+
+### Build-time gates
+
+The build is a four-stage chain: `check-seo-routes.mjs`, `tsc -b`, `vite build`,
+`emit-shell.mjs`.
+
+- **`check-seo-routes.mjs`** fails the build when `main.tsx` grows a top-level
+  route `api/render.ts` does not know about. The renderer treats an unrecognised
+  single segment as a shop handle, so a new `/wishlist` route would be looked up
+  as a shop, miss, and be served 404 with noindex. The page would still render
+  client-side, so the failure is invisible until someone wonders why it never
+  appears in search.
+- **`emit-shell.mjs`** writes the built `dist/index.html` into `api/_shell.ts`
+  and copies `src/lib/seo.ts` to `api/_seo.ts`. It has to be the built file
+  because Vite rehashes asset names every build, and a stale shell links to
+  assets that no longer exist. Server and browser must emit identical tags, or a
+  crawler sees one thing following a link and another fetching directly, which
+  reads as cloaking.
+
+### Verification
+
+- **`smoke.mjs`** drives headless Chromium at 390x844 over every route, checking
+  each renders and no console errors fire.
+- **`verify-pwa.mjs`** installs the service worker, goes offline, reloads, and
+  confirms the shell still renders.
+
+### Database-side
+
+Triggers keep invariants true regardless of which client writes:
+`set_updated_at`, `set_product_status` (available/low/out from `stock_qty`),
+`set_product_slug`, `refresh_product_rating`, `handle_new_user` and
+`create_merchant_profile`, `log_follow_event`.
+
+### Release pipeline
+
+`.github/workflows/deploy.yml` applies migrations and deploys edge functions
+**before** the frontend ships. Old code against a new schema is survivable; new
+code against an old schema is not. If the migration fails, no code ships.
+`ci.yml` runs the same build on pull requests, with no database access and no
+secrets, which also proves the zero-config mock path still works.
 
 ---
 
-## Phase 6 — Hardening & launch *(Week 11–12)*
+## Android app
 
-- **RLS penetration pass** — full audit of every table's policies before beta (your committed "test vigorously" gate); confirm the automated policy suite covers read/update/delete cross-tenant and anon access. This is the #1 risk in Option B.
-- Rate limiting, input validation, image-upload abuse protection.
-- Performance: image optimization, storefront load speed, DB indexing on `shop_id`/`slug`.
-- Accessibility pass (contrast, touch targets, keyboard nav).
-- Analytics/error monitoring; backups.
-- Cross-device QA (storefronts are mobile-first).
+A **TWA**: a thin native shell rendering `pulseshop.space` full-screen in
+Chrome's engine, with no browser UI. It contains no app code, so **every deploy
+updates the app instantly** for everyone who has it installed. An APK rebuild is
+only needed when the icon, name or package id changes.
 
-**Exit criteria:** production-ready, monitored, secured.
+iOS has no equivalent. There, PulseShop installs as a PWA through Safari's
+Share, then Add to Home Screen, which the in-app install prompt walks users
+through.
+
+### The keystore is irreplaceable
+
+`frontend/public/.well-known/assetlinks.json` publishes the SHA-256 fingerprint
+of `android/pulseshop.keystore`. That file is the Digital Asset Links handshake,
+and it is the only reason the app renders without a URL bar. If the keystore is
+lost, a rebuilt APK is signed with a different key, every installed copy shows
+the address bar, and Play Store updates are rejected outright.
+
+```
+56:E7:0D:22:25:13:07:1B:9C:F5:BA:DD:21:F5:74:E7:F6:C7:B3:77:D9:8B:79:80:6B:BF:B6:28:3A:C8:26:1D
+```
+
+```bash
+keytool -list -v -keystore pulseshop.keystore -alias pulseshop
+```
+
+`keystore-password.txt` is gitignored. Move it into a password manager and delete
+the file.
+
+### Building
+
+`twa-manifest.json` is the only source file here; everything else Bubblewrap
+generates and is gitignored.
+
+```powershell
+npm i -g @bubblewrap/cli
+cd android
+$env:BUBBLEWRAP_KEYSTORE_PASSWORD = (Get-Content keystore-password.txt -Raw).Trim()
+$env:BUBBLEWRAP_KEY_PASSWORD      = $env:BUBBLEWRAP_KEYSTORE_PASSWORD
+bubblewrap build --skipPwaValidation
+```
+
+The first run downloads a JDK 17 and the Android SDK, and Google's SDK terms have
+to be accepted by a human, so it is interactive by design.
+
+**Two Windows traps:**
+
+1. `'gradlew.bat' is not recognized`, when `NoDefaultCurrentDirectoryInExePath=1`
+   is set. Bubblewrap invokes `gradlew.bat` bare, without `.\`, and `cmd`
+   refuses. Clear it first:
+   `Remove-Item Env:\NoDefaultCurrentDirectoryInExePath -ErrorAction SilentlyContinue`
+2. Do not pipe blanket `y` answers in. Bubblewrap asks free-text questions too,
+   and a stream of `y` set `versionName` to the literal string `"y"`.
+
+Verify the handshake after deploying:
+
+```bash
+curl -s https://pulseshop.space/.well-known/assetlinks.json
+```
 
 ---
 
-## Cut line for a true MVP
+## Operations checklist
 
-If you need to ship in ~4 weeks instead of 12, ship only:
-**Phase 1 + Phase 2 + a stripped Phase 3** (storefront + single-item WhatsApp order, no cart, no payments, no analytics, manual merchant onboarding). That is the smallest thing that delivers the core promise: *turn a social bio link into a working storefront that routes orders to WhatsApp.* Everything else is enhancement.
+The hardening that is **not** code. Every item is a dashboard setting, so it
+cannot be committed, reviewed or tested. This is the record that it was decided,
+and the place to check when something behaves unexpectedly.
+
+### 1. Release pipeline
+
+- [x] **Vercel's Git auto-deploy for production is off**, via
+      `git.deploymentEnabled: { "main": false }` in `vercel.json`. Without it
+      every push deploys twice, and the first one is the exact race the workflow
+      exists to remove. Only `main` is affected; PR previews still work, and CLI
+      deploys from CI are unaffected.
+- [x] **Repository secrets are set:** `SUPABASE_ACCESS_TOKEN`,
+      `SUPABASE_PROJECT_REF`, `SUPABASE_DB_PASSWORD`, `VERCEL_TOKEN`,
+      `VERCEL_ORG_ID`, `VERCEL_PROJECT_ID`. Verified 27 Jul 2026, except
+      `SUPABASE_DB_PASSWORD`, which nothing local can check. If the `migrate` job
+      fails on authentication, that secret is the first suspect.
+- [ ] **Create a `production` GitHub environment** if you want a human between a
+      merge and a schema change.
+
+### 2. Captcha must not be optional in production
+
+`captchaOk()` returns `true` when no secret is set, so local stacks work without
+Cloudflare keys. In production that fallback is a silently open door on the
+endpoint that decrements stock.
+
+- [ ] Confirm `TURNSTILE_SECRET_KEY` is set: `supabase secrets list`
+- [ ] `supabase secrets set CAPTCHA_REQUIRED=true`, so the function answers 503
+      rather than accepting an unverified order if the secret goes missing.
+
+### 3. Token lifetime and refresh
+
+GoTrue already issues short-lived access tokens and rotates refresh tokens, and
+the browser client sets `autoRefreshToken`. Nothing to build; confirm the numbers.
+
+- [ ] Authentication → Sessions: **JWT expiry ≤ 3600s**
+- [ ] **Refresh token rotation enabled**
+- [ ] **Reuse interval 10s or less.** This turns a stolen refresh token into a
+      detectable event rather than a permanent session.
+
+### 4. Rate limiting
+
+| Endpoint | Control | Where |
+|---|---|---|
+| `place-order` | Cloudflare Turnstile | function |
+| `export-products` | one per seller per 5 min | migration 0042 + function |
+
+- [ ] **Vercel WAF on `/api/*`**, roughly 100 req/min/IP. Both `/api/render` and
+      `/api/sitemap` are CDN-cached, so legitimate traffic rarely reaches them,
+      but a cache miss is a Supabase round trip someone can issue in a loop.
+- [ ] **Tighter rule on `/api/log`**, say 60/min/IP. The function limits per
+      instance already, but that is best-effort by design.
+- [ ] **Check Supabase auth rate limits** are at defaults or lower.
+
+### 5. Error reporting (optional)
+
+- [ ] Set `AXIOM_TOKEN` and `AXIOM_DATASET` in Vercel production environment
+      variables, using an **ingest-only** token.
+- [ ] Without them, browser errors land in `vercel logs` prefixed
+      `[client-error]`. That is a supported state, not a broken one.
+
+### 6. Verify after deploying
+
+```bash
+# 429 on the second export within five minutes
+curl -i -X POST "$SUPABASE_URL/functions/v1/export-products" \
+  -H "Authorization: Bearer $SELLER_JWT"
+
+# 400 "invalid order: check items", not a Postgres error
+curl -i -X POST "$SUPABASE_URL/functions/v1/place-order" \
+  -H "Content-Type: application/json" \
+  -d '{"customer_name":"x","customer_phone":"1","items":[]}'
+
+# 405, not a 500
+curl -i "https://pulseshop.space/api/log"
+```
 
 ---
 
-## Biggest risks
+## Deliberately not done
 
-1. **Multi-tenant data leakage (elevated under Option B)** — RLS is your *only* isolation boundary; the frontend talks to Supabase directly, so a wrong policy = full exposure with nothing behind it. Mitigate with the mandatory automated policy suite in CI + the pre-beta RLS pen pass. Keep `service_role` out of the frontend bundle.
-2. **Scope creep from the mockups** — websockets, dual currency, dual order flows, reviews, favorites all appear but none are load-bearing for launch. Defend the cut line.
-3. **Payment/regulatory scope** — the moment money flows through PulseShop (M-Pesa/PayPal), you inherit settlement, refunds, and reconciliation. The WhatsApp-handoff MVP ships first and deliberately avoids this; add pay-now only in Phase 4.
-4. **SEO/shareability** — the product lives or dies on link sharing, and a Vite SPA serves bots an empty shell. The Vercel edge meta-injection function is not optional; ship it with the storefront.
+Recorded so they are not re-proposed as oversights.
+
+**Strict CORS allowlisting on the edge functions.** They answer
+`Access-Control-Allow-Origin: *`, which is correct here. CORS is enforced by the
+browser; `curl` sends no `Origin` at all, and the anon key is public by design.
+"Only our frontend may call this" cannot be expressed as an origin rule, which is
+exactly why `place-order` uses proof-of-humanity instead. Locking it down would
+buy nothing and would break the Android TWA and local development.
+
+**Argon2id password hashing.** There is no password-handling code in this project
+and there should not be. GoTrue stores passwords with bcrypt and a per-user salt.
+Replacing it means giving up OAuth, email confirmation and recovery.
+
+**Runtime-injected frontend credentials.** `VITE_SUPABASE_URL` and
+`VITE_SUPABASE_ANON_KEY` are baked into the bundle at build time and cannot be
+otherwise in a static SPA. Both are public; RLS, not secrecy, protects the data.
+Server-side credentials are already read from the environment at runtime.
+
+**Exponential backoff for dropped database connections.** There are no persistent
+connections to drop. The equivalent, a retry policy for transient request
+failures, is in `main.tsx`.
+
+---
+
+## Known issues
+
+**Four open Dependabot advisories**, none currently fixable: `react-router` (no
+patched 7.x exists; the fix is a v8 migration, and the advisory covers RSC mode,
+which this SPA does not use), plus `postcss`, `fast-uri` and `brace-expansion`,
+all transitive build tooling pinned out of reach by their parents.

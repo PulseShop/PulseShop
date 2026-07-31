@@ -1,7 +1,7 @@
 import type { Merchant, Product } from "@/types";
 import { slugify } from "@/lib/slug";
 
-// All URLs verified HTTP 200 (see scripts/check-images.mjs).
+// Unsplash ids, all verified HTTP 200 when this seed data was written.
 const img = (id: string) => `https://images.unsplash.com/${id}?w=800&q=80&auto=format&fit=crop`;
 
 export const MERCHANT: Merchant = {

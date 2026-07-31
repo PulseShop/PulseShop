@@ -41,7 +41,8 @@ const TURNSTILE_SECRET = Deno.env.get("TURNSTILE_SECRET_KEY") ?? "";
  *
  * With this set, a missing secret is a hard 503 at request time instead. The
  * default is "off" so that existing deployments and local stacks are unaffected
- * until the flag is deliberately turned on; see docs/OPERATIONS.md.
+ * until the flag is deliberately turned on; see the operations checklist in
+ * README.md.
  */
 const CAPTCHA_REQUIRED = (Deno.env.get("CAPTCHA_REQUIRED") ?? "").toLowerCase() === "true";
 

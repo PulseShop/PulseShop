@@ -2,6 +2,12 @@ node_modules/
 dist/
 dev-dist/
 *.local
+
+# Build artifacts. tsbuildinfo is a tsc incremental cache keyed to this machine's
+# paths, and the shot-*.png files are output that verify-pwa.mjs regenerates on
+# every run; both were tracked, and both only ever produced diff noise.
+*.tsbuildinfo
+frontend/scripts/shot-*.png
 .env
 .env.*
 !.env.example
