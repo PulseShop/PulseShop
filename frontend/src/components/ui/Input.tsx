@@ -30,7 +30,7 @@ export const Input = forwardRef<HTMLInputElement, InputProps>(
             ref={ref}
             id={inputId}
             className={cn(
-              "h-11 w-full rounded-btn border border-stone-200 bg-card px-3.5 text-sm text-ink placeholder:text-muted/70 outline-none transition-colors focus:border-primary focus:ring-2 focus:ring-primary/20",
+              "h-11 w-full rounded-btn border border-line bg-card px-3.5 text-sm text-ink placeholder:text-muted/70 outline-none transition-colors focus:border-primary focus:ring-2 focus:ring-primary/20",
               error && "border-danger focus:border-danger focus:ring-danger/20",
               trailing && "pr-11",
               className,
@@ -67,7 +67,7 @@ export const Textarea = forwardRef<HTMLTextAreaElement, TextareaProps>(
           ref={ref}
           id={inputId}
           className={cn(
-            "min-h-20 w-full rounded-btn border border-stone-200 bg-card px-3.5 py-2.5 text-sm text-ink placeholder:text-muted/70 outline-none transition-colors focus:border-primary focus:ring-2 focus:ring-primary/20",
+            "min-h-20 w-full rounded-btn border border-line bg-card px-3.5 py-2.5 text-sm text-ink placeholder:text-muted/70 outline-none transition-colors focus:border-primary focus:ring-2 focus:ring-primary/20",
             error && "border-danger",
             className,
           )}

@@ -66,7 +66,7 @@ export function FavoritesPage() {
         ) : items.length === 0 ? (
           <div className="flex min-h-[50dvh] flex-col items-center justify-center gap-4 text-center">
             <div className="flex size-20 items-center justify-center rounded-full bg-card shadow-soft">
-              <Heart className="size-9 text-stone-300" />
+              <Heart className="size-9 text-faint" />
             </div>
             <div>
               <p className="text-lg font-bold text-ink">No favorites yet</p>
@@ -76,7 +76,7 @@ export function FavoritesPage() {
             </div>
             <Link
               to={home}
-              className="rounded-btn bg-primary px-5 py-2.5 text-sm font-bold text-white shadow-soft"
+              className="rounded-btn bg-primary px-5 py-2.5 text-sm font-bold text-on-accent shadow-soft"
             >
               Browse products
             </Link>

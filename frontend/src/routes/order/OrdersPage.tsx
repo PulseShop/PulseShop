@@ -109,7 +109,7 @@ export function OrdersPage() {
         {cards.length === 0 && !(session && dbQ.isError) ? (
           <div className="flex min-h-[50dvh] flex-col items-center justify-center gap-4 text-center lg:col-span-full">
             <div className="flex size-20 items-center justify-center rounded-full bg-card shadow-soft">
-              <Package className="size-9 text-stone-300" />
+              <Package className="size-9 text-faint" />
             </div>
             <div>
               <p className="text-lg font-bold text-ink">No orders yet</p>
@@ -117,7 +117,7 @@ export function OrdersPage() {
             </div>
             <Link
               to={home}
-              className="rounded-btn bg-primary px-5 py-2.5 text-sm font-bold text-white shadow-soft"
+              className="rounded-btn bg-primary px-5 py-2.5 text-sm font-bold text-on-accent shadow-soft"
             >
               Browse products
             </Link>

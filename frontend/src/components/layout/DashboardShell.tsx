@@ -49,9 +49,17 @@ export function DashboardShell({ children }: { children: ReactNode }) {
   const merchant = merchantQ.data;
 
   return (
-    <div className="flex h-dvh flex-col overflow-hidden bg-surface lg:block lg:h-auto lg:min-h-dvh lg:overflow-visible">
+    // Dark mode covers the shopper-facing app only for now. The dashboard's
+    // pages still carry literal light-palette classes, so letting the theme
+    // through here would render half of them dark and half light. Pinning the
+    // subtree to light keeps it coherent until it is converted too; removing
+    // this line is the last step of that work.
+    <div
+      data-theme="light"
+      className="flex h-dvh flex-col overflow-hidden bg-surface lg:block lg:h-auto lg:min-h-dvh lg:overflow-visible"
+    >
       {/* desktop sidebar */}
-      <aside className="fixed inset-y-0 left-0 z-30 hidden w-[230px] flex-col border-r border-stone-200 bg-card lg:flex">
+      <aside className="fixed inset-y-0 left-0 z-30 hidden w-[230px] flex-col border-r border-line bg-card lg:flex">
         <div className="flex items-center gap-2.5 px-5 py-5">
           <Logo size={36} />
           <div>
@@ -64,7 +72,7 @@ export function DashboardShell({ children }: { children: ReactNode }) {
             storefront exactly as a buyer sees it. */}
         <Link
           to="/shop"
-          className="group mx-3 mb-2 flex items-center gap-3 rounded-btn border border-stone-200 px-3 py-2.5 text-sm font-semibold text-muted transition-colors hover:border-primary/30 hover:bg-primary/5 hover:text-primary"
+          className="group mx-3 mb-2 flex items-center gap-3 rounded-btn border border-line px-3 py-2.5 text-sm font-semibold text-muted transition-colors hover:border-primary/30 hover:bg-primary/5 hover:text-primary"
         >
           <ArrowLeft className="size-[18px] transition-transform group-hover:-translate-x-0.5" />
           View as buyer
@@ -81,7 +89,7 @@ export function DashboardShell({ children }: { children: ReactNode }) {
                   "flex items-center gap-3 rounded-btn px-3 py-2.5 text-sm font-semibold transition-colors",
                   isActive
                     ? "bg-primary-deep text-white"
-                    : "text-muted hover:bg-stone-100 hover:text-ink",
+                    : "text-muted hover:bg-fill hover:text-ink",
                 )
               }
             >
@@ -111,7 +119,7 @@ export function DashboardShell({ children }: { children: ReactNode }) {
             </div>
           </div>
         ) : merchant ? (
-          <div className="m-3 flex items-center gap-3 rounded-card bg-stone-50 p-3">
+          <div className="m-3 flex items-center gap-3 rounded-card bg-fill-soft p-3">
             <img
               src={merchant.avatarUrl}
               alt={merchant.name}
@@ -143,7 +151,7 @@ export function DashboardShell({ children }: { children: ReactNode }) {
         </Link>
         <Link
           to="/shop"
-          className="inline-flex shrink-0 items-center gap-1.5 rounded-full border border-stone-200 bg-card px-3 py-1.5 text-xs font-bold text-muted transition-colors hover:border-primary/30 hover:text-primary"
+          className="inline-flex shrink-0 items-center gap-1.5 rounded-full border border-line bg-card px-3 py-1.5 text-xs font-bold text-muted transition-colors hover:border-primary/30 hover:text-primary"
         >
           <ArrowLeft className="size-3.5" /> View shop
         </Link>

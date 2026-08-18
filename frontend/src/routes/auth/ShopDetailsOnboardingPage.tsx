@@ -122,16 +122,16 @@ export function ShopDetailsOnboardingPage() {
 
   if (checking) {
     return (
-      <div className="flex min-h-screen items-center justify-center bg-stone-50">
+      <div className="flex min-h-screen items-center justify-center bg-fill-soft">
         <Loader2 className="size-8 animate-spin text-primary" />
       </div>
     );
   }
 
   return (
-    <div className="flex min-h-screen bg-stone-50">
+    <div className="flex min-h-screen bg-fill-soft">
       {/* LEFT SIDEBAR */}
-      <div className="flex w-80 flex-col border-r bg-white p-8">
+      <div className="flex w-80 flex-col border-r bg-card p-8">
         <div className="mb-10 flex items-center gap-3">
           <Logo size={32} className="rounded-lg" />
           <span className="text-xl font-extrabold text-ink">PulseShop</span>
@@ -140,7 +140,7 @@ export function ShopDetailsOnboardingPage() {
         <h2 className="text-sm font-bold text-ink">Seller Onboarding</h2>
         <p className="mb-6 text-xs text-muted">Step {currentStep} of {STEPS.length}</p>
         
-        <div className="h-1 w-full overflow-hidden rounded-full bg-stone-100 mb-8">
+        <div className="h-1 w-full overflow-hidden rounded-full bg-fill mb-8">
           <div className="h-full bg-primary transition-all duration-300" style={{ width: `${(currentStep / STEPS.length) * 100}%` }} />
         </div>
 
@@ -152,13 +152,13 @@ export function ShopDetailsOnboardingPage() {
               <div key={step.id} className="flex gap-4">
                 <div className={cn(
                   "flex size-8 shrink-0 items-center justify-center rounded-full text-sm font-bold transition-colors",
-                  isActive ? "bg-primary text-white" : isPast ? "bg-primary/20 text-primary" : "bg-stone-100 text-stone-400"
+                  isActive ? "bg-primary text-on-accent" : isPast ? "bg-primary/20 text-primary" : "bg-fill text-faint"
                 )}>
                   {isPast ? <Check className="size-4" /> : step.id}
                 </div>
                 <div>
-                  <p className={cn("text-sm font-bold", isActive || isPast ? "text-ink" : "text-stone-400")}>{step.title}</p>
-                  <p className={cn("text-xs", isActive || isPast ? "text-muted" : "text-stone-300")}>{step.desc}</p>
+                  <p className={cn("text-sm font-bold", isActive || isPast ? "text-ink" : "text-faint")}>{step.title}</p>
+                  <p className={cn("text-xs", isActive || isPast ? "text-muted" : "text-faint")}>{step.desc}</p>
                 </div>
               </div>
             );
@@ -185,7 +185,7 @@ export function ShopDetailsOnboardingPage() {
                 
                 {/* Visual Image Upload Mocks (To be wired to Supabase Storage later) */}
                 <div className="mb-8 space-y-4">
-                  <div className="flex h-32 w-full flex-col items-center justify-center rounded-xl border-2 border-dashed border-stone-200 bg-stone-50 text-stone-400 transition-colors hover:border-primary/50 hover:bg-primary/5 cursor-pointer">
+                  <div className="flex h-32 w-full flex-col items-center justify-center rounded-xl border-2 border-dashed border-line bg-fill-soft text-faint transition-colors hover:border-primary/50 hover:bg-primary/5 cursor-pointer">
                     <ImageIcon className="mb-2 size-6" />
                     <span className="text-sm font-bold">Add Cover Photo</span>
                   </div>
@@ -213,8 +213,8 @@ export function ShopDetailsOnboardingPage() {
 
                 <div
                   className={cn(
-                    "space-y-5 rounded-xl border bg-white p-6 shadow-sm",
-                    noSocials ? "border-danger/40 bg-danger/5" : "border-stone-100",
+                    "space-y-5 rounded-xl border bg-card p-6 shadow-sm",
+                    noSocials ? "border-danger/40 bg-danger/5" : "border-line-soft",
                   )}
                 >
                   {noSocials && (
@@ -266,7 +266,7 @@ export function ShopDetailsOnboardingPage() {
         </div>
 
         {/* BOTTOM ACTION BAR */}
-        <div className="sticky bottom-0 border-t bg-white p-4 px-8 flex items-center justify-between shadow-[0_-4px_6px_-1px_rgb(0,0,0,0.05)]">
+        <div className="sticky bottom-0 border-t bg-card p-4 px-8 flex items-center justify-between shadow-[0_-4px_6px_-1px_rgb(0,0,0,0.05)]">
           {currentStep > 1 ? (
             <Button variant="outline" type="button" onClick={prevStep} disabled={isSubmitting}>
               <ArrowLeft className="mr-2 size-4" /> Back

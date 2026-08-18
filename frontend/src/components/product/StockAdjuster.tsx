@@ -44,7 +44,7 @@ export function StockAdjuster({ product }: StockAdjusterProps) {
   };
 
   const stepBtnClass =
-    "flex size-7 shrink-0 items-center justify-center rounded-lg border border-stone-200 text-muted transition-colors hover:border-primary hover:text-primary disabled:pointer-events-none disabled:opacity-40";
+    "flex size-7 shrink-0 items-center justify-center rounded-lg border border-line text-muted transition-colors hover:border-primary hover:text-primary disabled:pointer-events-none disabled:opacity-40";
 
   return (
     <div className="flex items-center gap-2">

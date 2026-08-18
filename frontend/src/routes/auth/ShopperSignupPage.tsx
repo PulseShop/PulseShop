@@ -134,9 +134,9 @@ export function ShopperSignupPage() {
         </p>
       </form>
       <div className="my-4 flex items-center gap-3 text-xs font-semibold text-muted">
-        <div className="h-px flex-1 bg-white/60" />
+        <div className="h-px flex-1 bg-edge" />
         or
-        <div className="h-px flex-1 bg-white/60" />
+        <div className="h-px flex-1 bg-edge" />
       </div>
       <GoogleButton intent="shopper" label="Continue with Google" />
     </AuthShell>

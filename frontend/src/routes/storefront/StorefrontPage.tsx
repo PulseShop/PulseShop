@@ -290,14 +290,14 @@ export function StorefrontPage() {
         // WebKit paints its own clear affordance on type="search"; ours is
         // styled and keyboard-labelled, so the native one is suppressed rather
         // than shown twice.
-        className="h-11 w-full rounded-btn border border-stone-200 bg-card pl-9 pr-10 text-sm outline-none focus:border-primary focus:ring-2 focus:ring-primary/20 [&::-webkit-search-cancel-button]:appearance-none"
+        className="h-11 w-full rounded-btn border border-line bg-card pl-9 pr-10 text-sm outline-none focus:border-primary focus:ring-2 focus:ring-primary/20 [&::-webkit-search-cancel-button]:appearance-none"
       />
       {search && (
         <button
           type="button"
           aria-label="Clear search"
           onClick={() => setSearch("")}
-          className="absolute right-1.5 top-1/2 flex size-8 -translate-y-1/2 items-center justify-center rounded-full text-muted transition-colors hover:bg-stone-100 hover:text-ink focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary"
+          className="absolute right-1.5 top-1/2 flex size-8 -translate-y-1/2 items-center justify-center rounded-full text-muted transition-colors hover:bg-fill hover:text-ink focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary"
         >
           <X className="size-4" />
         </button>
@@ -436,8 +436,8 @@ export function StorefrontPage() {
               className={cn(
                 "flex min-h-9 items-center gap-1 rounded-btn border-2 px-2.5 text-sm font-semibold transition-colors",
                 minRating === r
-                  ? "border-primary bg-primary text-white"
-                  : "border-stone-200 bg-card text-ink hover:border-primary/50",
+                  ? "border-primary bg-primary text-on-accent"
+                  : "border-line bg-card text-ink hover:border-primary/50",
               )}
             >
               <Star
@@ -492,7 +492,7 @@ export function StorefrontPage() {
           <button
             type="button"
             onClick={() => merchantQ.refetch()}
-            className="mt-1 rounded-btn bg-primary px-4 py-2 text-sm font-semibold text-white focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary focus-visible:ring-offset-2"
+            className="mt-1 rounded-btn bg-primary px-4 py-2 text-sm font-semibold text-on-accent focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary focus-visible:ring-offset-2"
           >
             Try again
           </button>
@@ -508,7 +508,7 @@ export function StorefrontPage() {
     return (
       <MobileShell nav={false}>
         <div className="flex min-h-[70dvh] flex-col items-center justify-center gap-3 p-8 text-center">
-          <div className="flex size-14 items-center justify-center rounded-full bg-stone-100">
+          <div className="flex size-14 items-center justify-center rounded-full bg-fill">
             <Store className="size-7 text-muted" />
           </div>
           <p className="text-lg font-bold text-ink">Shop not found</p>
@@ -535,7 +535,7 @@ export function StorefrontPage() {
               <Link
                 to="/dashboard"
                 aria-label="Back to dashboard"
-                className="flex size-11 items-center justify-center rounded-full text-ink hover:bg-stone-100 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary"
+                className="flex size-11 items-center justify-center rounded-full text-ink hover:bg-fill focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary"
               >
                 <ArrowLeft className="size-5" />
               </Link>
@@ -565,14 +565,14 @@ export function StorefrontPage() {
             <Link
               to="/favorites"
               aria-label="Favorites"
-              className="hidden size-10 items-center justify-center rounded-full text-ink hover:bg-stone-100 lg:flex"
+              className="hidden size-10 items-center justify-center rounded-full text-ink hover:bg-fill lg:flex"
             >
               <Heart className="size-5" />
             </Link>
             <Link
               to="/cart"
               aria-label="Cart"
-              className="relative hidden size-10 items-center justify-center rounded-full text-ink hover:bg-stone-100 lg:flex"
+              className="relative hidden size-10 items-center justify-center rounded-full text-ink hover:bg-fill lg:flex"
             >
               <ShoppingBag className="size-5" />
               {cartItemCount > 0 && (
@@ -584,12 +584,12 @@ export function StorefrontPage() {
             <Link
               to="/account"
               aria-label="Account"
-              className="hidden size-10 items-center justify-center rounded-full text-ink hover:bg-stone-100 lg:flex"
+              className="hidden size-10 items-center justify-center rounded-full text-ink hover:bg-fill lg:flex"
             >
               <UserRound className="size-5" />
             </Link>
             {merchant && (
-              <div className="ml-1 hidden items-center gap-1.5 border-l border-stone-200 pl-3 lg:flex">
+              <div className="ml-1 hidden items-center gap-1.5 border-l border-line pl-3 lg:flex">
                 <SocialLinks
                   links={merchantSocialLinks(merchant)}
                   ariaPrefix="Chat on"
@@ -689,14 +689,14 @@ export function StorefrontPage() {
             className={cn(
               "flex min-h-11 flex-shrink-0 items-center gap-1.5 rounded-full px-4 text-sm font-semibold transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary",
               activeFilterCount > 0
-                ? "bg-ink text-white"
+                ? "bg-ink text-on-accent"
                 : "bg-card text-muted shadow-soft hover:text-ink",
             )}
           >
             <SlidersHorizontal className="size-4" />
             Filters
             {activeFilterCount > 0 && (
-              <span className="flex size-5 items-center justify-center rounded-full bg-white/25 text-[11px] font-bold">
+              <span className="flex size-5 items-center justify-center rounded-full bg-card/25 text-[11px] font-bold">
                 {activeFilterCount}
               </span>
             )}
@@ -710,7 +710,7 @@ export function StorefrontPage() {
             className={cn(
               "flex min-h-11 flex-shrink-0 items-center rounded-full px-4 text-sm font-semibold transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary",
               cat === category
-                ? "bg-primary text-white"
+                ? "bg-primary text-on-accent"
                 : "bg-card text-muted shadow-soft hover:text-ink",
             )}
           >
@@ -784,7 +784,7 @@ export function StorefrontPage() {
               {/* the full match count from the server, not just what's loaded */}
               <p className="text-sm text-muted">{totalMatches} products found</p>
               <div className="flex items-center gap-2">
-                <div className="flex items-center rounded-btn border border-stone-200 bg-card p-0.5">
+                <div className="flex items-center rounded-btn border border-line bg-card p-0.5">
                   {([
                     ["grid", LayoutGrid, "Grid view"],
                     ["list", List, "List view"],
@@ -797,7 +797,7 @@ export function StorefrontPage() {
                       onClick={() => setView(v)}
                       className={cn(
                         "flex size-8 items-center justify-center rounded-[10px] transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary",
-                        view === v ? "bg-primary text-white" : "text-muted hover:text-ink",
+                        view === v ? "bg-primary text-on-accent" : "text-muted hover:text-ink",
                       )}
                     >
                       <Icon className="size-4" />
@@ -810,7 +810,7 @@ export function StorefrontPage() {
                     aria-label="Sort by"
                     value={sort}
                     onChange={(e) => setSort(e.target.value as SortOrder)}
-                    className="rounded-btn border border-stone-200 bg-card px-2.5 py-1.5 text-sm font-semibold text-ink outline-none focus:border-primary"
+                    className="rounded-btn border border-line bg-card px-2.5 py-1.5 text-sm font-semibold text-ink outline-none focus:border-primary"
                   >
                     <option value="newest">Newest</option>
                     <option value="price-asc">Price: Low to High</option>
@@ -858,7 +858,7 @@ export function StorefrontPage() {
                     type="button"
                     onClick={() => productsQ.fetchNextPage()}
                     disabled={productsQ.isFetchingNextPage}
-                    className="w-full rounded-btn border border-stone-200 bg-card px-6 py-3 text-sm font-bold text-ink shadow-soft disabled:opacity-60 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary focus-visible:ring-offset-2 lg:w-auto"
+                    className="w-full rounded-btn border border-line bg-card px-6 py-3 text-sm font-bold text-ink shadow-soft disabled:opacity-60 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary focus-visible:ring-offset-2 lg:w-auto"
                   >
                     {productsQ.isFetchingNextPage
                       ? "Loading…"
@@ -882,7 +882,7 @@ export function StorefrontPage() {
           <button
             type="button"
             onClick={() => setFiltersOpen(false)}
-            className="w-full rounded-btn bg-primary px-6 py-3 text-sm font-bold text-white"
+            className="w-full rounded-btn bg-primary px-6 py-3 text-sm font-bold text-on-accent"
           >
             Show {totalMatches} {totalMatches === 1 ? "product" : "products"}
           </button>
@@ -912,8 +912,8 @@ function FilterChip({
       className={cn(
         "flex min-h-9 items-center gap-1.5 rounded-btn border-2 px-2.5 text-sm font-semibold transition-colors",
         active
-          ? "border-primary bg-primary text-white"
-          : "border-stone-200 bg-card text-ink hover:border-primary/50",
+          ? "border-primary bg-primary text-on-accent"
+          : "border-line bg-card text-ink hover:border-primary/50",
       )}
     >
       {swatch && (

@@ -6,13 +6,18 @@ import {
   KeyRound,
   LayoutDashboard,
   LogOut,
+  MonitorSmartphone,
+  Moon,
   Package,
+  Sun,
   UserRound,
 } from "lucide-react";
 import { useEffect, useState } from "react";
 import { useForm } from "react-hook-form";
 import { Link, useNavigate } from "react-router";
 import { z } from "zod";
+import { cn } from "@/lib/utils";
+import { useTheme } from "@/stores/theme";
 import { MobileShell } from "@/components/layout/MobileShell";
 import { DesktopQuickNav } from "@/components/layout/DesktopQuickNav";
 import { PasswordRequirements } from "@/components/auth/PasswordRequirements";
@@ -70,8 +75,66 @@ export function AccountPage() {
 
       <div className="space-y-4 px-4 py-4 lg:mx-auto lg:max-w-2xl lg:px-6">
         {session ? <SignedIn /> : <Guest />}
+        <Appearance />
       </div>
     </MobileShell>
+  );
+}
+
+/* ------------------------------------------------------------------------- */
+
+/**
+ * Light / Dark / System.
+ *
+ * Outside both Guest and SignedIn on purpose: a shopper who arrived from an
+ * Instagram bio and never made an account still reads the app at night, and the
+ * choice is stored per device rather than per account (stores/theme.ts).
+ *
+ * Segmented rather than a switch because there are three states, and the third
+ * is the default. A two-position switch cannot express "follow my phone", which
+ * is the setting most people actually want.
+ */
+function Appearance() {
+  const mode = useTheme((s) => s.mode);
+  const setMode = useTheme((s) => s.setMode);
+
+  const options = [
+    { value: "light" as const, label: "Light", icon: Sun },
+    { value: "dark" as const, label: "Dark", icon: Moon },
+    { value: "system" as const, label: "System", icon: MonitorSmartphone },
+  ];
+
+  return (
+    <section className="rounded-card bg-card p-4 shadow-soft">
+      <h2 className="text-sm font-bold text-ink">Appearance</h2>
+      <div
+        role="radiogroup"
+        aria-label="Appearance"
+        className="mt-3 grid grid-cols-3 gap-1 rounded-btn bg-fill p-1"
+      >
+        {options.map(({ value, label, icon: Icon }) => (
+          <button
+            key={value}
+            type="button"
+            role="radio"
+            aria-checked={mode === value}
+            onClick={() => setMode(value)}
+            className={cn(
+              "flex min-h-11 items-center justify-center gap-1.5 rounded-[10px] text-xs font-bold transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary",
+              mode === value ? "bg-card text-ink shadow-soft" : "text-muted hover:text-ink",
+            )}
+          >
+            <Icon className="size-4 shrink-0" aria-hidden />
+            {label}
+          </button>
+        ))}
+      </div>
+      <p className="mt-2 text-xs text-muted">
+        {mode === "system"
+          ? "Follows your phone's setting."
+          : `Always ${mode}, whatever your phone is set to.`}
+      </p>
+    </section>
   );
 }
 
@@ -93,13 +156,13 @@ function Guest() {
         <div className="flex w-full max-w-xs flex-col gap-2">
           <Link
             to="/login"
-            className="rounded-btn bg-primary px-5 py-2.5 text-sm font-bold text-white shadow-soft"
+            className="rounded-btn bg-primary px-5 py-2.5 text-sm font-bold text-on-accent shadow-soft"
           >
             Sign in
           </Link>
           <Link
             to="/signup/shopper"
-            className="rounded-btn border border-stone-200 bg-card px-5 py-2.5 text-sm font-bold text-ink"
+            className="rounded-btn border border-line bg-card px-5 py-2.5 text-sm font-bold text-ink"
           >
             Create an account
           </Link>
@@ -330,9 +393,9 @@ function ChangePasswordRow() {
       <button
         type="button"
         onClick={() => setOpen(true)}
-        className="flex w-full items-center gap-3 p-4 text-left transition-colors hover:bg-stone-50"
+        className="flex w-full items-center gap-3 p-4 text-left transition-colors hover:bg-fill-soft"
       >
-        <span className="flex size-10 shrink-0 items-center justify-center rounded-full bg-stone-100">
+        <span className="flex size-10 shrink-0 items-center justify-center rounded-full bg-fill">
           <KeyRound className="size-5 text-ink" />
         </span>
         <span className="min-w-0 flex-1">
@@ -401,11 +464,11 @@ function LinkRow({
     <Link
       to={to}
       className={
-        "flex items-center gap-3 p-4 transition-colors hover:bg-stone-50" +
-        (last ? "" : " border-b border-stone-100")
+        "flex items-center gap-3 p-4 transition-colors hover:bg-fill-soft" +
+        (last ? "" : " border-b border-line-soft")
       }
     >
-      <span className="flex size-10 shrink-0 items-center justify-center rounded-full bg-stone-100">
+      <span className="flex size-10 shrink-0 items-center justify-center rounded-full bg-fill">
         <Icon className="size-5 text-ink" />
       </span>
       <span className="min-w-0 flex-1">

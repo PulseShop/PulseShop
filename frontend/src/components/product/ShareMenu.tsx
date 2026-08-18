@@ -117,19 +117,19 @@ export function ShareMenu({
           <Popover.Content
             sideOffset={8}
             align="end"
-            className="z-50 w-64 rounded-card border border-stone-100 bg-card p-1.5 shadow-modal animate-modal-in"
+            className="z-50 w-64 rounded-card border border-line-soft bg-card p-1.5 shadow-modal animate-modal-in"
           >
             {canNativeShare && (
               <button
                 type="button"
                 onClick={nativeShare}
-                className="flex w-full items-center gap-2.5 rounded-lg px-3 py-2 text-left text-sm font-semibold text-ink hover:bg-stone-50"
+                className="flex w-full items-center gap-2.5 rounded-lg px-3 py-2 text-left text-sm font-semibold text-ink hover:bg-fill-soft"
               >
                 <Share2 className="size-4 text-muted" />
                 Share...
               </button>
             )}
-            <div className="flex items-center rounded-lg hover:bg-stone-50">
+            <div className="flex items-center rounded-lg hover:bg-fill-soft">
               <button
                 type="button"
                 onClick={generateStory}
@@ -145,7 +145,7 @@ export function ShareMenu({
                   setOpen(false);
                   setTutorialOpen(true);
                 }}
-                className="flex size-8 shrink-0 items-center justify-center rounded-full text-muted hover:bg-stone-100 hover:text-ink"
+                className="flex size-8 shrink-0 items-center justify-center rounded-full text-muted hover:bg-fill hover:text-ink"
               >
                 <CircleHelp className="size-4" />
               </button>
@@ -155,7 +155,7 @@ export function ShareMenu({
               target="_blank"
               rel="noreferrer"
               onClick={() => setOpen(false)}
-              className="flex items-center gap-2.5 rounded-lg px-3 py-2 text-sm font-semibold text-ink hover:bg-stone-50"
+              className="flex items-center gap-2.5 rounded-lg px-3 py-2 text-sm font-semibold text-ink hover:bg-fill-soft"
             >
               <FacebookIcon className="size-4 text-facebook" />
               Share to Facebook
@@ -165,7 +165,7 @@ export function ShareMenu({
               target="_blank"
               rel="noreferrer"
               onClick={() => setOpen(false)}
-              className="flex items-center gap-2.5 rounded-lg px-3 py-2 text-sm font-semibold text-ink hover:bg-stone-50"
+              className="flex items-center gap-2.5 rounded-lg px-3 py-2 text-sm font-semibold text-ink hover:bg-fill-soft"
             >
               <WhatsAppIcon className="size-4 text-whatsapp" />
               Share to WhatsApp
@@ -173,7 +173,7 @@ export function ShareMenu({
             <button
               type="button"
               onClick={copyLink}
-              className="flex w-full items-center gap-2.5 rounded-lg px-3 py-2 text-left text-sm font-semibold text-ink hover:bg-stone-50"
+              className="flex w-full items-center gap-2.5 rounded-lg px-3 py-2 text-left text-sm font-semibold text-ink hover:bg-fill-soft"
             >
               <InstagramIcon className="size-4 text-instagram" />
               Copy link for Instagram

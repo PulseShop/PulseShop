@@ -23,6 +23,33 @@
   --color-ink: #1c1917;
   --color-muted: #78716c;
 
+  /* Semantic greys. These exist so dark mode has something to redefine: a
+     literal `border-stone-200` is a fixed colour and cannot flip, whereas
+     `border-line` is a role. Light values are exactly the stone shades they
+     replaced, so this is a no-op until [data-theme="dark"] moves them.
+       line      -> stone-200, the ordinary border
+       line-soft -> stone-100, hairlines and dividers
+       fill      -> stone-100, subtle filled surfaces (steppers, ghost hovers)
+       fill-soft -> stone-50,  the faintest fill (zebra rows, spec tables)
+       faint     -> stone-300, deliberately-dim marks such as unfilled stars */
+  --color-line: #e7e5e4;
+  --color-line-soft: #f5f5f4;
+  --color-fill: #f5f5f4;
+  --color-fill-soft: #fafaf9;
+  --color-faint: #d6d3d1;
+
+  /* Foreground for anything sitting ON a filled accent — bg-primary and bg-ink.
+     It has to invert with the theme: teal-700 wants white on it, but dark
+     mode's lighter teal wants near-black. Tracks --color-card in both themes,
+     which is what makes one token serve both accents. */
+  --color-on-accent: #ffffff;
+
+  /* The luminous rim on glass surfaces. A border, not a fill, and not the
+     same thing as --color-line: on glass the edge is a highlight catching
+     light, which is why it is white here and a faint white in dark rather
+     than flipping to a dark line. */
+  --color-edge: rgba(255, 255, 255, 0.7);
+
   --radius-card: 16px;
   --radius-btn: 14px;
   --radius-modal: 22px;
@@ -33,6 +60,8 @@
 }
 
 :root {
+  /* Overwritten at runtime by stores/theme.ts applyTheme(). The literal here is
+     the pre-hydration default and matches index.html's inline script. */
   color-scheme: light;
 
   /* Liquid-glass system: translucent fills + luminous edges layered over
@@ -41,6 +70,132 @@
   --glass-bg-strong: rgba(255, 255, 255, 0.78);
   --glass-border: rgba(255, 255, 255, 0.7);
   --glass-blur: 20px;
+  --shadow-glass: 0 8px 30px rgba(28, 25, 23, 0.1);
+  --glass-highlight: inset 0 1px 0 rgba(255, 255, 255, 0.75);
+}
+
+/* ---------------------------------------------------------------------------
+   Dark.
+
+   Keyed off an attribute rather than a media query because the shopper gets a
+   three-way choice (Light / Dark / System) and "System" is resolved in JS —
+   see stores/theme.ts. A bare prefers-color-scheme block could not be
+   overridden by someone who wants dark on a light phone.
+
+   This redefines roles, it does not invert the light theme. Two places where
+   that distinction does real work:
+
+   1. The teal moves UP, not down. --color-primary is teal-700 in light because
+      teal-600 fails AA against white; against a near-black surface teal-700 is
+      the one that fails, so dark takes teal-500. That is also why
+      --color-on-accent stops being white: white text on teal-500 is 2.5:1,
+      while the near-black below clears 6.9:1.
+
+   2. The glass stops being white. The whole system is translucency plus a
+      luminous top edge, and white translucency over a dark page produces grey
+      haze, not glass. Dark uses a near-black fill with a faint WHITE edge, so
+      the edge still reads as a lit rim while the fill lets the page through.
+   --------------------------------------------------------------------------- */
+:root[data-theme="dark"] {
+  color-scheme: dark;
+
+  --color-primary: #14b8a6;      /* teal-500: 7.7:1 on the dark surface */
+  --color-primary-deep: #2dd4bf; /* teal-400 — "deep" is the hover, which in
+                                    dark means brighter, not darker */
+  --color-success: #4ade80;
+  --color-success-deep: #22c55e;
+  --color-warning: #fbbf24;
+  --color-danger: #f87171;
+  --color-favorite: #fb7185;
+
+  --color-surface: #0c0a09;      /* stone-950, kept warm to match the brand */
+  --color-card: #1c1917;         /* stone-900 */
+  --color-ink: #fafaf9;          /* stone-50 */
+  --color-muted: #a8a29e;        /* stone-400: 7.0:1 on the card */
+
+  --color-line: #292524;         /* stone-800 */
+  --color-line-soft: #231f1e;
+  --color-fill: #292524;
+  --color-fill-soft: #211d1c;
+  --color-faint: #57534e;        /* stone-600: dim, still visible */
+
+  --color-on-accent: #1c1917;    /* tracks --color-card, as in light */
+  --color-edge: rgba(255, 255, 255, 0.1);
+
+  --glass-bg: rgba(28, 25, 23, 0.62);
+  --glass-bg-strong: rgba(28, 25, 23, 0.86);
+  --glass-border: rgba(255, 255, 255, 0.1);
+  --shadow-glass: 0 8px 30px rgba(0, 0, 0, 0.5);
+  --glass-highlight: inset 0 1px 0 rgba(255, 255, 255, 0.08);
+}
+
+/* The ambient bloom, dimmed. The light values are alpha-blended against a white
+   page; at the same alpha over near-black they turn into two bright smears. */
+:root[data-theme="dark"] .app-surface,
+:root[data-theme="dark"] body {
+  background-image:
+    radial-gradient(72% 55% at 10% -6%, rgba(13, 148, 136, 0.14), transparent 60%),
+    radial-gradient(58% 46% at 108% 6%, rgba(225, 29, 72, 0.08), transparent 60%),
+    radial-gradient(85% 60% at 50% 110%, rgba(13, 148, 136, 0.1), transparent 62%);
+}
+
+/* The no-backdrop-filter fallback leans opaque in both themes; the light rule
+   further down hard-codes white, which would be a white slab here. */
+@supports not ((backdrop-filter: blur(1px)) or (-webkit-backdrop-filter: blur(1px))) {
+  :root[data-theme="dark"] .glass,
+  :root[data-theme="dark"] .glass-strong,
+  :root[data-theme="dark"] .glass-nav,
+  :root[data-theme="dark"] .glass-header {
+    background: rgba(28, 25, 23, 0.94);
+  }
+}
+
+/* The sticky header's bottom hairline is a literal white in the light theme. */
+:root[data-theme="dark"] .glass-header {
+  border-bottom-color: rgba(255, 255, 255, 0.08);
+}
+
+/* ---------------------------------------------------------------------------
+   Opting a subtree back into light.
+
+   The dark rule above is `:root[data-theme="dark"]`, so it sets the variables
+   on the document element and every descendant inherits them. A nested element
+   cannot escape that by carrying data-theme="light" unless the light values are
+   declared somewhere that matches it — inheritance has no "revert to the other
+   branch". Hence the repetition below: it is the same palette the @theme block
+   puts on :root, restated at a selector a subtree can carry.
+
+   Used by DashboardShell, whose pages are not converted yet. When they are,
+   this block and that attribute both go.
+   --------------------------------------------------------------------------- */
+[data-theme="light"] {
+  color-scheme: light;
+
+  --color-primary: #0f766e;
+  --color-primary-deep: #115e59;
+  --color-success: #16a34a;
+  --color-success-deep: #15803d;
+  --color-warning: #d97706;
+  --color-danger: #dc2626;
+  --color-favorite: #e11d48;
+
+  --color-surface: #fafaf9;
+  --color-card: #ffffff;
+  --color-ink: #1c1917;
+  --color-muted: #78716c;
+
+  --color-line: #e7e5e4;
+  --color-line-soft: #f5f5f4;
+  --color-fill: #f5f5f4;
+  --color-fill-soft: #fafaf9;
+  --color-faint: #d6d3d1;
+
+  --color-on-accent: #ffffff;
+  --color-edge: rgba(255, 255, 255, 0.7);
+
+  --glass-bg: rgba(255, 255, 255, 0.6);
+  --glass-bg-strong: rgba(255, 255, 255, 0.78);
+  --glass-border: rgba(255, 255, 255, 0.7);
   --shadow-glass: 0 8px 30px rgba(28, 25, 23, 0.1);
   --glass-highlight: inset 0 1px 0 rgba(255, 255, 255, 0.75);
 }

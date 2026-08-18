@@ -78,15 +78,15 @@ function SearchResultPreview({ seo }: { seo: PageSeo }) {
   }
 
   return (
-    <div className="rounded-btn border border-stone-200 bg-white p-4">
-      <div className="mb-1 flex items-center gap-1.5 text-xs text-stone-500">
+    <div className="rounded-btn border border-line bg-card p-4">
+      <div className="mb-1 flex items-center gap-1.5 text-xs text-muted">
         <Globe className="size-3.5" aria-hidden />
         <span className="truncate">{display}</span>
       </div>
       <p className="text-base font-medium leading-snug text-[#1a0dab]">
         {clip(seo.title, 60)}
       </p>
-      <p className="mt-0.5 text-sm leading-snug text-stone-600">
+      <p className="mt-0.5 text-sm leading-snug text-muted">
         {clip(seo.description, 155) || "No description yet."}
       </p>
     </div>
@@ -95,12 +95,12 @@ function SearchResultPreview({ seo }: { seo: PageSeo }) {
 
 function SharePreview({ seo }: { seo: PageSeo }) {
   return (
-    <div className="overflow-hidden rounded-btn border border-stone-200 bg-white">
+    <div className="overflow-hidden rounded-btn border border-line bg-card">
       {seo.image && (
         <img
           src={seo.image}
           alt=""
-          className="h-32 w-full bg-stone-100 object-cover"
+          className="h-32 w-full bg-fill object-cover"
           loading="lazy"
         />
       )}

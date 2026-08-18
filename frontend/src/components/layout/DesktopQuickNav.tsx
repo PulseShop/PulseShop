@@ -19,7 +19,7 @@ export function DesktopQuickNav({ homeTo }: { homeTo?: string }) {
             className={({ isActive }) =>
               cn(
                 "relative flex size-10 items-center justify-center rounded-full transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary",
-                isActive ? "bg-primary/10 text-primary" : "text-ink hover:bg-stone-100",
+                isActive ? "bg-primary/10 text-primary" : "text-ink hover:bg-fill",
               )
             }
           >

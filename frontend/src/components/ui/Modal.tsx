@@ -39,7 +39,7 @@ export function Modal({
             </div>
             <Dialog.Close
               aria-label="Close"
-              className="flex size-9 items-center justify-center rounded-full text-muted transition-colors hover:bg-stone-100 hover:text-ink"
+              className="flex size-9 items-center justify-center rounded-full text-muted transition-colors hover:bg-fill hover:text-ink"
             >
               <X className="size-5" />
             </Dialog.Close>
@@ -68,12 +68,12 @@ export function Sheet({
       <Dialog.Portal>
         <Dialog.Overlay className="fixed inset-0 z-50 bg-ink/40 backdrop-blur-sm" />
         <Dialog.Content className="glass-strong fixed bottom-0 left-1/2 z-50 w-full max-w-[430px] -translate-x-1/2 rounded-t-modal p-5 pb-[max(1.25rem,env(safe-area-inset-bottom))] animate-sheet-up focus:outline-none">
-          <div className="mx-auto mb-4 h-1.5 w-10 rounded-full bg-stone-200" />
+          <div className="mx-auto mb-4 h-1.5 w-10 rounded-full bg-line" />
           <div className="mb-4 flex items-center justify-between">
             <Dialog.Title className="text-lg font-extrabold text-ink">{title}</Dialog.Title>
             <Dialog.Close
               aria-label="Close"
-              className="flex size-9 items-center justify-center rounded-full text-muted hover:bg-stone-100"
+              className="flex size-9 items-center justify-center rounded-full text-muted hover:bg-fill"
             >
               <X className="size-5" />
             </Dialog.Close>

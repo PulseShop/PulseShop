@@ -119,13 +119,13 @@ export function DiscountCodeSection({
           onKeyDown={(e) => e.key === "Enter" && (e.preventDefault(), void check(input, false))}
           placeholder="Discount code"
           aria-label="Discount code"
-          className="h-10 min-w-0 flex-1 rounded-btn border border-stone-200 bg-card px-3 text-sm uppercase outline-none focus:border-primary focus:ring-2 focus:ring-primary/20"
+          className="h-10 min-w-0 flex-1 rounded-btn border border-line bg-card px-3 text-sm uppercase outline-none focus:border-primary focus:ring-2 focus:ring-primary/20"
         />
         <button
           type="button"
           onClick={() => void check(input, false)}
           disabled={!input.trim() || checking}
-          className="flex items-center gap-1.5 rounded-btn bg-ink px-4 text-sm font-bold text-white disabled:opacity-50"
+          className="flex items-center gap-1.5 rounded-btn bg-ink px-4 text-sm font-bold text-on-accent disabled:opacity-50"
         >
           {checking && <Loader2 className="size-4 animate-spin" />}
           Apply

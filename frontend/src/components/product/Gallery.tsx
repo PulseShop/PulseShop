@@ -66,7 +66,7 @@ export function Gallery({
 
   return (
     <div className="space-y-2">
-      <div className={cn("relative overflow-hidden rounded-card bg-stone-100", frameClassName)}>
+      <div className={cn("relative overflow-hidden rounded-card bg-fill", frameClassName)}>
         <div
           ref={trackRef}
           onScroll={onScroll}

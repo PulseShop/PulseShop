@@ -37,7 +37,7 @@ export function PasswordRequirements({
     <div
       className={cn(
         "mt-2 rounded-xl p-3 transition-colors",
-        failed ? "bg-danger/5 ring-1 ring-danger/20" : "bg-stone-50",
+        failed ? "bg-danger/5 ring-1 ring-danger/20" : "bg-fill-soft",
       )}
       // Announce progress without spamming a screen reader on every keystroke.
       aria-live="polite"
@@ -64,7 +64,7 @@ export function PasswordRequirements({
               <Icon
                 className={cn(
                   "size-3.5 shrink-0",
-                  c.met ? "text-success" : failed ? "text-danger" : "text-stone-300",
+                  c.met ? "text-success" : failed ? "text-danger" : "text-faint",
                 )}
                 aria-hidden
               />

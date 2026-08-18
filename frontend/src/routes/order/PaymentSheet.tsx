@@ -125,7 +125,7 @@ export function PaymentSheet({
           <p className="text-center text-2xl font-extrabold text-ink">{formatKes(amount)}</p>
 
           {/* method toggle */}
-          <div className="grid grid-cols-2 gap-2 rounded-btn bg-stone-100 p-1">
+          <div className="grid grid-cols-2 gap-2 rounded-btn bg-fill p-1">
             {(["mpesa", "paypal"] as const).map((m) => (
               <button
                 key={m}
@@ -187,7 +187,7 @@ export function PaymentSheet({
 
       {stage.step === "paypal-approve" && (
         <div className="space-y-4 text-center">
-          <div className="rounded-card border border-stone-200 bg-stone-50 p-5">
+          <div className="rounded-card border border-line bg-fill-soft p-5">
             <PayPalIcon className="mx-auto size-8 text-[#003087]" />
             <p className="mt-3 text-sm font-semibold text-ink">
               Approve payment of {formatKes(amount)} to {merchantName}?

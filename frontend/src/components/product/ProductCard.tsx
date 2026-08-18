@@ -165,12 +165,12 @@ export function ProductCard({
       aria-label={isFavorite ? "Remove from favorites" : "Add to favorites"}
       aria-pressed={isFavorite}
       onClick={() => toggle(product.id)}
-      className="absolute right-2.5 top-2.5 flex size-9 items-center justify-center rounded-full bg-white/90 shadow-soft backdrop-blur transition-transform active:scale-90"
+      className="absolute right-2.5 top-2.5 flex size-9 items-center justify-center rounded-full bg-card/90 shadow-soft backdrop-blur transition-transform active:scale-90"
     >
       <Heart
         className={cn(
           "size-[18px] transition-colors",
-          isFavorite ? "fill-favorite text-favorite" : "text-stone-500",
+          isFavorite ? "fill-favorite text-favorite" : "text-muted",
         )}
       />
     </button>
@@ -257,7 +257,7 @@ export function ProductCard({
           tabIndex={-1}
           aria-hidden
         >
-          <div className="relative size-28 overflow-hidden rounded-xl bg-stone-100 sm:size-32">
+          <div className="relative size-28 overflow-hidden rounded-xl bg-fill sm:size-32">
             <ProductImage
               src={product.images[0]}
               alt=""
@@ -294,7 +294,7 @@ export function ProductCard({
               {specs.map((s) => (
                 <li
                   key={s}
-                  className="rounded-full bg-stone-100 px-2 py-0.5 text-[11px] font-medium text-muted"
+                  className="rounded-full bg-fill px-2 py-0.5 text-[11px] font-medium text-muted"
                 >
                   {s}
                 </li>
@@ -336,7 +336,7 @@ export function ProductCard({
       >
         {/* square, matching the square crop applied at upload — the frame and
             the stored image agree, so nothing gets cut off */}
-        <div className="relative aspect-square overflow-hidden bg-stone-100">
+        <div className="relative aspect-square overflow-hidden bg-fill">
           <ProductImage
             src={product.images[0]}
             // The seller's own description of the cover photo when they wrote
@@ -383,7 +383,7 @@ export function ProductCard({
           type="button"
           aria-label={addLabel}
           onClick={onAddClick}
-          className="absolute bottom-2.5 right-2.5 flex size-9 items-center justify-center rounded-full bg-primary text-white shadow-soft transition-transform active:scale-90 hover:bg-primary-deep"
+          className="absolute bottom-2.5 right-2.5 flex size-9 items-center justify-center rounded-full bg-primary text-on-accent shadow-soft transition-transform active:scale-90 hover:bg-primary-deep"
         >
           <ShoppingBag className="size-[18px]" />
         </button>

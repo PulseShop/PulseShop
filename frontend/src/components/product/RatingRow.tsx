@@ -15,7 +15,7 @@ function AverageStars({ value, compact = false }: { value: number; compact?: boo
     <div className="relative inline-flex" aria-hidden>
       <div className="flex gap-0.5">
         {STARS.map((i) => (
-          <Star key={i} className={cn(star, "shrink-0 text-stone-300")} />
+          <Star key={i} className={cn(star, "shrink-0 text-faint")} />
         ))}
       </div>
       <div className="absolute inset-y-0 left-0 overflow-hidden" style={{ width: `${pct}%` }}>
@@ -114,7 +114,7 @@ export function RatingRow({
             <Star
               className={cn(
                 "size-5",
-                i <= filled ? "fill-amber-400 text-amber-400" : "text-stone-300",
+                i <= filled ? "fill-amber-400 text-amber-400" : "text-faint",
               )}
             />
           </button>

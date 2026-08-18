@@ -11,11 +11,11 @@ export interface ButtonProps extends ButtonHTMLAttributes<HTMLButtonElement> {
 
 const variants: Record<Variant, string> = {
   primary:
-    "bg-primary text-white hover:bg-primary-deep active:scale-[0.98] shadow-soft",
-  dark: "bg-ink text-white hover:bg-stone-800 active:scale-[0.98]",
+    "bg-primary text-on-accent hover:bg-primary-deep active:scale-[0.98] shadow-soft",
+  dark: "bg-ink text-on-accent hover:bg-ink/85 active:scale-[0.98]",
   outline:
-    "border-2 border-stone-200 bg-card text-ink hover:border-primary hover:text-primary",
-  ghost: "bg-transparent text-ink hover:bg-stone-100",
+    "border-2 border-line bg-card text-ink hover:border-primary hover:text-primary",
+  ghost: "bg-transparent text-ink hover:bg-fill",
   whatsapp: "bg-whatsapp text-white hover:brightness-95 active:scale-[0.98]",
   danger: "bg-danger text-white hover:brightness-95",
 };

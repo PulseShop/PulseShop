@@ -91,7 +91,7 @@ export function LandingPage() {
               <Button
                 variant="outline"
                 size="lg"
-                className="rounded-full border-white/60 bg-white/70"
+                className="rounded-full border-edge bg-card/70"
               >
                 I already have a shop
               </Button>
@@ -167,7 +167,7 @@ export function LandingPage() {
               <Button
                 variant="outline"
                 size="lg"
-                className="rounded-full border-white/60 bg-white/70"
+                className="rounded-full border-edge bg-card/70"
               >
                 See pricing
               </Button>
@@ -210,7 +210,7 @@ function ShopPreview() {
             "bg-rose-100",
             "bg-teal-100",
             "bg-amber-100",
-            "bg-stone-200",
+            "bg-line",
             "bg-sky-100",
             "bg-primary/15",
           ].map((bg, i) => (
@@ -230,7 +230,7 @@ function ShopPreview() {
               <FacebookIcon className="size-4" />
             </span>
           </div>
-          <span className="inline-flex items-center gap-1.5 rounded-full bg-primary px-3 py-2 text-xs font-bold text-white">
+          <span className="inline-flex items-center gap-1.5 rounded-full bg-primary px-3 py-2 text-xs font-bold text-on-accent">
             <ShoppingBag className="size-3.5" /> Order now
           </span>
         </div>

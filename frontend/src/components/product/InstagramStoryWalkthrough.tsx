@@ -24,7 +24,7 @@ export function InstagramStoryWalkthrough() {
         <svg
           viewBox="0 0 400 60"
           preserveAspectRatio="none"
-          className="pointer-events-none absolute inset-x-0 top-9 h-10 w-full text-stone-200"
+          className="pointer-events-none absolute inset-x-0 top-9 h-10 w-full text-faint"
           aria-hidden
         >
           <path
@@ -41,7 +41,7 @@ export function InstagramStoryWalkthrough() {
             <div
               key={step.title}
               style={{ "--tilt": `${TILT[i]}deg`, animationDelay: `${i * 140}ms` } as React.CSSProperties}
-              className={`animate-step-swing-in flex flex-col items-center rounded-card border border-stone-100 bg-card px-3 py-4 text-center shadow-soft ${LIFT[i]}`}
+              className={`animate-step-swing-in flex flex-col items-center rounded-card border border-line-soft bg-card px-3 py-4 text-center shadow-soft ${LIFT[i]}`}
             >
               <div className="flex size-11 items-center justify-center rounded-full bg-instagram/10">
                 <step.icon className="size-5 text-instagram" />

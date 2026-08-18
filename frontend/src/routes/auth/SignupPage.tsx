@@ -193,7 +193,7 @@ export function SignupPage() {
         <div
           className={cn(
             "rounded-card border p-4",
-            noSocials ? "border-danger/40 bg-danger/5" : "border-white/60 bg-white/50",
+            noSocials ? "border-danger/40 bg-danger/5" : "border-edge bg-card/50",
           )}
         >
           <p className="text-sm font-bold text-ink">Link your socials</p>
@@ -261,9 +261,9 @@ export function SignupPage() {
         </Button>
       </form>
       <div className="my-4 flex items-center gap-3 text-xs font-semibold text-muted">
-        <div className="h-px flex-1 bg-white/60" />
+        <div className="h-px flex-1 bg-edge" />
         or
-        <div className="h-px flex-1 bg-white/60" />
+        <div className="h-px flex-1 bg-edge" />
       </div>
       <GoogleButton intent="merchant" label="Continue with Google" />
     </AuthShell>

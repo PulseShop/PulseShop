@@ -54,7 +54,7 @@ export function FaqPage() {
               </Button>
             </Link>
             <Link to="/prices">
-              <Button variant="outline" size="lg" className="rounded-full border-white/60 bg-white/70">
+              <Button variant="outline" size="lg" className="rounded-full border-edge bg-card/70">
                 See pricing
               </Button>
             </Link>

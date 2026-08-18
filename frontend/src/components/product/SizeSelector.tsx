@@ -23,8 +23,8 @@ export function SizeSelector({
             className={cn(
               "flex h-10 min-w-12 items-center justify-center rounded-btn border-2 px-3 text-sm font-semibold transition-colors",
               active
-                ? "border-primary bg-primary text-white"
-                : "border-stone-200 bg-card text-ink hover:border-primary/50",
+                ? "border-primary bg-primary text-on-accent"
+                : "border-line bg-card text-ink hover:border-primary/50",
             )}
           >
             {size}

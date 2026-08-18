@@ -154,7 +154,7 @@ export function PricesPage() {
         <div className="mt-8 overflow-x-auto rounded-modal bg-card shadow-soft">
           <table className="w-full min-w-[640px] text-left text-sm">
             <thead>
-              <tr className="border-b border-stone-100">
+              <tr className="border-b border-line-soft">
                 <th className="px-5 py-4 font-bold text-muted">Feature</th>
                 {TIERS.map((tier) => (
                   <th
@@ -174,14 +174,14 @@ export function PricesPage() {
             </thead>
             <tbody>
               {COMPARISON.map((row) => (
-                <tr key={row.feature} className="border-b border-stone-100 last:border-0">
+                <tr key={row.feature} className="border-b border-line-soft last:border-0">
                   <td className="px-5 py-3.5 font-semibold text-ink">{row.feature}</td>
                   {row.values.map((value, i) => (
                     <td key={i} className="px-5 py-3.5 text-center">
                       {value === true ? (
                         <Check className="mx-auto size-5 text-primary" aria-label="Included" />
                       ) : value === false ? (
-                        <Minus className="mx-auto size-5 text-stone-300" aria-label="Not included" />
+                        <Minus className="mx-auto size-5 text-faint" aria-label="Not included" />
                       ) : (
                         <span className="font-semibold text-ink">{value}</span>
                       )}

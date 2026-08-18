@@ -5,6 +5,39 @@
     <link rel="icon" type="image/png" href="/icons/icon-192.png" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover" />
     <meta name="theme-color" content="#0D9488" />
+
+    <!-- Theme, before first paint.
+
+         React sets this too (stores/theme.ts), but it cannot run until the
+         bundle has parsed, and until then the page paints with the light
+         palette. On a phone opening an installed dark-mode app that is a white
+         flash on every single launch. This reads the same persisted key the
+         store writes and stamps the attribute while the parser is still in
+         <head>, so the first paint is already correct.
+
+         Deliberately inline, tiny and failure-tolerant: if localStorage is
+         unavailable or the value is malformed, it falls through to the OS
+         preference, which is the default mode anyway. -->
+    <script>
+      (function () {
+        try {
+          var raw = localStorage.getItem("pulseshop-theme");
+          var mode = raw ? JSON.parse(raw).state.mode : "system";
+          var dark =
+            mode === "dark" ||
+            (mode !== "light" &&
+              window.matchMedia("(prefers-color-scheme: dark)").matches);
+          var t = dark ? "dark" : "light";
+          document.documentElement.setAttribute("data-theme", t);
+          document.documentElement.style.colorScheme = t;
+          if (dark) {
+            document
+              .querySelector('meta[name="theme-color"]')
+              .setAttribute("content", "#0C0A09");
+          }
+        } catch (e) {}
+      })();
+    </script>
     <meta name="description" content="PulseShop — social-commerce storefront. Browse, favorite, and order in one tap." />
 
     <!-- iOS ignores the web manifest entirely: without these, "Add to Home

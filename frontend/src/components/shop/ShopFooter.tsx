@@ -27,7 +27,7 @@ export function ShopFooter({ excludeId }: { excludeId?: string }) {
   if (others.length === 0) return null;
 
   return (
-    <footer className="mt-10 border-t border-stone-100 bg-card/40 px-4 py-8 lg:px-6">
+    <footer className="mt-10 border-t border-line-soft bg-card/40 px-4 py-8 lg:px-6">
       <div className="mx-auto max-w-[1180px]">
         <div className="flex items-center justify-between">
           <h2 className="flex items-center gap-2 text-sm font-bold text-ink">
@@ -48,13 +48,13 @@ export function ShopFooter({ excludeId }: { excludeId?: string }) {
             <Link
               key={shop.id}
               to={`/${shop.handle}`}
-              className="flex w-20 shrink-0 flex-col items-center gap-2 rounded-card p-2 text-center transition-colors hover:bg-stone-100 lg:w-auto"
+              className="flex w-20 shrink-0 flex-col items-center gap-2 rounded-card p-2 text-center transition-colors hover:bg-fill lg:w-auto"
             >
               {shop.avatarUrl ? (
                 <ProductImage
                   src={shop.avatarUrl}
                   alt={shop.name}
-                  className="size-14 rounded-full object-cover ring-2 ring-stone-100"
+                  className="size-14 rounded-full object-cover ring-2 ring-line-soft"
                 />
               ) : (
                 <span className="flex size-14 items-center justify-center rounded-full bg-primary/10">

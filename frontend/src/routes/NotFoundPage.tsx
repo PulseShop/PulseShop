@@ -30,14 +30,14 @@ export function NotFoundPage() {
         <div className="mt-1 flex flex-wrap items-center justify-center gap-2">
           <Link
             to="/shops"
-            className="flex items-center gap-2 rounded-btn bg-primary px-5 py-2.5 text-sm font-bold text-white focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary focus-visible:ring-offset-2"
+            className="flex items-center gap-2 rounded-btn bg-primary px-5 py-2.5 text-sm font-bold text-on-accent focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary focus-visible:ring-offset-2"
           >
             <Compass className="size-4" />
             Browse shops
           </Link>
           <Link
             to="/"
-            className="flex items-center gap-2 rounded-btn border border-stone-200 bg-card px-5 py-2.5 text-sm font-bold text-ink focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary focus-visible:ring-offset-2"
+            className="flex items-center gap-2 rounded-btn border border-line bg-card px-5 py-2.5 text-sm font-bold text-ink focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary focus-visible:ring-offset-2"
           >
             <Home className="size-4" />
             Home

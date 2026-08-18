@@ -112,7 +112,7 @@ export function ShopsPage() {
             onClick={() => (searchOpen ? closeSearch() : setSearchOpen(true))}
             className={cn(
               "flex size-11 items-center justify-center rounded-full transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary lg:size-10",
-              searchOpen ? "bg-primary text-white" : "text-ink hover:bg-stone-100",
+              searchOpen ? "bg-primary text-on-accent" : "text-ink hover:bg-fill",
             )}
           >
             {searchOpen ? <X className="size-5" /> : <Search className="size-5" />}
@@ -129,7 +129,7 @@ export function ShopsPage() {
             onChange={(e) => setSearch(e.target.value)}
             placeholder="Search shops and products…"
             aria-label="Search shops and products"
-            className="h-11 w-full rounded-btn border border-stone-200 bg-card px-3.5 text-sm outline-none focus:border-primary focus:ring-2 focus:ring-primary/20"
+            className="h-11 w-full rounded-btn border border-line bg-card px-3.5 text-sm outline-none focus:border-primary focus:ring-2 focus:ring-primary/20"
           />
         </div>
       )}
@@ -137,7 +137,7 @@ export function ShopsPage() {
       <div className="px-4 pb-6 pt-2 lg:px-6 lg:pt-4">
         {nothingFound ? (
           <div className="flex flex-col items-center gap-3 rounded-card bg-card p-8 text-center shadow-soft">
-            <div className="flex size-14 items-center justify-center rounded-full bg-stone-100">
+            <div className="flex size-14 items-center justify-center rounded-full bg-fill">
               <Search className="size-7 text-muted" />
             </div>
             <p className="font-semibold text-ink">No matches for "{term}"</p>
@@ -161,14 +161,14 @@ export function ShopsPage() {
                       <button
                         type="button"
                         onClick={() => shopsQ.refetch()}
-                        className="mt-3 rounded-btn bg-primary px-4 py-2 text-sm font-semibold text-white"
+                        className="mt-3 rounded-btn bg-primary px-4 py-2 text-sm font-semibold text-on-accent"
                       >
                         Try again
                       </button>
                     </div>
                   ) : shops.length === 0 ? (
                     <div className="flex flex-col items-center gap-3 rounded-card bg-card p-8 text-center shadow-soft lg:col-span-full">
-                      <div className="flex size-14 items-center justify-center rounded-full bg-stone-100">
+                      <div className="flex size-14 items-center justify-center rounded-full bg-fill">
                         <Store className="size-7 text-muted" />
                       </div>
                       <p className="font-semibold text-ink">No shops yet</p>
@@ -252,7 +252,7 @@ function LoadMore({
         type="button"
         onClick={onClick}
         disabled={loading}
-        className="w-full rounded-btn border border-stone-200 bg-card px-4 py-3 text-sm font-bold text-ink shadow-soft disabled:opacity-60 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary focus-visible:ring-offset-2 lg:w-auto lg:px-8"
+        className="w-full rounded-btn border border-line bg-card px-4 py-3 text-sm font-bold text-ink shadow-soft disabled:opacity-60 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary focus-visible:ring-offset-2 lg:w-auto lg:px-8"
       >
         {loading ? "Loading…" : label}
       </button>
@@ -272,7 +272,7 @@ function ShopRow({ shop }: { shop: Merchant }) {
             <img
               src={shop.avatarUrl}
               alt={shop.name}
-              className="size-12 shrink-0 rounded-full object-cover ring-2 ring-stone-100"
+              className="size-12 shrink-0 rounded-full object-cover ring-2 ring-line-soft"
             />
           ) : (
             <span className="flex size-12 shrink-0 items-center justify-center rounded-full bg-primary/10">
@@ -303,7 +303,7 @@ function ShopRow({ shop }: { shop: Merchant }) {
         </div>
       )}
 
-      <div className="mt-2.5 flex items-center gap-4 border-t border-stone-100 pt-2.5 text-xs text-muted">
+      <div className="mt-2.5 flex items-center gap-4 border-t border-line-soft pt-2.5 text-xs text-muted">
         <span className="flex items-center gap-1">
           <Package className="size-3.5" />
           {shop.stats.products} product{shop.stats.products === 1 ? "" : "s"}

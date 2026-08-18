@@ -39,7 +39,7 @@ export function QueryError({
       <div
         className={cn(
           "flex size-14 items-center justify-center rounded-full",
-          offline ? "bg-stone-100" : "bg-danger/10",
+          offline ? "bg-fill" : "bg-danger/10",
         )}
       >
         <Icon className={cn("size-7", offline ? "text-muted" : "text-danger")} />
@@ -57,7 +57,7 @@ export function QueryError({
           type="button"
           onClick={onRetry}
           disabled={retrying}
-          className="rounded-btn bg-primary px-5 py-2.5 text-sm font-bold text-white disabled:opacity-60 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary focus-visible:ring-offset-2"
+          className="rounded-btn bg-primary px-5 py-2.5 text-sm font-bold text-on-accent disabled:opacity-60 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary focus-visible:ring-offset-2"
         >
           {retrying ? "Retrying…" : "Try again"}
         </button>

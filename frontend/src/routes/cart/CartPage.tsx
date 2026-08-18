@@ -47,7 +47,7 @@ export function CartPage() {
           <DesktopQuickNav />
         </header>
         <div className="flex flex-col items-center gap-3 px-6 py-12 text-center">
-          <div className="flex size-16 items-center justify-center rounded-full bg-stone-100">
+          <div className="flex size-16 items-center justify-center rounded-full bg-fill">
             <ShoppingBag className="size-7 text-muted" />
           </div>
           <p className="text-lg font-bold text-ink">Your cart is empty</p>
@@ -114,7 +114,7 @@ export function CartPage() {
                       aria-label="Decrease quantity"
                       onClick={() => setQty(item.productId, item.size, item.color, item.qty - 1)}
                       disabled={item.qty <= 1}
-                      className="flex size-7 items-center justify-center rounded-full bg-stone-100 disabled:opacity-40"
+                      className="flex size-7 items-center justify-center rounded-full bg-fill disabled:opacity-40"
                     >
                       <Minus className="size-3.5" />
                     </button>
@@ -124,7 +124,7 @@ export function CartPage() {
                       aria-label="Increase quantity"
                       onClick={() => setQty(item.productId, item.size, item.color, item.qty + 1)}
                       disabled={item.qty >= item.stockQty}
-                      className="flex size-7 items-center justify-center rounded-full bg-stone-100 disabled:opacity-40"
+                      className="flex size-7 items-center justify-center rounded-full bg-fill disabled:opacity-40"
                     >
                       <Plus className="size-3.5" />
                     </button>
@@ -153,7 +153,7 @@ export function CartPage() {
               initialCode={storedCode}
             />
           )}
-          <div className="flex items-center justify-between border-t border-stone-100 pt-3 text-sm">
+          <div className="flex items-center justify-between border-t border-line-soft pt-3 text-sm">
             <span className="font-semibold text-muted">Subtotal</span>
             <span className="font-bold text-ink">{formatKes(subtotal)}</span>
           </div>
@@ -163,7 +163,7 @@ export function CartPage() {
               <span className="font-semibold text-success">−{formatKes(discountKes)}</span>
             </div>
           )}
-          <div className="flex items-center justify-between border-t border-stone-100 pt-3">
+          <div className="flex items-center justify-between border-t border-line-soft pt-3">
             <span className="text-base font-bold text-ink">Total</span>
             <span className="text-lg font-extrabold text-primary">{formatKes(displayTotal)}</span>
           </div>

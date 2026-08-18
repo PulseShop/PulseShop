@@ -78,10 +78,10 @@ export function InstallPrompt() {
     <div
       role="dialog"
       aria-label="Install PulseShop"
-      className="above-bar-2 fixed-stable fixed left-1/2 z-50 w-[calc(100%-1.5rem)] max-w-[398px] -translate-x-1/2 rounded-card bg-ink p-3.5 text-white shadow-modal animate-toast-in sm:w-[calc(100%-2rem)] lg:bottom-6 lg:left-auto lg:right-6 lg:w-80 lg:translate-x-0"
+      className="above-bar-2 fixed-stable fixed left-1/2 z-50 w-[calc(100%-1.5rem)] max-w-[398px] -translate-x-1/2 rounded-card bg-ink p-3.5 text-on-accent shadow-modal animate-toast-in sm:w-[calc(100%-2rem)] lg:bottom-6 lg:left-auto lg:right-6 lg:w-80 lg:translate-x-0"
     >
       <div className="flex items-start gap-3">
-        <span className="flex size-10 shrink-0 items-center justify-center rounded-xl bg-white/10">
+        <span className="flex size-10 shrink-0 items-center justify-center rounded-xl bg-on-accent/10">
           <Logo size={24} />
         </span>
 
@@ -89,7 +89,7 @@ export function InstallPrompt() {
           {variant === "chromium" && (
             <>
               <p className="text-sm font-semibold leading-snug">Install PulseShop</p>
-              <p className="mt-1 text-xs leading-relaxed text-white/70">
+              <p className="mt-1 text-xs leading-relaxed text-on-accent/70">
                 Add it to your home screen for one-tap access.
               </p>
             </>
@@ -100,11 +100,11 @@ export function InstallPrompt() {
               <p className="text-sm font-semibold leading-snug">Install PulseShop</p>
               {/* iOS has no install API — the user has to do it by hand, so the
                   only thing worth showing is exactly where the buttons are. */}
-              <p className="mt-1 flex flex-wrap items-center gap-x-1 gap-y-0.5 text-xs leading-relaxed text-white/70">
+              <p className="mt-1 flex flex-wrap items-center gap-x-1 gap-y-0.5 text-xs leading-relaxed text-on-accent/70">
                 Tap
                 <Share className="inline size-3.5 shrink-0" aria-label="the Share button" />
                 then
-                <span className="inline-flex items-center gap-1 font-semibold text-white">
+                <span className="inline-flex items-center gap-1 font-semibold text-on-accent">
                   <SquarePlus className="size-3.5 shrink-0" aria-hidden />
                   Add to Home Screen
                 </span>
@@ -115,9 +115,9 @@ export function InstallPrompt() {
           {variant === "in-app" && (
             <>
               <p className="text-sm font-semibold leading-snug">Open in your browser</p>
-              <p className="mt-1 text-xs leading-relaxed text-white/70">
+              <p className="mt-1 text-xs leading-relaxed text-on-accent/70">
                 Tap the menu (⋯) and choose{" "}
-                <span className="font-semibold text-white">Open in browser</span> to install
+                <span className="font-semibold text-on-accent">Open in browser</span> to install
                 PulseShop.
               </p>
             </>
@@ -128,7 +128,7 @@ export function InstallPrompt() {
           type="button"
           onClick={dismiss}
           aria-label="Dismiss"
-          className="-mr-1 -mt-1 flex size-8 shrink-0 items-center justify-center rounded-full text-white/60 transition-colors hover:bg-white/10 hover:text-white"
+          className="-mr-1 -mt-1 flex size-8 shrink-0 items-center justify-center rounded-full text-on-accent/60 transition-colors hover:bg-on-accent/10 hover:text-on-accent"
         >
           <X className="size-4" />
         </button>
@@ -142,7 +142,7 @@ export function InstallPrompt() {
         <button
           type="button"
           onClick={install}
-          className="mt-3 flex min-h-11 w-full items-center justify-center gap-1.5 rounded-btn bg-white px-3 text-sm font-bold text-ink transition-transform active:scale-[0.98]"
+          className="mt-3 flex min-h-11 w-full items-center justify-center gap-1.5 rounded-btn bg-on-accent px-3 text-sm font-bold text-ink transition-transform active:scale-[0.98]"
         >
           <Download className="size-4" />
           Install

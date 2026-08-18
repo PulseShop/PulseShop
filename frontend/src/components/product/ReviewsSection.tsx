@@ -91,7 +91,7 @@ export function ReviewsSection({
                 className="-m-0.5 p-0.5 transition-transform active:scale-90"
               >
                 <Star
-                  className={cn("size-7", i <= filled ? "fill-amber-400 text-amber-400" : "text-stone-300")}
+                  className={cn("size-7", i <= filled ? "fill-amber-400 text-amber-400" : "text-faint")}
                 />
               </button>
             ))}
@@ -101,7 +101,7 @@ export function ReviewsSection({
             onChange={(e) => setComment(e.target.value.slice(0, MAX_COMMENT))}
             placeholder="Share what you thought — fit, quality, delivery…"
             rows={3}
-            className="w-full resize-none rounded-btn border border-stone-200 bg-white px-3 py-2 text-sm outline-none focus:border-primary focus:ring-2 focus:ring-primary/20"
+            className="w-full resize-none rounded-btn border border-line bg-card px-3 py-2 text-sm outline-none focus:border-primary focus:ring-2 focus:ring-primary/20"
           />
           <div className="flex items-center justify-between">
             <span className="text-xs text-muted">
@@ -111,7 +111,7 @@ export function ReviewsSection({
               type="button"
               disabled={stars === 0 || submitMut.isPending}
               onClick={() => submitMut.mutate()}
-              className="flex items-center gap-2 rounded-btn bg-primary px-4 py-2 text-sm font-bold text-white disabled:opacity-50 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary focus-visible:ring-offset-2"
+              className="flex items-center gap-2 rounded-btn bg-primary px-4 py-2 text-sm font-bold text-on-accent disabled:opacity-50 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary focus-visible:ring-offset-2"
             >
               {submitMut.isPending && <Loader2 className="size-4 animate-spin" />}
               {myRating != null ? "Update review" : "Post review"}
@@ -122,7 +122,7 @@ export function ReviewsSection({
 
       {/* the reason there's no form, when there isn't one */}
       {!canReview && !isOwner && (
-        <div className="flex items-center gap-2 rounded-card bg-stone-50 px-4 py-3 text-sm text-muted">
+        <div className="flex items-center gap-2 rounded-card bg-fill-soft px-4 py-3 text-sm text-muted">
           <Lock className="size-4 shrink-0" />
           {signedIn
             ? "Only buyers who've ordered this product can leave a review."
@@ -153,7 +153,7 @@ export function ReviewsSection({
                 {STARS.map((s) => (
                   <Star
                     key={s}
-                    className={cn("size-3.5", s <= r.stars ? "fill-amber-400 text-amber-400" : "text-stone-300")}
+                    className={cn("size-3.5", s <= r.stars ? "fill-amber-400 text-amber-400" : "text-faint")}
                   />
                 ))}
               </div>
@@ -163,7 +163,7 @@ export function ReviewsSection({
                   Visually subordinate on purpose: it is a response, not a
                   second review, and it must never read as one. */}
               {r.merchantReply?.trim() && (
-                <div className="mt-3 rounded-btn border-l-2 border-primary/40 bg-stone-50 py-2.5 pl-3 pr-3">
+                <div className="mt-3 rounded-btn border-l-2 border-primary/40 bg-fill-soft py-2.5 pl-3 pr-3">
                   <div className="flex items-center gap-1.5">
                     <Store className="size-3.5 shrink-0 text-primary" aria-hidden />
                     <span className="text-xs font-bold text-ink">

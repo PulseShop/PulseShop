@@ -20,13 +20,13 @@ export function ProductSpecs({ product }: { product: Product }) {
   return (
     <section className="space-y-2">
       <h2 className="text-sm font-bold text-ink">Specifications</h2>
-      <dl className="overflow-hidden rounded-card border border-stone-100">
+      <dl className="overflow-hidden rounded-card border border-line-soft">
         {rows.map((r, i) => (
           <div
             key={r.label}
             className={cn(
               "flex items-baseline justify-between gap-4 px-3.5 py-2.5 text-sm",
-              i % 2 === 0 ? "bg-stone-50/70" : "bg-card",
+              i % 2 === 0 ? "bg-fill-soft/70" : "bg-card",
             )}
           >
             <dt className="shrink-0 font-medium text-muted">{r.label}</dt>
@@ -37,7 +37,7 @@ export function ProductSpecs({ product }: { product: Product }) {
         ))}
       </dl>
       {notes && (
-        <div className="rounded-card bg-stone-50 p-3 text-sm">
+        <div className="rounded-card bg-fill-soft p-3 text-sm">
           <p className="font-semibold text-ink">Also included / modifications</p>
           <p className="mt-1 whitespace-pre-line leading-relaxed text-ink/80">{notes}</p>
         </div>

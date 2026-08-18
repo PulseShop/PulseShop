@@ -12,6 +12,7 @@ import "./styles/tokens.css";
 
 import { ErrorBoundary } from "@/components/ErrorBoundary";
 import { installGlobalErrorReporting } from "@/lib/reportError";
+import { applyTheme, useTheme, watchSystemTheme } from "@/stores/theme";
 import { InstallPrompt } from "@/components/layout/InstallPrompt";
 import { Toaster } from "@/components/ui/Toaster";
 import { useCartSync } from "@/hooks/useCart";
@@ -57,6 +58,18 @@ registerSW({ immediate: true });
 // this catches the rest (event handlers, timers, unhandled promise rejections),
 // which is where most real failures on a phone actually happen.
 installGlobalErrorReporting();
+
+/**
+ * Theme.
+ *
+ * index.html has already stamped the attribute before first paint from raw
+ * localStorage; this re-applies it from the hydrated store (the two agree, but
+ * the store is the one that stays right after a change) and starts following
+ * the OS. watchSystemTheme only acts while the mode is "system", so someone who
+ * explicitly picked Light keeps it when their phone flips at sunset.
+ */
+applyTheme(useTheme.getState().mode);
+watchSystemTheme();
 
 // Keep the persisted Zustand session (stores/auth) in sync with Supabase's own
 // auth state. Without this, a token that expires or is revoked server-side —

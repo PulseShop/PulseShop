@@ -384,7 +384,7 @@ export function ProductDetailPage() {
             type="button"
             aria-label="Go back"
             onClick={goBack}
-            className="flex size-11 shrink-0 items-center justify-center rounded-full bg-transparent transition-transform focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary active:scale-90 lg:hover:bg-stone-100"
+            className="flex size-11 shrink-0 items-center justify-center rounded-full bg-transparent transition-transform focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary active:scale-90 lg:hover:bg-fill"
           >
             <ArrowLeft className="size-5" />
           </button>
@@ -402,7 +402,7 @@ export function ProductDetailPage() {
             onClick={() => setSearchOpen((v) => !v)}
             className={cn(
               "flex size-10 items-center justify-center rounded-full shadow-soft transition-colors lg:shadow-none",
-              searchOpen ? "bg-primary text-white" : "bg-card text-ink lg:bg-transparent lg:hover:bg-stone-100",
+              searchOpen ? "bg-primary text-on-accent" : "bg-card text-ink lg:bg-transparent lg:hover:bg-fill",
             )}
           >
             <Search className="size-5" />
@@ -410,14 +410,14 @@ export function ProductDetailPage() {
           <Link
             to="/favorites"
             aria-label="Favorites"
-            className="hidden size-10 items-center justify-center rounded-full text-ink hover:bg-stone-100 lg:flex"
+            className="hidden size-10 items-center justify-center rounded-full text-ink hover:bg-fill lg:flex"
           >
             <Heart className="size-5" />
           </Link>
           <Link
             to="/cart"
             aria-label="Cart"
-            className="relative hidden size-10 items-center justify-center rounded-full text-ink hover:bg-stone-100 lg:flex"
+            className="relative hidden size-10 items-center justify-center rounded-full text-ink hover:bg-fill lg:flex"
           >
             <ShoppingBag className="size-5" />
             {cartItemCount > 0 && (
@@ -432,12 +432,12 @@ export function ProductDetailPage() {
           <Link
             to="/account"
             aria-label="Account"
-            className="flex size-10 items-center justify-center rounded-full bg-card text-ink shadow-soft transition-colors hover:bg-stone-100 lg:bg-transparent lg:shadow-none"
+            className="flex size-10 items-center justify-center rounded-full bg-card text-ink shadow-soft transition-colors hover:bg-fill lg:bg-transparent lg:shadow-none"
           >
             <UserRound className="size-5" />
           </Link>
           {desktopLinks.length > 0 && (
-            <div className="ml-1 hidden items-center gap-1.5 border-l border-stone-200 pl-3 lg:flex">
+            <div className="ml-1 hidden items-center gap-1.5 border-l border-line pl-3 lg:flex">
               <SocialLinks links={desktopLinks} ariaPrefix="Chat on" size="size-9" iconSize="size-4" />
             </div>
           )}
@@ -452,7 +452,7 @@ export function ProductDetailPage() {
             onChange={(e) => setSearchQuery(e.target.value)}
             onKeyDown={(e) => e.key === "Enter" && submitSearch()}
             placeholder="Search products…"
-            className="h-11 w-full max-w-md rounded-btn border border-stone-200 bg-card px-3.5 text-sm outline-none focus:border-primary focus:ring-2 focus:ring-primary/20"
+            className="h-11 w-full max-w-md rounded-btn border border-line bg-card px-3.5 text-sm outline-none focus:border-primary focus:ring-2 focus:ring-primary/20"
           />
         </div>
       )}
@@ -624,7 +624,7 @@ export function ProductDetailPage() {
             glass bar at the bottom of this file.
           */}
           <aside className="hidden lg:block lg:self-stretch">
-            <div className="sticky top-20 space-y-4 rounded-card border border-stone-100 bg-card p-4 shadow-soft">
+            <div className="sticky top-20 space-y-4 rounded-card border border-line-soft bg-card p-4 shadow-soft">
               <div>
                 <p className="text-2xl font-extrabold text-primary">
                   {showFrom && <span className="text-sm font-medium text-muted">from </span>}
@@ -667,7 +667,7 @@ export function ProductDetailPage() {
                         aria-label="Decrease quantity"
                         onClick={() => setQty(qty - 1)}
                         disabled={qty <= 1}
-                        className="flex size-8 items-center justify-center rounded-full bg-stone-100 disabled:opacity-40"
+                        className="flex size-8 items-center justify-center rounded-full bg-fill disabled:opacity-40"
                       >
                         <Minus className="size-3.5" />
                       </button>
@@ -676,7 +676,7 @@ export function ProductDetailPage() {
                         type="button"
                         aria-label="Increase quantity"
                         onClick={() => setQty(Math.min(qty + 1, product.stockQty))}
-                        className="flex size-8 items-center justify-center rounded-full bg-stone-100"
+                        className="flex size-8 items-center justify-center rounded-full bg-fill"
                       >
                         <Plus className="size-3.5" />
                       </button>
@@ -684,7 +684,7 @@ export function ProductDetailPage() {
                   </div>
 
                   {desktopLinks.length > 0 && (
-                    <div className="grid grid-cols-3 gap-2 rounded-btn bg-stone-100 p-1">
+                    <div className="grid grid-cols-3 gap-2 rounded-btn bg-fill p-1">
                       {CHANNELS.map(({ id: ch, label, icon: Icon }) => {
                         const available = Boolean(merchant?.contacts[ch]);
                         return (
@@ -796,18 +796,18 @@ export function ProductDetailPage() {
             type="button"
             aria-label={isFavorite ? "Remove from favorites" : "Add to favorites"}
             onClick={() => toggle(product.id)}
-            className="flex size-10 shrink-0 items-center justify-center rounded-full border border-white/60 bg-white/70 text-ink"
+            className="flex size-10 shrink-0 items-center justify-center rounded-full border border-edge bg-card/70 text-ink"
           >
             <Heart className={cn("size-4.5", isFavorite ? "fill-favorite text-favorite" : "text-ink")} />
           </button>
           <ShareMenu
             product={product}
-            triggerClassName="flex size-10 shrink-0 items-center justify-center rounded-full border border-white/60 bg-white/70 text-ink"
+            triggerClassName="flex size-10 shrink-0 items-center justify-center rounded-full border border-edge bg-card/70 text-ink"
           />
           <Button
             variant="outline"
             size="md"
-            className="flex-1 whitespace-nowrap rounded-full border-white/60 bg-white/70 px-2"
+            className="flex-1 whitespace-nowrap rounded-full border-edge bg-card/70 px-2"
             disabled={soldOut}
             onClick={handleAddToCart}
           >

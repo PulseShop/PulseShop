@@ -334,7 +334,7 @@ export function CheckoutPage() {
             ))}
 
             {/* discount code */}
-            <div className="border-t border-stone-100 pt-3">
+            <div className="border-t border-line-soft pt-3">
               <DiscountCodeSection
                 merchantId={merchant.id}
                 items={items.map((i) => ({ productId: i.productId, qty: i.qty }))}
@@ -349,7 +349,7 @@ export function CheckoutPage() {
               />
             </div>
 
-            <div className="space-y-1.5 border-t border-stone-100 pt-3">
+            <div className="space-y-1.5 border-t border-line-soft pt-3">
               {applied?.preview.valid && (
                 <>
                   <div className="flex items-center justify-between text-sm">
@@ -397,7 +397,7 @@ export function CheckoutPage() {
 
             {/* channel selector + context notice — only channels the seller set up are pickable */}
             <div className="space-y-3 rounded-card bg-card p-4 shadow-soft">
-              <div className="grid grid-cols-3 gap-2 rounded-btn bg-stone-100 p-1">
+              <div className="grid grid-cols-3 gap-2 rounded-btn bg-fill p-1">
                 {channels.map(({ id: ch, label, icon: Icon }) => {
                   const available = Boolean(merchant.contacts[ch]);
                   return (
@@ -432,7 +432,7 @@ export function CheckoutPage() {
                 <span className="font-bold text-ink capitalize">{channel}</span>. They'll confirm stock
                 and delivery.
               </p>
-              <div className="flex items-center gap-2 rounded-btn bg-stone-50 px-3 py-2 text-xs">
+              <div className="flex items-center gap-2 rounded-btn bg-fill-soft px-3 py-2 text-xs">
                 <Truck className="size-4 shrink-0 text-primary" />
                 <span className="text-muted">
                   This shop offers{" "}

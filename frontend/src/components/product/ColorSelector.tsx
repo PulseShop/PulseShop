@@ -35,8 +35,8 @@ export function ColorSelector({
             className={cn(
               "flex h-10 items-center gap-2 rounded-btn border-2 pl-2 pr-3 text-sm font-semibold transition-colors",
               active
-                ? "border-primary bg-primary text-white"
-                : "border-stone-200 bg-card text-ink hover:border-primary/50",
+                ? "border-primary bg-primary text-on-accent"
+                : "border-line bg-card text-ink hover:border-primary/50",
             )}
           >
             <span

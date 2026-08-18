@@ -275,7 +275,7 @@ export function OrderPage() {
               <Link
                 to={productHref(product)}
                 aria-label="Edit selection"
-                className="flex size-8 items-center justify-center rounded-full text-muted hover:bg-stone-100"
+                className="flex size-8 items-center justify-center rounded-full text-muted hover:bg-fill"
               >
                 <Pencil className="size-4" />
               </Link>
@@ -288,7 +288,7 @@ export function OrderPage() {
                   aria-label="Decrease quantity"
                   onClick={() => setQty(qty - 1)}
                   disabled={qty <= 1}
-                  className="flex size-7 items-center justify-center rounded-full bg-stone-100 disabled:opacity-40"
+                  className="flex size-7 items-center justify-center rounded-full bg-fill disabled:opacity-40"
                 >
                   <Minus className="size-3.5" />
                 </button>
@@ -297,7 +297,7 @@ export function OrderPage() {
                   type="button"
                   aria-label="Increase quantity"
                   onClick={() => setQty(Math.min(qty + 1, product.stockQty))}
-                  className="flex size-7 items-center justify-center rounded-full bg-stone-100"
+                  className="flex size-7 items-center justify-center rounded-full bg-fill"
                 >
                   <Plus className="size-3.5" />
                 </button>
@@ -332,7 +332,7 @@ export function OrderPage() {
 
         {/* channel selector + context notice — only channels the seller set up are pickable */}
         <div className="space-y-3 rounded-card bg-card p-4 shadow-soft">
-          <div className="grid grid-cols-3 gap-2 rounded-btn bg-stone-100 p-1">
+          <div className="grid grid-cols-3 gap-2 rounded-btn bg-fill p-1">
             {channels.map(({ id: ch, label, icon: Icon }) => {
               const available = Boolean(merchant.contacts[ch]);
               return (
