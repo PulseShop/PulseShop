@@ -42,7 +42,9 @@ export function LoginPage() {
   const [resetting, setResetting] = useState(false);
   // Which button was pressed — drives the per-button spinner. The account's
   // real type still governs where we land; a mismatch just gets a short note.
-  const [pendingRole, setPendingRole] = useState<"shopper" | "merchant" | null>(null);
+  const [pendingRole, setPendingRole] = useState<"shopper" | "merchant" | null>(
+    null,
+  );
   const captcha = useCaptcha();
 
   const onForgotPassword = async () => {
@@ -168,7 +170,7 @@ export function LoginPage() {
             ) : (
               <ShoppingBag className="size-4" />
             )}
-            Sign in as Buyer
+            Sign in to Buy
           </Button>
           <Button
             type="button"
@@ -182,14 +184,14 @@ export function LoginPage() {
             ) : (
               <Store className="size-4" />
             )}
-            Sign in as Seller
+            Sign in to Sell
           </Button>
         </div>
       </form>
       <div className="my-4 flex items-center gap-3 text-xs font-semibold text-muted">
-        <div className="h-px flex-1 bg-white/60" />
+        <div className="h-px flex-1 bg-edge" />
         or
-        <div className="h-px flex-1 bg-white/60" />
+        <div className="h-px flex-1 bg-edge" />
       </div>
       <GoogleButton intent="login" label="Continue with Google" />
     </AuthShell>

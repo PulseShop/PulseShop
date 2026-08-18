@@ -3,6 +3,8 @@ import { AlertTriangle, ImagePlus, Loader2, LogOut, Mail } from "lucide-react";
 import { useEffect, useMemo, useRef, useState } from "react";
 import { useNavigate } from "react-router";
 import { DashboardShell } from "@/components/layout/DashboardShell";
+import { PlanSection } from "./PlanSection";
+import { PromotionsSection } from "./PromotionsSection";
 import { Button } from "@/components/ui/Button";
 import { Input, Textarea } from "@/components/ui/Input";
 import { Modal } from "@/components/ui/Modal";
@@ -360,6 +362,10 @@ export function SettingsPage() {
                 </div>
               </section>
             )}
+
+            <PlanSection currentPlan={merchant?.plan} />
+
+            <PromotionsSection canPromoteHint={merchant?.plan !== "explorer"} />
 
             {/* account */}
             <section className="rounded-card bg-card p-6 shadow-soft">

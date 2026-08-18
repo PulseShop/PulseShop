@@ -3,11 +3,15 @@ import { Link, NavLink } from "react-router";
 import { Button } from "@/components/ui/Button";
 import { cn } from "@/lib/utils";
 
+/* These pages sell PulseShop to a seller, so "Home" is the pitch at /welcome,
+   not the marketplace that now owns "/". "Browse shops" is the way back out to
+   the shopper side for anyone who arrived here first. */
 const NAV_LINKS = [
-  { to: "/", label: "Home", end: true },
+  { to: "/welcome", label: "Home", end: true },
   { to: "/prices", label: "Prices" },
   { to: "/about", label: "About" },
   { to: "/faq", label: "FAQ" },
+  { to: "/", label: "Browse shops", end: true },
 ] as const;
 
 function NavLinks({ className }: { className?: string }) {
@@ -48,7 +52,7 @@ export function MarketingShell({ children }: { children: ReactNode }) {
               same art with the type recoloured (scripts/generate-icons.mjs).
               Swapped in CSS, not React, so it is already correct on the first
               paint that index.html's pre-paint script sets up. */}
-          <Link to="/" aria-label="PulseShop home" className="flex items-center">
+          <Link to="/welcome" aria-label="PulseShop home" className="flex items-center">
             <img
               src="/icons/for_darkmode.png"
               alt="PulseShop"

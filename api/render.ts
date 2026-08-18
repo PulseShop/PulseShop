@@ -46,6 +46,7 @@ import {
   renderHead,
   shopSeo,
   shopsSeo,
+  welcomeSeo,
 } from "./_seo";
 
 const SUPABASE_URL = process.env.SUPABASE_URL || process.env.VITE_SUPABASE_URL || "";
@@ -216,6 +217,7 @@ async function resolve(pathname: string, origin: string): Promise<Resolution> {
     if (first === "prices") return { kind: "page", seo: pricesSeo(origin) };
     if (first === "about") return { kind: "page", seo: aboutSeo(origin) };
     if (first === "faq") return { kind: "page", seo: faqSeo(origin) };
+    if (first === "welcome") return { kind: "page", seo: welcomeSeo(origin) };
   }
 
   /**

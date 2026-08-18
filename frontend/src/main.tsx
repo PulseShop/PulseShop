@@ -51,6 +51,7 @@ import { ProductDetailPage } from "@/routes/product/ProductDetailPage";
 import { StorefrontPage } from "@/routes/storefront/StorefrontPage";
 import { RequireMerchant } from "./routes/auth/RequireAuth";
 import { AuthCallbackPage } from "./routes/auth/AuthCallbackPage";
+import { MarketplacePage } from "@/routes/marketplace/MarketplacePage";
 
 registerSW({ immediate: true });
 
@@ -194,7 +195,11 @@ createRoot(document.getElementById("root")!).render(
         <BrowserRouter>
           <AppSync />
           <Routes>
-            <Route path="/" element={<LandingPage />} />
+            {/* The front door is the marketplace now. The seller pitch that
+                used to live here is still at /welcome, which is where the
+                marketing nav points; landing a shopper on a sales page for
+                merchants was always the wrong first impression. */}
+            <Route path="/" element={<MarketplacePage />} />
             <Route path="/welcome" element={<LandingPage />} />
             <Route path="/prices" element={<PricesPage />} />
             <Route path="/about" element={<AboutPage />} />

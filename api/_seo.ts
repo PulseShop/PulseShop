@@ -250,6 +250,31 @@ export function homeSeo(origin: string): PageSeo {
   };
 }
 
+/**
+ * The seller pitch, now at /welcome rather than "/" — the marketplace owns the
+ * root, so this needs its own indexable entry rather than sharing homeSeo(),
+ * which is written for the shopper reading it.
+ */
+export function welcomeSeo(origin: string): PageSeo {
+  return {
+    title: `${SITE_NAME} | Turn your bio link into a real store`,
+    description:
+      "Open a hosted shop behind your Instagram, Facebook or WhatsApp bio link. List products, take orders on the apps you already use, and pay nothing to start.",
+    canonical: `${origin}/welcome`,
+    image: absolute(origin, DEFAULT_IMAGE),
+    robots: true,
+    ogType: "website",
+    jsonLd: [
+      {
+        "@context": "https://schema.org",
+        "@type": "WebPage",
+        name: `${SITE_NAME} for sellers`,
+        url: `${origin}/welcome`,
+      },
+    ],
+  };
+}
+
 export function shopsSeo(origin: string): PageSeo {
   return {
     title: `All shops | ${SITE_NAME}`,

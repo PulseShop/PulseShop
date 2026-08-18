@@ -19,7 +19,10 @@ import type {
   PcSpecs,
   PhoneSpecs,
   PlacedOrderRef,
+  Plan,
+  PlanUpgradeRequest,
   Product,
+  Promotion,
   ProductReview,
   ProductType,
   ShopFacets,
@@ -462,8 +465,33 @@ export interface StorageService {
   deleteImage(url: string): Promise<void>;
 }
 
+/**
+ * Paid placement in the marketplace banner, and the plan that unlocks it.
+ *
+ * `listActive` is the buyer side and needs no session. Everything else is the
+ * seller's own shop; the database enforces both ownership and the plan gate
+ * (migration 0045), so these are convenience, not the boundary.
+ */
+export interface PromotionService {
+  listActive(limit?: number): Promise<Promotion[]>;
+  listMine(): Promise<Promotion[]>;
+  create(productId: string, headline?: string | null): Promise<void>;
+  remove(id: string): Promise<void>;
+  /** Whether this shop's plan allows promoting at all. */
+  canPromote(): Promise<boolean>;
+}
+
+export interface PlanService {
+  /** The shop's open request, if it has one. */
+  myRequest(): Promise<PlanUpgradeRequest | null>;
+  request(plan: Exclude<Plan, "explorer">): Promise<void>;
+  cancelRequest(id: string): Promise<void>;
+}
+
 export interface Services {
   auth: AuthService;
+  promotions: PromotionService;
+  plans: PlanService;
   products: ProductService;
   orders: OrderService;
   analytics: AnalyticsService;

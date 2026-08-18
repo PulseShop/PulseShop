@@ -17,7 +17,7 @@ import {
   WhatsAppIcon,
 } from "@/components/ui/BrandIcons";
 import { useSeo } from "@/hooks/useSeo";
-import { homeSeo } from "@/lib/seo";
+import { welcomeSeo } from "@/lib/seo";
 import { MarketingShell } from "./MarketingShell";
 
 const steps = [
@@ -62,7 +62,7 @@ const features = [
 ];
 
 export function LandingPage() {
-  useSeo(useMemo(() => homeSeo(window.location.origin), []));
+  useSeo(useMemo(() => welcomeSeo(window.location.origin), []));
 
   return (
     <MarketingShell>
