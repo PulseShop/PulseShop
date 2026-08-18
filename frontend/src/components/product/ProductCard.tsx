@@ -12,6 +12,7 @@ import {
   variantPrice,
 } from "@/lib/currency";
 import { productImageSrc } from "@/lib/productImage";
+import { specSummary } from "@/lib/productSpecs";
 import { Button } from "@/components/ui/Button";
 import { Sheet } from "@/components/ui/Modal";
 import { useAddToCart } from "@/hooks/useCart";
@@ -24,7 +25,26 @@ import { RatingRow } from "./RatingRow";
 import { SizeSelector } from "./SizeSelector";
 import { StockBadge } from "./StockBadge";
 
-export function ProductCard({ product, className }: { product: Product; className?: string }) {
+/**
+ * One product, as a grid tile or as a list row.
+ *
+ * Both layouts live here rather than in a separate ProductRow because
+ * everything behind them is identical: the price/variant maths, the add-to-cart
+ * guard, the "your cart is from another shop" case and the variant sheet. Only
+ * the arrangement differs, so splitting them would mean maintaining that logic
+ * twice and having it drift.
+ */
+export function ProductCard({
+  product,
+  className,
+  layout = "grid",
+}: {
+  product: Product;
+  className?: string;
+  /** "row" is the storefront's list view: wider, and with room for the specs a
+   * square tile has nowhere to put. */
+  layout?: "grid" | "row";
+}) {
   const isFavorite = useFavorites((s) => s.isFavorite(product.id));
   const toggle = useFavoriteToggle();
   const addToCart = useAddToCart();
@@ -83,6 +103,194 @@ export function ProductCard({ product, className }: { product: Product; classNam
   // size, a size-and-colour product needs both.
   const choiceComplete = (!hasSizes || chosenSize) && (!hasColors || chosenColor);
 
+  // --- pieces shared by both layouts ---------------------------------------
+
+  /* Only once someone has actually reviewed it. An unreviewed product showing
+     "0.0 (0)" reads as a bad product rather than a new one. */
+  const ratingBlock = product.reviewCount > 0 && (
+    <RatingRow rating={product.rating} reviewCount={product.reviewCount} compact />
+  );
+
+  const priceBlock = (
+    <div className="flex items-baseline gap-1.5">
+      {ranged && <span className="text-xs font-medium text-muted">from</span>}
+      <span className="text-sm font-extrabold text-ink">{formatKes(fromPrice)}</span>
+      {product.discountPct != null && (
+        // The "was" figure has to be the pre-discount price of the SAME
+        // variant we're quoting, or a -50% XL shows the base product's
+        // old price struck through and the discount looks wrong.
+        <span className="text-xs font-medium text-muted line-through">
+          {formatKes(minVariantPrice({ ...product, discountPct: null }))}
+        </span>
+      )}
+    </div>
+  );
+
+  const favoriteButton = (
+    <button
+      type="button"
+      aria-label={isFavorite ? "Remove from favorites" : "Add to favorites"}
+      aria-pressed={isFavorite}
+      onClick={() => toggle(product.id)}
+      className="absolute right-2.5 top-2.5 flex size-9 items-center justify-center rounded-full bg-white/90 shadow-soft backdrop-blur transition-transform active:scale-90"
+    >
+      <Heart
+        className={cn(
+          "size-[18px] transition-colors",
+          isFavorite ? "fill-favorite text-favorite" : "text-stone-500",
+        )}
+      />
+    </button>
+  );
+
+  const addLabel = needsChoice
+    ? `Choose options for ${product.name}`
+    : `Add ${product.name} to cart`;
+
+  const variantSheet = needsChoice && (
+    <Sheet
+      open={variantSheetOpen}
+      onOpenChange={setVariantSheetOpen}
+      title={hasSizes && hasColors ? "Choose size and colour" : hasSizes ? "Select a size" : "Select a colour"}
+    >
+      <div className="space-y-4">
+        <div className="flex items-center gap-3">
+          <ProductImage
+            src={product.images[0]}
+            alt={product.name}
+            className="size-14 rounded-xl object-cover"
+          />
+          <div>
+            <p className="text-sm font-bold text-ink">{product.name}</p>
+            <p className="text-sm font-extrabold text-primary">
+              {!choiceComplete && ranged && (
+                <span className="text-xs font-medium text-muted">from </span>
+              )}
+              {formatKes(sheetPrice)}
+            </p>
+          </div>
+        </div>
+        {hasSizes && (
+          <div className="space-y-2">
+            <p className="text-sm font-bold text-ink">Size</p>
+            <SizeSelector sizes={product.sizes ?? []} value={chosenSize} onChange={setChosenSize} />
+          </div>
+        )}
+        {hasColors && (
+          <div className="space-y-2">
+            <p className="text-sm font-bold text-ink">Colour</p>
+            <ColorSelector
+              colors={product.colors ?? []}
+              value={chosenColor}
+              onChange={setChosenColor}
+            />
+          </div>
+        )}
+        <Button
+          size="lg"
+          className="w-full"
+          disabled={!choiceComplete}
+          onClick={() => {
+            add(chosenSize, chosenColor);
+            setVariantSheetOpen(false);
+          }}
+        >
+          <ShoppingBag className="size-5" />
+          Add to Cart
+        </Button>
+      </div>
+    </Sheet>
+  );
+
+  // --- list row -------------------------------------------------------------
+
+  if (layout === "row") {
+    // The whole reason the list view exists: a square tile has nowhere to put
+    // these, so two near-identical phone listings look identical on the grid.
+    const specs = specSummary(product);
+
+    return (
+      <div
+        className={cn(
+          "group relative flex gap-3 overflow-hidden rounded-card bg-card p-3 shadow-soft transition-shadow hover:shadow-md",
+          className,
+        )}
+      >
+        <Link
+          to={productHref(product)}
+          aria-disabled={soldOut}
+          onClick={(e) => soldOut && e.preventDefault()}
+          className={cn("shrink-0", soldOut && "cursor-default")}
+          tabIndex={-1}
+          aria-hidden
+        >
+          <div className="relative size-28 overflow-hidden rounded-xl bg-stone-100 sm:size-32">
+            <ProductImage
+              src={product.images[0]}
+              alt=""
+              loading="lazy"
+              className={cn("size-full object-cover", soldOut && "opacity-40")}
+            />
+            {soldOut && (
+              <div className="absolute inset-0 flex items-center justify-center">
+                <span className="rounded-full bg-ink/85 px-2 py-1 text-[10px] font-bold uppercase tracking-wide text-white">
+                  Sold Out
+                </span>
+              </div>
+            )}
+            {product.discountPct != null && !soldOut && (
+              <span className="absolute left-1.5 top-1.5 rounded-full bg-favorite px-1.5 py-0.5 text-[10px] font-bold text-white">
+                -{product.discountPct}%
+              </span>
+            )}
+          </div>
+        </Link>
+
+        <div className="flex min-w-0 flex-1 flex-col gap-1.5">
+          {/* pr-10 keeps the title clear of the favourite button pinned above it */}
+          <Link
+            to={productHref(product)}
+            aria-disabled={soldOut}
+            onClick={(e) => soldOut && e.preventDefault()}
+            className={cn("min-w-0 pr-10", soldOut && "cursor-default")}
+          >
+            <h3 className="line-clamp-2 text-sm font-semibold leading-5 text-ink">
+              {product.name}
+            </h3>
+          </Link>
+          {ratingBlock}
+          {specs.length > 0 && (
+            <ul className="flex flex-wrap gap-1">
+              {specs.map((s) => (
+                <li
+                  key={s}
+                  className="rounded-full bg-stone-100 px-2 py-0.5 text-[11px] font-medium text-muted"
+                >
+                  {s}
+                </li>
+              ))}
+            </ul>
+          )}
+          {priceBlock}
+          <div className="mt-auto flex flex-wrap items-center justify-between gap-2 pt-0.5">
+            {!soldOut ? <StockBadge status={product.status} /> : <span />}
+            {!soldOut && (
+              <Button size="sm" aria-label={addLabel} onClick={onAddClick}>
+                <ShoppingBag className="size-4" />
+                Add
+              </Button>
+            )}
+          </div>
+        </div>
+
+        {favoriteButton}
+        {variantSheet}
+      </div>
+    );
+  }
+
+  // --- grid tile ------------------------------------------------------------
+
   return (
     <div
       className={cn(
@@ -135,48 +343,18 @@ export function ProductCard({ product, className }: { product: Product; classNam
           <h3 className="line-clamp-2 min-h-10 text-sm font-semibold leading-5 text-ink">
             {product.name}
           </h3>
-          {/* Only once someone has actually reviewed it. An unreviewed product
-              showing "0.0 (0)" reads as a bad product rather than a new one. */}
-          {product.reviewCount > 0 && (
-            <RatingRow rating={product.rating} reviewCount={product.reviewCount} compact />
-          )}
-          <div className="flex items-baseline gap-1.5">
-            {ranged && <span className="text-xs font-medium text-muted">from</span>}
-            <span className="text-sm font-extrabold text-ink">{formatKes(fromPrice)}</span>
-            {product.discountPct != null && (
-              // The "was" figure has to be the pre-discount price of the SAME
-              // variant we're quoting, or a -50% XL shows the base product's
-              // old price struck through and the discount looks wrong.
-              <span className="text-xs font-medium text-muted line-through">
-                {formatKes(minVariantPrice({ ...product, discountPct: null }))}
-              </span>
-            )}
-          </div>
+          {ratingBlock}
+          {priceBlock}
           {!soldOut && <StockBadge status={product.status} />}
         </div>
       </Link>
 
-      <button
-        type="button"
-        aria-label={isFavorite ? "Remove from favorites" : "Add to favorites"}
-        aria-pressed={isFavorite}
-        onClick={() => toggle(product.id)}
-        className="absolute right-2.5 top-2.5 flex size-9 items-center justify-center rounded-full bg-white/90 shadow-soft backdrop-blur transition-transform active:scale-90"
-      >
-        <Heart
-          className={cn(
-            "size-[18px] transition-colors",
-            isFavorite ? "fill-favorite text-favorite" : "text-stone-500",
-          )}
-        />
-      </button>
+      {favoriteButton}
 
       {!soldOut && (
         <button
           type="button"
-            aria-label={
-            needsChoice ? `Choose options for ${product.name}` : `Add ${product.name} to cart`
-          }
+          aria-label={addLabel}
           onClick={onAddClick}
           className="absolute bottom-2.5 right-2.5 flex size-9 items-center justify-center rounded-full bg-primary text-white shadow-soft transition-transform active:scale-90 hover:bg-primary-deep"
         >
@@ -184,64 +362,7 @@ export function ProductCard({ product, className }: { product: Product; classNam
         </button>
       )}
 
-      {needsChoice && (
-        <Sheet
-          open={variantSheetOpen}
-          onOpenChange={setVariantSheetOpen}
-          title={hasSizes && hasColors ? "Choose size and colour" : hasSizes ? "Select a size" : "Select a colour"}
-        >
-          <div className="space-y-4">
-            <div className="flex items-center gap-3">
-              <ProductImage
-                src={product.images[0]}
-                alt={product.name}
-                className="size-14 rounded-xl object-cover"
-              />
-              <div>
-                <p className="text-sm font-bold text-ink">{product.name}</p>
-                <p className="text-sm font-extrabold text-primary">
-                  {!choiceComplete && ranged && (
-                    <span className="text-xs font-medium text-muted">from </span>
-                  )}
-                  {formatKes(sheetPrice)}
-                </p>
-              </div>
-            </div>
-            {hasSizes && (
-              <div className="space-y-2">
-                <p className="text-sm font-bold text-ink">Size</p>
-                <SizeSelector
-                  sizes={product.sizes ?? []}
-                  value={chosenSize}
-                  onChange={setChosenSize}
-                />
-              </div>
-            )}
-            {hasColors && (
-              <div className="space-y-2">
-                <p className="text-sm font-bold text-ink">Colour</p>
-                <ColorSelector
-                  colors={product.colors ?? []}
-                  value={chosenColor}
-                  onChange={setChosenColor}
-                />
-              </div>
-            )}
-            <Button
-              size="lg"
-              className="w-full"
-              disabled={!choiceComplete}
-              onClick={() => {
-                add(chosenSize, chosenColor);
-                setVariantSheetOpen(false);
-              }}
-            >
-              <ShoppingBag className="size-5" />
-              Add to Cart
-            </Button>
-          </div>
-        </Sheet>
-      )}
+      {variantSheet}
     </div>
   );
 }

@@ -354,3 +354,42 @@ export function pcSpecRows(s: PcSpecs): SpecRow[] {
 export function specNotes(phone: PhoneSpecs | null, pc: PcSpecs | null): string | null {
   return phone?.customNotes ?? pc?.customNotes ?? null;
 }
+
+/**
+ * The handful of specs that actually decide a purchase, for a storefront list
+ * row where there is no room for the full table above.
+ *
+ * Deliberately not phoneSpecRows()/pcSpecRows() truncated: those are ordered
+ * for a spec sheet a buyer reads top to bottom, and their first rows are the
+ * model name and the form factor, which the product's own title already says.
+ * This picks the ones a buyer scans a list of near-identical listings for.
+ * Empty for a general product, which is what makes the row fall back to a
+ * plain title/price line.
+ */
+export function specSummary(product: {
+  productType: ProductType;
+  phoneSpecs: PhoneSpecs | null;
+  pcSpecs: PcSpecs | null;
+}): string[] {
+  if (product.productType === "phone" && product.phoneSpecs) {
+    const s = product.phoneSpecs;
+    return [
+      capacityLabel(s.storageGb),
+      `${capacityLabel(s.ramGb)} RAM`,
+      labelOf(PHONE_CONDITIONS, s.condition),
+      s.networkLock === "locked" ? "Carrier-locked" : "Unlocked",
+      s.batteryPct != null ? `${s.batteryPct}% battery` : null,
+    ].filter((v): v is string => Boolean(v));
+  }
+  if (product.productType === "pc" && product.pcSpecs) {
+    const s = product.pcSpecs;
+    return [
+      s.cpu,
+      s.gpu,
+      `${capacityLabel(s.ramGb)} RAM`,
+      capacityLabel(s.storageGb),
+      labelOf(PC_OS, s.os),
+    ].filter((v): v is string => Boolean(v));
+  }
+  return [];
+}

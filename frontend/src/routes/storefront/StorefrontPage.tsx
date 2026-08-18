@@ -1,5 +1,5 @@
 import { keepPreviousData, useInfiniteQuery, useQuery } from "@tanstack/react-query";
-import { AlertTriangle, ArrowLeft, Check, Heart, Package, Search, ShoppingBag, SlidersHorizontal, Star, Store, UserRound, Users, X } from "lucide-react";
+import { AlertTriangle, ArrowLeft, Check, Heart, LayoutGrid, List, Package, Search, ShoppingBag, SlidersHorizontal, Star, Store, UserRound, Users, X } from "lucide-react";
 import { useEffect, useMemo, useState } from "react";
 import { Link, useParams, useSearchParams } from "react-router";
 import { useAuth } from "@/stores/auth";
@@ -30,6 +30,11 @@ import { services } from "@/services";
 type SortOrder = "newest" | "price-asc" | "price-desc";
 
 const PAGE_SIZE = 12;
+
+/** Shared by the results and their skeletons, so the placeholder lays out the
+ *  same way the real thing will and the page doesn't reflow when it lands. */
+const GRID_CLASS = "grid grid-cols-2 gap-3 lg:grid-cols-3 xl:grid-cols-4";
+const LIST_CLASS = "flex flex-col gap-3";
 
 export function StorefrontPage() {
   // When a :shopSlug is in the URL we're on a public shop (pulseshop.space/<slug>);
@@ -77,6 +82,17 @@ export function StorefrontPage() {
   const [conditions, setConditions] = useState<string[]>([]);
   // Mobile has no room for the sidebar, so the same controls live in a sheet.
   const [filtersOpen, setFiltersOpen] = useState(false);
+  /**
+   * Grid tiles or list rows. A square tile has nowhere to put the structured
+   * Phone/PC specs, so on a shop selling twelve similar handsets every tile
+   * reads the same and the only way to compare is to open each one. Rows have
+   * the width for the specs the shopper is actually choosing between.
+   *
+   * Component state, so it resets between visits. Persisting it is a
+   * preference worth having, but it belongs with the rest of the device-local
+   * state in a store rather than bolted on here.
+   */
+  const [view, setView] = useState<"grid" | "list">("grid");
 
   const toggleIn = (setter: (fn: (v: string[]) => string[]) => void) => (value: string) =>
     setter((list) => (list.includes(value) ? list.filter((v) => v !== value) : [...list, value]));
@@ -91,6 +107,58 @@ export function StorefrontPage() {
     (productType !== null ? 1 : 0) +
     (ramMin !== null ? 1 : 0) +
     (storageMin !== null ? 1 : 0);
+
+  /**
+   * Every active filter as one removable chip, shown above the results.
+   *
+   * The filter state is spread across nine pieces, two of them multi-select and
+   * three of them only rendered when the shop stocks phones or PCs — so on
+   * mobile, where the controls live behind a sheet, "12 products found" with no
+   * visible reason why was the whole feedback a shopper got. The count in the
+   * Filters pill said how many were on, never which.
+   *
+   * Built in the same order as activeFilterCount counts them, and its length is
+   * that number by construction.
+   */
+  const appliedFilters: { key: string; label: string; remove: () => void }[] = [
+    ...sizes.map((s) => ({ key: `size:${s}`, label: s, remove: () => toggleIn(setSizes)(s) })),
+    ...colors.map((c) => ({ key: `color:${c}`, label: c, remove: () => toggleIn(setColors)(c) })),
+    ...conditions.map((c) => ({
+      key: `condition:${c}`,
+      label: conditionLabel(c),
+      remove: () => toggleIn(setConditions)(c),
+    })),
+    ...(availableOnly
+      ? [{ key: "available", label: "Available only", remove: () => setAvailableOnly(false) }]
+      : []),
+    ...(maxPrice !== null
+      ? [{ key: "price", label: `Under ${formatKes(maxPrice)}`, remove: () => setMaxPrice(null) }]
+      : []),
+    ...(minRating !== null
+      ? [{ key: "rating", label: `${minRating}+ stars`, remove: () => setMinRating(null) }]
+      : []),
+    ...(productType !== null
+      ? [
+          {
+            key: "type",
+            label: productType === "phone" ? "Phones" : "Computers",
+            remove: () => setProductType(null),
+          },
+        ]
+      : []),
+    ...(ramMin !== null
+      ? [{ key: "ram", label: `${capacityLabel(ramMin)}+ RAM`, remove: () => setRamMin(null) }]
+      : []),
+    ...(storageMin !== null
+      ? [
+          {
+            key: "storage",
+            label: `${capacityLabel(storageMin)}+ storage`,
+            remove: () => setStorageMin(null),
+          },
+        ]
+      : []),
+  ];
 
   const clearFilters = () => {
     setSizes([]);
@@ -682,29 +750,81 @@ export function StorefrontPage() {
 
         {/* product grid */}
         <section className="flex-1">
+          {/* Applied filters, above the results and outside the loading branch
+              — a shopper narrowing to nothing needs to see WHICH filter did it,
+              and that is exactly the case where the grid below is empty. */}
+          {appliedFilters.length > 0 && (
+            <div className="mb-3 flex flex-wrap items-center gap-1.5">
+              {appliedFilters.map((f) => (
+                <button
+                  key={f.key}
+                  type="button"
+                  onClick={f.remove}
+                  aria-label={`Remove filter: ${f.label}`}
+                  className="flex min-h-8 items-center gap-1 rounded-full bg-primary/10 pl-3 pr-2 text-xs font-semibold text-primary transition-colors hover:bg-primary/20 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary"
+                >
+                  {f.label}
+                  <X className="size-3.5" aria-hidden />
+                </button>
+              ))}
+              <button
+                type="button"
+                onClick={clearFilters}
+                className="min-h-8 rounded-full px-2 text-xs font-semibold text-muted underline-offset-2 hover:text-ink hover:underline focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary"
+              >
+                Clear all
+              </button>
+            </div>
+          )}
+
           {!productsQ.isLoading && !productsQ.isError && (
-            <div className="mb-3 hidden items-center justify-between lg:flex">
+            // Was desktop-only, which left the phone with no result count, no
+            // sort and nowhere to put the view switch.
+            <div className="mb-3 flex flex-wrap items-center justify-between gap-2">
               {/* the full match count from the server, not just what's loaded */}
               <p className="text-sm text-muted">{totalMatches} products found</p>
-              <label className="flex items-center gap-2 text-sm text-muted">
-                Sort by
-                <select
-                  value={sort}
-                  onChange={(e) => setSort(e.target.value as SortOrder)}
-                  className="rounded-btn border border-stone-200 bg-card px-2.5 py-1.5 text-sm font-semibold text-ink outline-none focus:border-primary"
-                >
-                  <option value="newest">Newest</option>
-                  <option value="price-asc">Price: Low to High</option>
-                  <option value="price-desc">Price: High to Low</option>
-                </select>
-              </label>
+              <div className="flex items-center gap-2">
+                <div className="flex items-center rounded-btn border border-stone-200 bg-card p-0.5">
+                  {([
+                    ["grid", LayoutGrid, "Grid view"],
+                    ["list", List, "List view"],
+                  ] as const).map(([v, Icon, label]) => (
+                    <button
+                      key={v}
+                      type="button"
+                      aria-label={label}
+                      aria-pressed={view === v}
+                      onClick={() => setView(v)}
+                      className={cn(
+                        "flex size-8 items-center justify-center rounded-[10px] transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary",
+                        view === v ? "bg-primary text-white" : "text-muted hover:text-ink",
+                      )}
+                    >
+                      <Icon className="size-4" />
+                    </button>
+                  ))}
+                </div>
+                <label className="flex items-center gap-2 text-sm text-muted">
+                  <span className="hidden sm:inline">Sort by</span>
+                  <select
+                    aria-label="Sort by"
+                    value={sort}
+                    onChange={(e) => setSort(e.target.value as SortOrder)}
+                    className="rounded-btn border border-stone-200 bg-card px-2.5 py-1.5 text-sm font-semibold text-ink outline-none focus:border-primary"
+                  >
+                    <option value="newest">Newest</option>
+                    <option value="price-asc">Price: Low to High</option>
+                    <option value="price-desc">Price: High to Low</option>
+                  </select>
+                </label>
+              </div>
             </div>
           )}
 
           {productsQ.isLoading ? (
-            <div className="grid grid-cols-2 gap-3 lg:grid-cols-3 xl:grid-cols-4">
+            <div className={view === "grid" ? GRID_CLASS : LIST_CLASS}>
               {Array.from({ length: 6 }).map((_, i) => (
-                <ProductCardSkeleton key={i} />
+                <ProductCardSkeleton key={i} layout={view === "list" ? "row" : "grid"} />
               ))}
             </div>
           ) : productsQ.isError ? (
@@ -725,10 +845,10 @@ export function StorefrontPage() {
                 // replay its fade-in on every keystroke, while the results
                 // underneath only change once the debounce settles.
                 key={`${category}-${term}-${sort}-${availableOnly}-${maxPrice}-${sizes}-${colors}-${minRating}`}
-                className="grid grid-cols-2 gap-3 animate-grid-fade lg:grid-cols-3 xl:grid-cols-4"
+                className={cn("animate-grid-fade", view === "grid" ? GRID_CLASS : LIST_CLASS)}
               >
                 {filtered.map((p) => (
-                  <ProductCard key={p.id} product={p} />
+                  <ProductCard key={p.id} product={p} layout={view === "list" ? "row" : "grid"} />
                 ))}
               </div>
 
