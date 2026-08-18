@@ -73,6 +73,10 @@ export async function merchantStats(
  * size of the full (filtered) result set. */
 type SearchRow = ProductRow & { shop_handle: string | null; total_count: number };
 
+/** A row from list_shop_features() (0046): a product plus the shop it belongs
+ * to, named as well as handled because the banner credits the seller. */
+type FeatureRow = ProductRow & { shop_handle: string | null; shop_name: string | null };
+
 function toPagedProducts(rows: SearchRow[]): Paged<Product> {
   return {
     items: rows.map((row) => {
@@ -254,6 +258,25 @@ export const productsApi: ProductService = {
     const { data, error } = await supabase.rpc("search_products", searchArgs(null, query));
     if (error) throw error;
     return toPagedProducts((data ?? []) as SearchRow[]);
+  },
+
+  /**
+   * One product per shop for the marketplace banner (migration 0046).
+   *
+   * The shop's name comes back on the row rather than being looked up per slot,
+   * for the same reason search_products carries shop_handle: the banner is the
+   * first thing on the home page, and a query per tile before first paint is
+   * the difference between a marketplace and a loading spinner.
+   */
+  async listShopFeatures(limit = 8): Promise<Product[]> {
+    const { data, error } = await supabase.rpc("list_shop_features", { p_limit: limit });
+    if (error) throw error;
+    return ((data ?? []) as FeatureRow[]).map((row) => {
+      const product = toProduct(row);
+      product.shopSlug = row.shop_handle ?? undefined;
+      product.shopName = row.shop_name ?? undefined;
+      return product;
+    });
   },
 
   /**

@@ -10,7 +10,6 @@ import { paymentsApi } from "./payments";
 import { productsApi } from "./products";
 import { reviewsApi } from "./reviews";
 import { storageApi } from "./storage";
-import { plansService, promotionsService } from "./promotions";
 
 /**
  * Real backend adapter. Auth, products, orders and storage hit Supabase.
@@ -19,8 +18,6 @@ import { plansService, promotionsService } from "./promotions";
  */
 export const apiServices: Services = {
   auth: authApi,
-  promotions: promotionsService,
-  plans: plansService,
   products: productsApi,
   orders: ordersApi,
   analytics: analyticsApi,

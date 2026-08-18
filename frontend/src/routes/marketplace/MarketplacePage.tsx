@@ -16,7 +16,7 @@ import { formatKes } from "@/lib/currency";
 import { homeSeo } from "@/lib/seo";
 import { cn } from "@/lib/utils";
 import { services } from "@/services";
-import type { Promotion } from "@/types";
+import type { Product } from "@/types";
 
 type SortOrder = "newest" | "price-asc" | "price-desc";
 
@@ -34,7 +34,8 @@ const LIST_CLASS = "flex flex-col gap-3";
  * Everything here is a composition of services that already existed —
  * searchProducts() has taken a null merchant since migration 0023, listShops()
  * is the directory, getFacets() aggregates across every shop when given no id.
- * The only new thing is the promoted strip at the top.
+ * The only new thing is the strip at the top, which gives every registered shop
+ * a slot rather than selling one (see ShopFeatureStrip).
  */
 export function MarketplacePage() {
   useSeo(useMemo(() => homeSeo(window.location.origin), []));
@@ -125,9 +126,9 @@ export function MarketplacePage() {
   const sizeOptions = sortSizes(facetsQ.data?.sizes ?? []);
   const colorOptions = facetsQ.data?.colors ?? [];
 
-  const promosQ = useQuery({
-    queryKey: ["promotions"],
-    queryFn: () => services.promotions.listActive(6),
+  const featuresQ = useQuery({
+    queryKey: ["shop-features"],
+    queryFn: () => services.products.listShopFeatures(8),
   });
 
   const shopsQ = useQuery({
@@ -254,7 +255,7 @@ export function MarketplacePage() {
       </header>
 
       <div className="px-4 pb-6 pt-4 lg:px-6">
-        <PromotedStrip promos={promosQ.data ?? []} loading={promosQ.isLoading} />
+        <ShopFeatureStrip items={featuresQ.data ?? []} loading={featuresQ.isLoading} />
 
         {/* Filters left, grid centre, shops right — the storefront already put
             its filters on the left, and having them swap sides between the two
@@ -507,13 +508,15 @@ function SearchField({ value, onChange }: { value: string; onChange: (v: string)
 }
 
 /**
- * Paid placement.
+ * One product from every shop on the platform.
  *
- * Labelled "Promoted" on every card rather than once above the strip. A shopper
- * who scrolls past the heading should still be able to tell that the reason
- * something is in front of them is that someone paid for it.
+ * This used to be paid placement, which was pulled in 0046. Nothing here is
+ * bought: the database picks one product per registered shop and rotates the
+ * selection hourly, so a shop that opened this morning sits beside the busiest
+ * one on the platform. That is the point of leading the page with it, and it is
+ * why the heading says which shop rather than that anything is featured.
  */
-function PromotedStrip({ promos, loading }: { promos: Promotion[]; loading: boolean }) {
+function ShopFeatureStrip({ items, loading }: { items: Product[]; loading: boolean }) {
   if (loading) {
     return (
       <div className="no-scrollbar -mx-4 flex gap-3 overflow-x-auto px-4 lg:mx-0 lg:grid lg:grid-cols-3 lg:px-0">
@@ -523,16 +526,16 @@ function PromotedStrip({ promos, loading }: { promos: Promotion[]; loading: bool
       </div>
     );
   }
-  if (promos.length === 0) return null;
+  if (items.length === 0) return null;
 
   return (
-    <section aria-label="Promoted products">
+    <section aria-label="A product from each shop">
       <div className="mb-2.5 flex items-center gap-1.5">
         <Sparkles className="size-4 text-primary" aria-hidden />
-        <h2 className="text-sm font-bold text-ink">Featured by shops</h2>
+        <h2 className="text-sm font-bold text-ink">From the shops on PulseShop</h2>
       </div>
       <div className="no-scrollbar -mx-4 flex gap-3 overflow-x-auto px-4 lg:mx-0 lg:grid lg:grid-cols-3 lg:px-0">
-        {promos.map((p) => (
+        {items.map((p) => (
           <Link
             key={p.id}
             to={`/${p.shopSlug}/${p.slug}`}
@@ -540,13 +543,13 @@ function PromotedStrip({ promos, loading }: { promos: Promotion[]; loading: bool
           >
             <div className="flex h-40">
               <div className="flex min-w-0 flex-1 flex-col justify-center gap-1 p-4">
-                <span className="w-fit rounded-full bg-fill px-2 py-0.5 text-[10px] font-bold uppercase tracking-wide text-muted">
-                  Promoted
-                </span>
-                <p className="line-clamp-2 text-sm font-extrabold leading-snug text-ink">
-                  {p.headline || p.name}
-                </p>
-                <p className="truncate text-xs text-muted">{p.shopName}</p>
+                {p.shopName && (
+                  <span className="flex w-fit items-center gap-1 rounded-full bg-fill px-2 py-0.5 text-[10px] font-bold uppercase tracking-wide text-muted">
+                    <Store className="size-3" aria-hidden />
+                    <span className="max-w-32 truncate">{p.shopName}</span>
+                  </span>
+                )}
+                <p className="line-clamp-2 text-sm font-extrabold leading-snug text-ink">{p.name}</p>
                 <p className="text-sm font-extrabold text-primary">{formatKes(p.priceKes)}</p>
               </div>
               <div className="w-28 shrink-0 overflow-hidden bg-fill">

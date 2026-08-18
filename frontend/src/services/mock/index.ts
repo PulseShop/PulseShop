@@ -20,8 +20,6 @@ import type {
   Product,
   ProductReview,
   ShopFacets,
-  PlanUpgradeRequest,
-  Promotion,
 } from "@/types";
 import type {
   Credentials,
@@ -37,8 +35,6 @@ import type {
   ShopperProfile,
   ShopperSignupInput,
   SignupInput,
-  PlanService,
-  PromotionService,
 } from "../types";
 import type { ProductCsvInput } from "@/lib/productCsv";
 import { useAuth } from "@/stores/auth";
@@ -499,94 +495,7 @@ function merchantStats(): Merchant["stats"] {
   };
 }
 
-/**
- * Paid placement, in memory.
- *
- * Seeded with three of the demo catalogue's products so the marketplace banner
- * has something to render with zero configuration — the whole point of this
- * adapter. The demo shop is on the influencer plan (see data.ts), so the plan
- * gate reads as open here; that is deliberate, since a mock that always answers
- * "upgrade required" would make the seller-side promotion UI unreachable.
- */
-let promoted: { id: string; productId: string; headline: string | null }[] = [
-  { id: "promo-1", productId: "p8", headline: "Dress of the season" },
-  { id: "promo-2", productId: "p5", headline: null },
-  { id: "promo-3", productId: "p11", headline: "Everyday carry" },
-];
-
-let planRequest: PlanUpgradeRequest | null = null;
-
-const toPromotion = (row: { id: string; productId: string; headline: string | null }): Promotion | null => {
-  const p = PRODUCTS.find((x) => x.id === row.productId);
-  if (!p) return null;
-  return {
-    id: row.id,
-    headline: row.headline,
-    shopSlug: MERCHANT.handle,
-    shopName: MERCHANT.name,
-    productId: p.id,
-    name: p.name,
-    slug: p.slug,
-    priceKes: p.priceKes,
-    discountPct: p.discountPct,
-    images: p.images,
-    imageAlts: p.imageAlts,
-    status: p.status,
-    rating: p.rating,
-    reviewCount: p.reviewCount,
-  };
-};
-
-const mockPromotions: PromotionService = {
-  async listActive(limit = 6) {
-    await delay();
-    return promoted.map(toPromotion).filter((p): p is Promotion => p !== null).slice(0, limit);
-  },
-  async listMine() {
-    await delay();
-    return promoted.map(toPromotion).filter((p): p is Promotion => p !== null);
-  },
-  async create(productId, headline = null) {
-    await delay();
-    if (promoted.some((p) => p.productId === productId)) {
-      throw new Error("That product is already promoted.");
-    }
-    promoted = [{ id: `promo-${Date.now()}`, productId, headline: headline?.trim() || null }, ...promoted];
-  },
-  async remove(id) {
-    await delay();
-    promoted = promoted.filter((p) => p.id !== id);
-  },
-  async canPromote() {
-    await delay();
-    return MERCHANT.plan !== "explorer";
-  },
-};
-
-const mockPlans: PlanService = {
-  async myRequest() {
-    await delay();
-    return planRequest;
-  },
-  async request(plan) {
-    await delay();
-    if (planRequest) throw new Error("You already have a request waiting on us.");
-    planRequest = {
-      id: `req-${Date.now()}`,
-      requestedPlan: plan,
-      status: "pending",
-      createdAt: new Date().toISOString(),
-    };
-  },
-  async cancelRequest() {
-    await delay();
-    planRequest = null;
-  },
-};
-
 export const mockServices: Services = {
-  promotions: mockPromotions,
-  plans: mockPlans,
   auth: {
     // Accepts any credentials and returns the demo shop's session.
     async login({ email }: Credentials): Promise<AuthUser> {
@@ -777,6 +686,19 @@ export const mockServices: Services = {
       // catalogue — what matters is that it honours the query the same way.
       const page = queryProducts(products, query);
       return { ...page, items: page.items.map((p) => ({ ...p, shopSlug: merchant.handle })) };
+    },
+
+    /**
+     * The banner strip. The real backend returns one product per shop; the mock
+     * has only the one shop, so it returns that shop's sellable products
+     * instead. Same shape and same contract from the page's point of view.
+     */
+    async listShopFeatures(limit = 8): Promise<Product[]> {
+      await delay();
+      return products
+        .filter((p) => p.status !== "out" && p.images.length > 0)
+        .slice(0, limit)
+        .map((p) => ({ ...p, shopSlug: merchant.handle, shopName: merchant.name }));
     },
 
     async getFacets(_merchantId?: string): Promise<ShopFacets> {

@@ -1,56 +1,28 @@
-import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { Check, Loader2, Sparkles } from "lucide-react";
+import { Check, Lock, Sparkles } from "lucide-react";
 import { Button } from "@/components/ui/Button";
 import { TIERS, formatTierPrice } from "@/routes/marketing/tiers";
 import { PLAN_LABEL } from "@/lib/entitlements";
 import { cn } from "@/lib/utils";
-import { services } from "@/services";
-import { useToasts } from "@/stores/toast";
 import type { Plan } from "@/types";
 
 /**
- * The seller's subscription.
+ * The seller's subscription, shown but not sellable yet.
  *
- * Deliberately NOT a self-serve upgrade. Migration 0041 revoked the seller's
- * write access to `merchants.plan` column by column, with the note "A seller
- * must not be able to upgrade themselves", and billing still does not exist.
- * A picker that wrote the column would either fail at the database or, if that
- * protection were removed to make it work, hand every shop the paid tiers for
- * nothing.
+ * This briefly had a working "request an upgrade" flow writing to
+ * plan_upgrade_requests (0045). That is switched off: billing does not exist,
+ * so every request was a promise nobody could keep, and a queue of them was
+ * work for a human rather than a product.
  *
- * So this records intent: the seller says which plan they want, it lands in
- * plan_upgrade_requests (0045) as a pending row, and someone grants it out of
- * band. When billing arrives, the request becomes the thing a successful
- * payment resolves, and this component keeps its shape.
+ * What is left is honest: the seller can see which plan they are on and what
+ * the other plans cost, and the buttons say plainly that they cannot be bought
+ * yet. Nothing here writes anything.
+ *
+ * The table is deliberately still in the database. When billing lands, a
+ * successful payment is what should resolve a request, and this component gets
+ * its buttons back rather than being rebuilt.
  */
 export function PlanSection({ currentPlan }: { currentPlan: Plan | undefined }) {
-  const qc = useQueryClient();
-  const push = useToasts((s) => s.push);
   const plan = currentPlan ?? "explorer";
-
-  const requestQ = useQuery({
-    queryKey: ["plan-request"],
-    queryFn: () => services.plans.myRequest(),
-  });
-  const pending = requestQ.data;
-
-  const requestMut = useMutation({
-    mutationFn: (p: Exclude<Plan, "explorer">) => services.plans.request(p),
-    onSuccess: () => {
-      qc.invalidateQueries({ queryKey: ["plan-request"] });
-      push("Request sent — we'll be in touch to set it up", "success");
-    },
-    onError: (e: Error) => push(e.message || "Couldn't send that request", "danger"),
-  });
-
-  const cancelMut = useMutation({
-    mutationFn: (id: string) => services.plans.cancelRequest(id),
-    onSuccess: () => {
-      qc.invalidateQueries({ queryKey: ["plan-request"] });
-      push("Request withdrawn");
-    },
-    onError: () => push("Couldn't withdraw that request", "danger"),
-  });
 
   return (
     <section className="rounded-card bg-card p-6 shadow-soft">
@@ -58,8 +30,7 @@ export function PlanSection({ currentPlan }: { currentPlan: Plan | undefined }) 
         <div>
           <h2 className="text-lg font-extrabold text-ink">Plan</h2>
           <p className="mt-0.5 text-sm text-muted">
-            You're on{" "}
-            <span className="font-bold text-ink">{PLAN_LABEL[plan]}</span>.
+            You're on <span className="font-bold text-ink">{PLAN_LABEL[plan]}</span>.
           </p>
         </div>
         {plan !== "explorer" && (
@@ -70,27 +41,9 @@ export function PlanSection({ currentPlan }: { currentPlan: Plan | undefined }) 
         )}
       </div>
 
-      {pending && (
-        <div className="mt-4 flex flex-wrap items-center justify-between gap-3 rounded-btn bg-warning/10 p-3">
-          <p className="text-sm text-ink">
-            <span className="font-bold">{PLAN_LABEL[pending.requestedPlan]}</span> requested. We'll
-            reach out to arrange payment.
-          </p>
-          <Button
-            variant="ghost"
-            size="sm"
-            onClick={() => cancelMut.mutate(pending.id)}
-            disabled={cancelMut.isPending}
-          >
-            Withdraw
-          </Button>
-        </div>
-      )}
-
       <div className="mt-4 grid gap-3 md:grid-cols-3">
         {TIERS.map((tier) => {
           const isCurrent = tier.id === plan;
-          const isRequested = pending?.requestedPlan === tier.id;
           return (
             <div
               key={tier.id}
@@ -120,23 +73,10 @@ export function PlanSection({ currentPlan }: { currentPlan: Plan | undefined }) 
                   <Button variant="outline" size="sm" className="w-full" disabled>
                     Your plan
                   </Button>
-                ) : tier.id === "explorer" ? (
-                  // Downgrading is a billing action too, and there is no billing.
-                  // Saying so is better than a button that quietly does nothing.
-                  <p className="text-xs leading-relaxed text-muted">
-                    To move back down, message us and we'll sort it out.
-                  </p>
                 ) : (
-                  <Button
-                    size="sm"
-                    className="w-full"
-                    disabled={Boolean(pending) || requestMut.isPending}
-                    onClick={() => requestMut.mutate(tier.id as Exclude<Plan, "explorer">)}
-                  >
-                    {requestMut.isPending && requestMut.variables === tier.id ? (
-                      <Loader2 className="size-4 animate-spin" />
-                    ) : null}
-                    {isRequested ? "Requested" : `Upgrade to ${tier.name}`}
+                  <Button variant="outline" size="sm" className="w-full" disabled>
+                    <Lock className="size-3.5" aria-hidden />
+                    Coming soon
                   </Button>
                 )}
               </div>
@@ -146,8 +86,9 @@ export function PlanSection({ currentPlan }: { currentPlan: Plan | undefined }) 
       </div>
 
       <p className="mt-3 text-xs leading-relaxed text-muted">
-        Card and M-Pesa billing isn't wired up yet, so upgrades are arranged by hand. Requesting one
-        puts you in the queue and changes nothing about your shop until we confirm it.
+        Switching plans isn't available yet; card and M-Pesa billing still has to be wired up.
+        Every shop keeps the plan it is on until then, and we'll get in touch before anything
+        starts costing money.
       </p>
     </section>
   );

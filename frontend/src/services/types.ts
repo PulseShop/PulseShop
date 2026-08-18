@@ -19,10 +19,7 @@ import type {
   PcSpecs,
   PhoneSpecs,
   PlacedOrderRef,
-  Plan,
-  PlanUpgradeRequest,
   Product,
-  Promotion,
   ProductReview,
   ProductType,
   ShopFacets,
@@ -263,6 +260,13 @@ export interface ProductService {
   /** Public: products across EVERY shop — the product half of the universal
    * search on /shops. Same filters and paging as the shop-scoped list. */
   searchProducts(query?: ProductQuery): Promise<Paged<Product>>;
+  /**
+   * Public: one product from each registered shop, for the marketplace banner
+   * (migration 0046). Every shop gets a slot regardless of plan; the selection
+   * rotates hourly so a quiet shop is not permanently crowded out once there
+   * are more shops than slots. Each item carries `shopSlug` and `shopName`.
+   */
+  listShopFeatures(limit?: number): Promise<Product[]>;
   /** The category list, price ceiling and stock counts a filter UI needs —
    * aggregates over the whole catalogue, which a single page can't give you.
    * Omit `merchantId` for the signed-in merchant's own catalogue. */
@@ -465,33 +469,8 @@ export interface StorageService {
   deleteImage(url: string): Promise<void>;
 }
 
-/**
- * Paid placement in the marketplace banner, and the plan that unlocks it.
- *
- * `listActive` is the buyer side and needs no session. Everything else is the
- * seller's own shop; the database enforces both ownership and the plan gate
- * (migration 0045), so these are convenience, not the boundary.
- */
-export interface PromotionService {
-  listActive(limit?: number): Promise<Promotion[]>;
-  listMine(): Promise<Promotion[]>;
-  create(productId: string, headline?: string | null): Promise<void>;
-  remove(id: string): Promise<void>;
-  /** Whether this shop's plan allows promoting at all. */
-  canPromote(): Promise<boolean>;
-}
-
-export interface PlanService {
-  /** The shop's open request, if it has one. */
-  myRequest(): Promise<PlanUpgradeRequest | null>;
-  request(plan: Exclude<Plan, "explorer">): Promise<void>;
-  cancelRequest(id: string): Promise<void>;
-}
-
 export interface Services {
   auth: AuthService;
-  promotions: PromotionService;
-  plans: PlanService;
   products: ProductService;
   orders: OrderService;
   analytics: AnalyticsService;

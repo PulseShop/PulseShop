@@ -121,6 +121,13 @@ export interface Product {
 
   /** Handle of the shop that owns this product (for public consumer routing). */
   shopSlug?: string;
+  /**
+   * Display name of the owning shop. Only list_shop_features() (migration 0046)
+   * carries it, because the marketplace banner names the seller beside the
+   * product; everywhere else the shop is already established by the surrounding
+   * page, so absent means "not asked for" rather than "no shop".
+   */
+  shopName?: string;
 }
 
 /** One written review shown on a product page (from product_reviews(), migration
@@ -206,45 +213,6 @@ export type ShopStatus = "open" | "closed" | "closing";
  * built, so every shop is 'explorer' until support sets it.
  */
 export type Plan = "explorer" | "boutique" | "influencer";
-
-/**
- * A product a shop is paying to surface in the marketplace banner
- * (migration 0045). Carries its own copy of the shop's identity because the
- * banner names the seller, and looking each one up separately would be a query
- * per slot on the first paint of the home page.
- */
-export interface Promotion {
-  id: string;
-  /** Seller-written banner copy. Null falls back to the product name. */
-  headline: string | null;
-  shopSlug: string;
-  shopName: string;
-  productId: string;
-  name: string;
-  slug: string;
-  priceKes: number;
-  discountPct: number | null;
-  images: string[];
-  imageAlts?: string[];
-  status: StockStatus;
-  rating: number;
-  reviewCount: number;
-}
-
-export type PlanRequestStatus = "pending" | "approved" | "rejected" | "cancelled";
-
-/**
- * A seller asking to be moved onto a paid plan.
- *
- * Sellers cannot write `merchants.plan` (0041), and billing does not exist, so
- * this records the intent and someone grants it out of band.
- */
-export interface PlanUpgradeRequest {
-  id: string;
-  requestedPlan: Exclude<Plan, "explorer">;
-  status: PlanRequestStatus;
-  createdAt: string;
-}
 
 export interface Merchant {
   id: string;
