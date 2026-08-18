@@ -455,7 +455,13 @@ export function ProductDetailPage() {
 
       {/* mobile's bottom clearance (action bar + floating back) comes from MobileShell */}
       <div className="px-4 pt-2 lg:px-6 lg:pb-14 lg:pt-6">
-        <div className="lg:grid lg:grid-cols-2 lg:items-start lg:gap-10">
+        {/* Three columns on desktop: gallery, the reading matter, and the buy
+            box. It was two, with the order panel sitting at the bottom of the
+            details column, which meant the price and the CTA scrolled out of
+            view exactly when the shopper was furthest into the description and
+            closest to deciding. The buy box needs a column of its own for the
+            sticky to have anything to stick against. */}
+        <div className="lg:grid lg:grid-cols-[minmax(0,1fr)_minmax(0,1.25fr)_minmax(0,0.9fr)] lg:items-start lg:gap-6 xl:gap-8">
           {/* gallery */}
           {/* square frame, sized down from full-bleed — matches the square
               crop the shop grid shows, so the photo reads the same on both */}
@@ -493,8 +499,11 @@ export function ProductDetailPage() {
 
             <div className="flex items-start justify-between gap-3">
               <h1 className="text-xl font-extrabold text-ink lg:text-2xl">{product.name}</h1>
-              <div className="text-right">
-                <p className="text-xl font-extrabold text-primary lg:text-2xl">
+              {/* Price rides beside the title on a phone, where there is no buy
+                  box to put it in. On desktop it belongs to the buy box, next
+                  to the button it is deciding. */}
+              <div className="text-right lg:hidden">
+                <p className="text-xl font-extrabold text-primary">
                   {showFrom && <span className="text-sm font-medium text-muted">from </span>}
                   {formatKes(shownPrice)}
                 </p>
@@ -511,7 +520,9 @@ export function ProductDetailPage() {
               onRate={!ownsProduct && canReview ? rate : undefined}
               pending={rateMut.isPending}
             />
-            <div className="flex flex-wrap items-center gap-2">
+            {/* Phone only, for the same reason as the price above: on desktop
+                both of these live in the buy box. */}
+            <div className="flex flex-wrap items-center gap-2 lg:hidden">
               <StockBadge
                 status={product.status}
                 label={stockDetailLabel(product.status, product.stockQty)}
@@ -579,100 +590,6 @@ export function ProductDetailPage() {
               </div>
             )}
 
-            {/* desktop-only: quantity + channel picker + order CTA, replacing
-                the floating mobile bar with an inline panel like the mockup */}
-            {!soldOut && (
-              <div className="hidden space-y-4 rounded-card border border-stone-100 bg-card p-4 lg:block">
-                <div className="flex items-center gap-3">
-                  <span className="text-sm font-bold text-ink">Quantity</span>
-                  <div className="flex items-center gap-2">
-                    <button
-                      type="button"
-                      aria-label="Decrease quantity"
-                      onClick={() => setQty(qty - 1)}
-                      disabled={qty <= 1}
-                      className="flex size-8 items-center justify-center rounded-full bg-stone-100 disabled:opacity-40"
-                    >
-                      <Minus className="size-3.5" />
-                    </button>
-                    <span className="w-6 text-center text-sm font-bold">{qty}</span>
-                    <button
-                      type="button"
-                      aria-label="Increase quantity"
-                      onClick={() => setQty(Math.min(qty + 1, product.stockQty))}
-                      className="flex size-8 items-center justify-center rounded-full bg-stone-100"
-                    >
-                      <Plus className="size-3.5" />
-                    </button>
-                  </div>
-                </div>
-
-                {desktopLinks.length > 0 && (
-                  <div className="grid grid-cols-3 gap-2 rounded-btn bg-stone-100 p-1">
-                    {CHANNELS.map(({ id: ch, label, icon: Icon }) => {
-                      const available = Boolean(merchant?.contacts[ch]);
-                      return (
-                        <button
-                          key={ch}
-                          type="button"
-                          onClick={() => available && setDesktopChannel(ch)}
-                          disabled={!available}
-                          aria-label={available ? label : `${label} — not set up by this seller`}
-                          className={cn(
-                            "flex h-10 items-center justify-center gap-1.5 rounded-[10px] text-xs font-bold transition-all",
-                            !available && "cursor-not-allowed opacity-35",
-                            available && desktopChannel === ch ? "bg-card text-ink shadow-soft" : "text-muted",
-                          )}
-                        >
-                          <Icon
-                            className={cn(
-                              "size-4",
-                              available && ch === "whatsapp" && "text-whatsapp",
-                              available && ch === "instagram" && "text-instagram",
-                              available && ch === "facebook" && "text-facebook",
-                            )}
-                          />
-                          {label}
-                        </button>
-                      );
-                    })}
-                  </div>
-                )}
-
-                <div className="flex items-center gap-3">
-                  <Button
-                    size="lg"
-                    className="flex-1"
-                    onClick={orderViaChannel}
-                    disabled={!desktopChannel}
-                  >
-                    Order Now
-                  </Button>
-                  <Button variant="outline" size="lg" className="flex-[1.15]" onClick={handleAddToCart}>
-                    <ShoppingBag className="size-5" />
-                    Add to Cart
-                  </Button>
-                </div>
-
-                <button
-                  type="button"
-                  onClick={() => toggle(product.id)}
-                  className="flex items-center gap-1.5 text-sm font-semibold text-muted hover:text-ink"
-                >
-                  <Heart className={cn("size-4", isFavorite ? "fill-favorite text-favorite" : "text-ink")} />
-                  {isFavorite ? "Saved to Wishlist" : "Add to Wishlist"}
-                </button>
-
-                {merchant && desktopChannelLabel && (
-                  <p className="text-xs leading-relaxed text-muted">
-                    After ordering, <span className="font-bold text-ink">{merchant.name}</span> will
-                    confirm your order via{" "}
-                    <span className="font-bold text-ink">{desktopChannelLabel}</span>.
-                  </p>
-                )}
-              </div>
-            )}
-
             {/* contact icons row — only channels the seller actually set up */}
             {links && links.length > 0 && (
               <div className="space-y-1.5 text-center lg:text-left">
@@ -683,6 +600,149 @@ export function ProductDetailPage() {
               </div>
             )}
           </div>
+
+          {/*
+            The buy box. Everything the decision needs (price, availability, how
+            it reaches the buyer, quantity, both CTAs) in one panel that stays
+            put while the description, specs and reviews scroll past it.
+
+            `self-stretch` is load-bearing: the grid sets `items-start`, so
+            without it this cell would be only as tall as the panel and the
+            sticky would have no travel to work with. It stretches to the row
+            height instead, and the panel pins inside it.
+
+            Desktop only. The phone already has the equivalent as the fixed
+            glass bar at the bottom of this file.
+          */}
+          <aside className="hidden lg:block lg:self-stretch">
+            <div className="sticky top-20 space-y-4 rounded-card border border-stone-100 bg-card p-4 shadow-soft">
+              <div>
+                <p className="text-2xl font-extrabold text-primary">
+                  {showFrom && <span className="text-sm font-medium text-muted">from </span>}
+                  {formatKes(shownPrice)}
+                </p>
+                {product.discountPct != null && (
+                  <p className="text-sm text-muted line-through">{formatKes(shownListPrice)}</p>
+                )}
+              </div>
+
+              <div className="flex flex-wrap items-center gap-2">
+                <StockBadge
+                  status={product.status}
+                  label={stockDetailLabel(product.status, product.stockQty)}
+                />
+                {merchant && <FulfillmentBadge fulfillment={merchant.fulfillment} />}
+              </div>
+
+              {/* Sold out still gets the panel, with the price and the stock
+                  line — it used to vanish entirely, which left a desktop
+                  shopper on a sold-out product with no price and no route to
+                  the seller. */}
+              {soldOut ? (
+                <p className="text-sm leading-relaxed text-muted">
+                  Out of stock right now. Ask {merchant?.name ?? "the seller"} below when it is
+                  back.
+                </p>
+              ) : (
+                <>
+                  <div className="flex items-center gap-3">
+                    <span className="text-sm font-bold text-ink">Quantity</span>
+                    <div className="flex items-center gap-2">
+                      <button
+                        type="button"
+                        aria-label="Decrease quantity"
+                        onClick={() => setQty(qty - 1)}
+                        disabled={qty <= 1}
+                        className="flex size-8 items-center justify-center rounded-full bg-stone-100 disabled:opacity-40"
+                      >
+                        <Minus className="size-3.5" />
+                      </button>
+                      <span className="w-6 text-center text-sm font-bold">{qty}</span>
+                      <button
+                        type="button"
+                        aria-label="Increase quantity"
+                        onClick={() => setQty(Math.min(qty + 1, product.stockQty))}
+                        className="flex size-8 items-center justify-center rounded-full bg-stone-100"
+                      >
+                        <Plus className="size-3.5" />
+                      </button>
+                    </div>
+                  </div>
+
+                  {desktopLinks.length > 0 && (
+                    <div className="grid grid-cols-3 gap-2 rounded-btn bg-stone-100 p-1">
+                      {CHANNELS.map(({ id: ch, label, icon: Icon }) => {
+                        const available = Boolean(merchant?.contacts[ch]);
+                        return (
+                          <button
+                            key={ch}
+                            type="button"
+                            onClick={() => available && setDesktopChannel(ch)}
+                            disabled={!available}
+                            aria-label={available ? label : `${label} — not set up by this seller`}
+                            className={cn(
+                              "flex h-10 items-center justify-center gap-1.5 rounded-[10px] text-xs font-bold transition-all",
+                              !available && "cursor-not-allowed opacity-35",
+                              available && desktopChannel === ch ? "bg-card text-ink shadow-soft" : "text-muted",
+                            )}
+                          >
+                            <Icon
+                              className={cn(
+                                "size-4",
+                                available && ch === "whatsapp" && "text-whatsapp",
+                                available && ch === "instagram" && "text-instagram",
+                                available && ch === "facebook" && "text-facebook",
+                              )}
+                            />
+                            {/* The buy box is a third of the width the old inline
+                                panel was, and three labelled buttons do not fit
+                                across it until xl. The button keeps its
+                                aria-label either way. */}
+                            <span className="hidden xl:inline">{label}</span>
+                          </button>
+                        );
+                      })}
+                    </div>
+                  )}
+
+                  {/* Stacked, not side by side: two lg buttons cannot share a
+                      260px column without truncating. Amazon stacks them for the
+                      same reason. */}
+                  <div className="space-y-2">
+                    <Button
+                      size="lg"
+                      className="w-full"
+                      onClick={orderViaChannel}
+                      disabled={!desktopChannel}
+                    >
+                      Order Now
+                    </Button>
+                    <Button variant="outline" size="lg" className="w-full" onClick={handleAddToCart}>
+                      <ShoppingBag className="size-5" />
+                      Add to Cart
+                    </Button>
+                  </div>
+
+                  <button
+                    type="button"
+                    onClick={() => toggle(product.id)}
+                    className="flex items-center gap-1.5 text-sm font-semibold text-muted hover:text-ink"
+                  >
+                    <Heart className={cn("size-4", isFavorite ? "fill-favorite text-favorite" : "text-ink")} />
+                    {isFavorite ? "Saved to Wishlist" : "Add to Wishlist"}
+                  </button>
+
+                  {merchant && desktopChannelLabel && (
+                    <p className="text-xs leading-relaxed text-muted">
+                      After ordering, <span className="font-bold text-ink">{merchant.name}</span> will
+                      confirm your order via{" "}
+                      <span className="font-bold text-ink">{desktopChannelLabel}</span>.
+                    </p>
+                  )}
+                </>
+              )}
+            </div>
+          </aside>
         </div>
 
         <ReviewsSection
