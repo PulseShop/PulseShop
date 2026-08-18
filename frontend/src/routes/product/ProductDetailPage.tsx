@@ -515,7 +515,7 @@ export function ProductDetailPage() {
                   <p className="text-sm text-muted line-through">{formatKes(shownListPrice)}</p>
                 )}
                 {shownSavings > 0 && (
-                  <p className="text-xs font-bold text-success">
+                  <p className="text-xs font-bold text-success-deep">
                     Save {formatKes(shownSavings)}
                   </p>
                 )}
@@ -634,7 +634,7 @@ export function ProductDetailPage() {
                   <p className="text-sm text-muted line-through">{formatKes(shownListPrice)}</p>
                 )}
                 {shownSavings > 0 && (
-                  <p className="mt-1 inline-flex items-center rounded-full bg-success/10 px-2 py-0.5 text-xs font-bold text-success">
+                  <p className="mt-1 inline-flex items-center rounded-full bg-success-deep px-2.5 py-1 text-xs font-bold text-white">
                     Save {formatKes(shownSavings)}
                   </p>
                 )}

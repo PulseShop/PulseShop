@@ -122,19 +122,26 @@ export function ProductCard({
     </p>
   );
 
-  /* The discount in shillings rather than percent. Paired with the stock badge
-     on one row because both are small pills and the tile has no vertical room
-     to spare. */
+  /**
+   * What the discount is worth, in the corner of the photo where the "-25%"
+   * pill used to sit.
+   *
+   * It replaces that pill rather than joining it. The two say the same thing,
+   * and of the two it is the shillings a shopper actually compares offers with
+   * — "-25%" of an unknown number is not yet information. Keeping both would
+   * have spent the tile's most valuable spot saying one fact twice.
+   *
+   * Not shown when sold out: the photo already carries the Sold Out plate, and
+   * a saving on something nobody can buy is noise.
+   */
   const savings = savingsFor(product);
-  const badgeRow = (!soldOut || savings > 0) && (
-    <div className="flex flex-wrap items-center gap-1.5">
-      {!soldOut && <StockBadge status={product.status} />}
-      {savings > 0 && (
-        <span className="inline-flex items-center rounded-full bg-success/10 px-2 py-0.5 text-[11px] font-bold text-success">
-          Save {formatKes(savings)}
-        </span>
-      )}
-    </div>
+  const savingsBadge = savings > 0 && !soldOut && (
+    <span className={cn(
+      "absolute rounded-full bg-success-deep font-bold text-white",
+      layout === "row" ? "left-1.5 top-1.5 px-1.5 py-0.5 text-[10px]" : "left-2.5 top-2.5 px-2 py-0.5 text-[11px]",
+    )}>
+      Save {formatKes(savings)}
+    </span>
   );
 
   const priceBlock = (
@@ -264,11 +271,7 @@ export function ProductCard({
                 </span>
               </div>
             )}
-            {product.discountPct != null && !soldOut && (
-              <span className="absolute left-1.5 top-1.5 rounded-full bg-favorite px-1.5 py-0.5 text-[10px] font-bold text-white">
-                -{product.discountPct}%
-              </span>
-            )}
+            {savingsBadge}
           </div>
         </Link>
 
@@ -300,7 +303,7 @@ export function ProductCard({
           )}
           {priceBlock}
           <div className="mt-auto flex flex-wrap items-center justify-between gap-2 pt-0.5">
-            {badgeRow || <span />}
+            {!soldOut ? <StockBadge status={product.status} /> : <span />}
             {!soldOut && (
               <Button size="sm" aria-label={addLabel} onClick={onAddClick}>
                 <ShoppingBag className="size-4" />
@@ -352,11 +355,7 @@ export function ProductCard({
               </span>
             </div>
           )}
-          {product.discountPct != null && !soldOut && (
-            <span className="absolute left-2.5 top-2.5 rounded-full bg-favorite px-2 py-0.5 text-[11px] font-bold text-white">
-              -{product.discountPct}%
-            </span>
-          )}
+          {savingsBadge}
         </div>
         {/* Title, rating, price, stock — in that order, which is the order the
             decision actually gets made in: what is it, do people rate it, what
@@ -373,7 +372,7 @@ export function ProductCard({
           {ratingBlock}
           {soldBlock}
           {priceBlock}
-          {badgeRow}
+          {!soldOut && <StockBadge status={product.status} />}
         </div>
       </Link>
 

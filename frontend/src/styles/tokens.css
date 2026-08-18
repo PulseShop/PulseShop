@@ -12,6 +12,10 @@
   --color-facebook: #1877f2;
   --color-favorite: #e11d48;
   --color-success: #16a34a;
+  /* green-700, for the same reason --color-primary is teal-700: the savings
+     badge is solid green with white text on it, and green-600 only reaches
+     ~3.4:1 against white. green-700 clears AA at ~5.0:1. */
+  --color-success-deep: #15803d;
   --color-warning: #d97706;
   --color-danger: #dc2626;
   --color-surface: #fafaf9;
