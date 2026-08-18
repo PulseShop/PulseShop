@@ -9,8 +9,10 @@ import {
   hasPriceRange,
   minVariantPrice,
   priceForSelection,
+  savingsFor,
   variantPrice,
 } from "@/lib/currency";
+import { showsSoldBadge, soldLabel } from "@/lib/socialProof";
 import { productImageSrc } from "@/lib/productImage";
 import { specSummary } from "@/lib/productSpecs";
 import { Button } from "@/components/ui/Button";
@@ -109,6 +111,30 @@ export function ProductCard({
      "0.0 (0)" reads as a bad product rather than a new one. */
   const ratingBlock = product.reviewCount > 0 && (
     <RatingRow rating={product.rating} reviewCount={product.reviewCount} compact />
+  );
+
+  /* Recent demand, Amazon's placement: under the stars, above the price, so it
+     is read as a reason to keep going rather than as part of the price. Hidden
+     below the threshold on purpose — see lib/socialProof.ts. */
+  const soldBlock = showsSoldBadge(product.soldLast30d) && (
+    <p className="text-[11px] font-medium text-muted">
+      {soldLabel(product.soldLast30d)} bought in past month
+    </p>
+  );
+
+  /* The discount in shillings rather than percent. Paired with the stock badge
+     on one row because both are small pills and the tile has no vertical room
+     to spare. */
+  const savings = savingsFor(product);
+  const badgeRow = (!soldOut || savings > 0) && (
+    <div className="flex flex-wrap items-center gap-1.5">
+      {!soldOut && <StockBadge status={product.status} />}
+      {savings > 0 && (
+        <span className="inline-flex items-center rounded-full bg-success/10 px-2 py-0.5 text-[11px] font-bold text-success">
+          Save {formatKes(savings)}
+        </span>
+      )}
+    </div>
   );
 
   const priceBlock = (
@@ -259,6 +285,7 @@ export function ProductCard({
             </h3>
           </Link>
           {ratingBlock}
+          {soldBlock}
           {specs.length > 0 && (
             <ul className="flex flex-wrap gap-1">
               {specs.map((s) => (
@@ -273,7 +300,7 @@ export function ProductCard({
           )}
           {priceBlock}
           <div className="mt-auto flex flex-wrap items-center justify-between gap-2 pt-0.5">
-            {!soldOut ? <StockBadge status={product.status} /> : <span />}
+            {badgeRow || <span />}
             {!soldOut && (
               <Button size="sm" aria-label={addLabel} onClick={onAddClick}>
                 <ShoppingBag className="size-4" />
@@ -344,8 +371,9 @@ export function ProductCard({
             {product.name}
           </h3>
           {ratingBlock}
+          {soldBlock}
           {priceBlock}
-          {!soldOut && <StockBadge status={product.status} />}
+          {badgeRow}
         </div>
       </Link>
 

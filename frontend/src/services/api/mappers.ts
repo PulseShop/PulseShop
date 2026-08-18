@@ -31,6 +31,8 @@ export interface ProductRow {
   specs?: Record<string, unknown> | null;
   rating: number | string;
   review_count: number;
+  /** Only on rows from search_products (0044); see Product.soldLast30d. */
+  sold_30d?: number | null;
   summary?: string | null;
   description?: string | null;
   meta_description?: string | null;
@@ -92,6 +94,7 @@ export function toProduct(row: ProductRow): Product {
     pcSpecs: productType === "pc" ? ((row.specs ?? null) as PcSpecs | null) : null,
     rating: Number(row.rating),
     reviewCount: row.review_count,
+    soldLast30d: row.sold_30d ?? undefined,
     summary: row.summary ?? null,
     description: row.description ?? "",
     metaDescription: row.meta_description ?? null,

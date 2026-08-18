@@ -152,3 +152,20 @@ export function listPriceForSelection(
       (color ? variantAdj(p.colorPriceAdj, color) : minAdj(p.colorPriceAdj, p.colors)),
   );
 }
+
+/**
+ * What the discount actually takes off, in shillings, for the figure being
+ * quoted. Zero when there is no discount.
+ *
+ * A percentage is not what a shopper compares offers with — "Save Ksh 8,750"
+ * and "-25%" are the same fact, but only one of them is money. Derived from the
+ * same two numbers the struck-through "was" price is built from, so the badge
+ * can never disagree with the prices printed beside it.
+ */
+export const savingsFor = (p: Priceable) =>
+  p.discountPct == null ? 0 : minVariantPrice({ ...p, discountPct: null }) - minVariantPrice(p);
+
+/** The savings on one specific variant selection, for the product page, where
+ * the shopper has chosen and the headline price is no longer a "from". */
+export const savingsForSelection = (p: Priceable, size: string | null, color: string | null) =>
+  p.discountPct == null ? 0 : listPriceForSelection(p, size, color) - priceForSelection(p, size, color);

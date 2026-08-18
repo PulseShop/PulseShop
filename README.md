@@ -86,7 +86,7 @@ frontend/          the PWA
   scripts/         build gates and headless verification
 api/               Vercel Functions: render.ts, sitemap.ts, log.ts (+ generated _seo/_shell)
 supabase/
-  migrations/      42 sequential SQL migrations; the real backend
+  migrations/      41 sequential SQL migrations; the real backend
   functions/       Deno edge functions: place-order, export-products
 automation/        Python operational scripts
 android/           Bubblewrap TWA config

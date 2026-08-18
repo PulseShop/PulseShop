@@ -23,6 +23,7 @@ import {
   hasPriceRange,
   listPriceForSelection,
   priceForSelection,
+  savingsForSelection,
   variantPrice,
 } from "@/lib/currency";
 import { merchantSocialLinks, productInquiryLinks } from "@/lib/deeplinks";
@@ -304,6 +305,9 @@ export function ProductDetailPage() {
    */
   const shownPrice = priceForSelection(product, size, color);
   const shownListPrice = listPriceForSelection(product, size, color);
+  // Tracks the selection like the two figures above it, so picking a discounted
+  // XL updates what the shopper is told they are saving.
+  const shownSavings = savingsForSelection(product, size, color);
   const choicePending = (hasSizes && !size) || (hasColors && !color);
   const showFrom = choicePending && hasPriceRange(product);
 
@@ -510,6 +514,11 @@ export function ProductDetailPage() {
                 {product.discountPct != null && (
                   <p className="text-sm text-muted line-through">{formatKes(shownListPrice)}</p>
                 )}
+                {shownSavings > 0 && (
+                  <p className="text-xs font-bold text-success">
+                    Save {formatKes(shownSavings)}
+                  </p>
+                )}
               </div>
             </div>
 
@@ -623,6 +632,11 @@ export function ProductDetailPage() {
                 </p>
                 {product.discountPct != null && (
                   <p className="text-sm text-muted line-through">{formatKes(shownListPrice)}</p>
+                )}
+                {shownSavings > 0 && (
+                  <p className="mt-1 inline-flex items-center rounded-full bg-success/10 px-2 py-0.5 text-xs font-bold text-success">
+                    Save {formatKes(shownSavings)}
+                  </p>
                 )}
               </div>
 

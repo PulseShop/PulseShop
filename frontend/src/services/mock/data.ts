@@ -308,5 +308,11 @@ export const PRODUCTS: Product[] = RAW_PRODUCTS.map((p, i, all) => {
     productType: "general",
     phoneSpecs: null,
     pcSpecs: null,
+    // Stands in for product_sold_30d (migration 0044), which the real adapter
+    // computes from order_items. Derived from reviewCount rather than random so
+    // the demo is stable across reloads, and scaled so the catalogue straddles
+    // SOLD_BADGE_MIN — some products show the badge, most do not, which is what
+    // a real shop looks like.
+    soldLast30d: p.reviewCount * 3,
   };
 });

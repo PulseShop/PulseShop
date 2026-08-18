@@ -103,6 +103,15 @@ export interface Product {
   pcSpecs: PcSpecs | null;
   rating: number;
   reviewCount: number;
+  /**
+   * Units ordered in the last 30 days (product_sold_30d, migration 0044).
+   *
+   * Optional because only search_products carries it: getProduct() and
+   * getProductBySlug() read the products table directly, and the count is not a
+   * column on it. Absent means "not asked for", not "none sold" — which is why
+   * the tile tests for the number rather than defaulting it to 0.
+   */
+  soldLast30d?: number;
   summary: string | null;
   description: string;
   /** Seller-authored search-result snippet. Null/empty means lib/seo.ts
