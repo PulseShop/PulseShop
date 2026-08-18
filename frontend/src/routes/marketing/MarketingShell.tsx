@@ -1,6 +1,5 @@
 import type { ReactNode } from "react";
 import { Link, NavLink } from "react-router";
-import { Logo } from "@/components/common/Logo";
 import { Button } from "@/components/ui/Button";
 import { cn } from "@/lib/utils";
 
@@ -42,12 +41,28 @@ export function MarketingShell({ children }: { children: ReactNode }) {
     <div className="app-surface min-h-dvh">
       <header className="glass-header sticky top-0 z-30">
         <div className="mx-auto flex max-w-6xl items-center justify-between gap-3 px-5 py-3">
-          <Link
-            to="/"
-            className="flex items-center gap-2 text-lg font-extrabold tracking-tight text-primary"
-          >
-            <Logo size={30} />
-            PulseShop
+          {/* The wordmark carries the name, so the icon and the "PulseShop"
+              text that used to sit beside it are both gone. Two files rather
+              than one because the supplied lockups all set the type in navy,
+              which disappears on the dark theme; wordmark-on-dark.png is that
+              same art with the type recoloured (scripts/generate-icons.mjs).
+              Swapped in CSS, not React, so it is already correct on the first
+              paint that index.html's pre-paint script sets up. */}
+          <Link to="/" aria-label="PulseShop home" className="flex items-center">
+            <img
+              src="/icons/for_darkmode.png"
+              alt="PulseShop"
+              width={440}
+              height={140}
+              className="h-8 w-auto dark:hidden"
+            />
+            <img
+              src="/icons/wordmark-on-dark.png"
+              alt="PulseShop"
+              width={1760}
+              height={560}
+              className="hidden h-8 w-auto dark:block"
+            />
           </Link>
           <NavLinks className="hidden items-center gap-1 md:flex" />
           <div className="flex items-center gap-2">

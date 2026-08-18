@@ -1,5 +1,10 @@
 @import "tailwindcss";
 
+/* Point Tailwind's `dark:` variant at the same attribute the palette keys off.
+   Left on its default it would follow prefers-color-scheme, which disagrees with
+   the app the moment someone picks Light on a dark phone. */
+@custom-variant dark (&:where([data-theme="dark"], [data-theme="dark"] *));
+
 @theme {
   --font-sans: "Plus Jakarta Sans", ui-sans-serif, system-ui, sans-serif;
 

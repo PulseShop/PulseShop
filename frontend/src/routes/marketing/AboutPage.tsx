@@ -53,6 +53,24 @@ export function AboutPage() {
           <Sparkles className="size-3.5" />
           Our story
         </span>
+        {/* for_nav.png, not for_lightmode.png: the two are the same artwork,
+            but for_lightmode has a flattened white background that would sit on
+            the warm page surface as a visible white slab (and as a bright one in
+            dark mode). Same swap as the nav for the dark theme. */}
+        <img
+          src="/icons/for_nav.png"
+          alt=""
+          width={1760}
+          height={560}
+          className="mx-auto mt-6 h-14 w-auto dark:hidden md:h-20"
+        />
+        <img
+          src="/icons/wordmark-on-dark.png"
+          alt=""
+          width={1760}
+          height={560}
+          className="mx-auto mt-6 hidden h-14 w-auto dark:block md:h-20"
+        />
         <h1 className="mt-4 text-3xl font-extrabold tracking-tight text-ink md:text-5xl">
           Helping local shops evolve into the next generation of selling.
         </h1>

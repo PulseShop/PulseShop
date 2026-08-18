@@ -1,4 +1,5 @@
-import fallback from "@/assets/pulseshoplogo1.jpg";
+/* See components/common/Logo.tsx for why this is a public path. */
+const fallback = "/icons/main_logo.png";
 
 export const PRODUCT_IMAGE_FALLBACK = fallback;
 
