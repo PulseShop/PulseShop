@@ -1,5 +1,5 @@
 import { keepPreviousData, useInfiniteQuery, useQuery } from "@tanstack/react-query";
-import { AlertTriangle, ArrowLeft, Check, Heart, Package, Search, ShoppingBag, SlidersHorizontal, Star, Store, UserRound, Users } from "lucide-react";
+import { AlertTriangle, ArrowLeft, Check, Heart, Package, Search, ShoppingBag, SlidersHorizontal, Star, Store, UserRound, Users, X } from "lucide-react";
 import { useEffect, useMemo, useState } from "react";
 import { Link, useParams, useSearchParams } from "react-router";
 import { useAuth } from "@/stores/auth";
@@ -22,6 +22,7 @@ import { formatKes } from "@/lib/currency";
 import { merchantSocialLinks } from "@/lib/deeplinks";
 import { shopSeo } from "@/lib/seo";
 import { seoShopFrom } from "@/lib/seoFrom";
+import { useDebounced } from "@/hooks/useDebounced";
 import { useSeo } from "@/hooks/useSeo";
 import { cn } from "@/lib/utils";
 import { services } from "@/services";
@@ -51,7 +52,14 @@ export function StorefrontPage() {
 
   const [category, setCategory] = useState("All");
   const [search, setSearch] = useState(initialQuery);
-  const [searchOpen, setSearchOpen] = useState(Boolean(initialQuery));
+  /**
+   * Debounced before it reaches the query, the same way /shops does it.
+   * The field used to be behind a magnifier toggle; now that it is always on
+   * screen it gets typed into far more, and `search` sits in the query key, so
+   * every keystroke was its own server-side search_products call. React Query
+   * dedupes repeat keys, not the distinct ones a word types out through.
+   */
+  const term = useDebounced(search.trim());
 
   const [sort, setSort] = useState<SortOrder>("newest");
   const [availableOnly, setAvailableOnly] = useState(false);
@@ -114,7 +122,7 @@ export function StorefrontPage() {
    * along with the paging, or a filter would only ever search the loaded page.
    */
   const productQuery = {
-    search,
+    search: term,
     category,
     status: availableOnly ? ("in-stock" as const) : ("all" as const),
     maxPrice,
@@ -184,6 +192,49 @@ export function StorefrontPage() {
           : null),
       [isPublic, merchant, facetsQ.data?.categories],
     ),
+  );
+
+  /**
+   * The search field, rendered twice: inline in the header on desktop, and as
+   * its own row beneath it on a phone, where there is no room beside the
+   * wordmark. Only ever one of the two is in the accessibility tree, since the
+   * other is display:none.
+   *
+   * It replaced a magnifier that toggled a field open. A shop with a hundred
+   * products needs the field itself in front of the shopper, not a control that
+   * reveals one; the toggle also meant the shopper had to know search existed
+   * before they could use it. No autoFocus: it is on screen from the start now,
+   * and focusing it on load would throw the keyboard up over the grid on every
+   * visit.
+   */
+  const searchField = (
+    <div className="relative">
+      <Search
+        aria-hidden
+        className="pointer-events-none absolute left-3 top-1/2 size-4 -translate-y-1/2 text-muted"
+      />
+      <input
+        type="search"
+        value={search}
+        onChange={(e) => setSearch(e.target.value)}
+        aria-label="Search products"
+        placeholder="Search products…"
+        // WebKit paints its own clear affordance on type="search"; ours is
+        // styled and keyboard-labelled, so the native one is suppressed rather
+        // than shown twice.
+        className="h-11 w-full rounded-btn border border-stone-200 bg-card pl-9 pr-10 text-sm outline-none focus:border-primary focus:ring-2 focus:ring-primary/20 [&::-webkit-search-cancel-button]:appearance-none"
+      />
+      {search && (
+        <button
+          type="button"
+          aria-label="Clear search"
+          onClick={() => setSearch("")}
+          className="absolute right-1.5 top-1/2 flex size-8 -translate-y-1/2 items-center justify-center rounded-full text-muted transition-colors hover:bg-stone-100 hover:text-ink focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary"
+        >
+          <X className="size-4" />
+        </button>
+      )}
+    </div>
   );
 
   /** Size, colour, price and availability — rendered in the desktop sidebar and,
@@ -407,98 +458,85 @@ export function StorefrontPage() {
   return (
     <MobileShell homeTo={homeTo} wide>
       {/* header row */}
-      <header className="glass-header sticky top-0 z-30 flex items-center justify-between px-4 py-3 lg:px-6">
-        <div className="flex items-center gap-2">
-          {/* Merchant previewing their own store via "View as buyer" — give
-              them a way back that isn't the browser back button. */}
-          {!isPublic && session?.accountType === "merchant" && (
-            <Link
-              to="/dashboard"
-              aria-label="Back to dashboard"
-              className="flex size-11 items-center justify-center rounded-full text-ink hover:bg-stone-100 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary"
-            >
-              <ArrowLeft className="size-5" />
-            </Link>
-          )}
-          <span className="flex items-center gap-2 text-lg font-extrabold tracking-tight text-primary lg:hidden">
-            <Logo size={28} />
-            PulseShop
-          </span>
-          {/* desktop: shop identity takes the wordmark's place, once loaded */}
-          {merchant && (
-            <Link to={homeTo} className="hidden items-center gap-2.5 lg:flex">
-              <img
-                src={merchant.avatarUrl}
-                alt=""
-                className="size-8 rounded-full object-cover"
-              />
-              <span className="text-sm font-extrabold text-ink">{merchant.name}</span>
-            </Link>
-          )}
-        </div>
-        <div className="flex items-center gap-1 lg:gap-2">
-          <button
-            type="button"
-            aria-label="Search products"
-            onClick={() => setSearchOpen((v) => !v)}
-            className={cn(
-              "flex size-11 items-center justify-center rounded-full transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary",
-              searchOpen ? "bg-primary text-white" : "text-ink hover:bg-stone-100",
+      <header className="glass-header sticky top-0 z-30 px-4 py-3 lg:px-6">
+        <div className="flex items-center justify-between gap-3">
+          <div className="flex items-center gap-2">
+            {/* Merchant previewing their own store via "View as buyer" — give
+                them a way back that isn't the browser back button. */}
+            {!isPublic && session?.accountType === "merchant" && (
+              <Link
+                to="/dashboard"
+                aria-label="Back to dashboard"
+                className="flex size-11 items-center justify-center rounded-full text-ink hover:bg-stone-100 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary"
+              >
+                <ArrowLeft className="size-5" />
+              </Link>
             )}
-          >
-            <Search className="size-5" />
-          </button>
-          {/* desktop: quick links that replace the bottom tab bar's job up here */}
-          <Link
-            to="/favorites"
-            aria-label="Favorites"
-            className="hidden size-10 items-center justify-center rounded-full text-ink hover:bg-stone-100 lg:flex"
-          >
-            <Heart className="size-5" />
-          </Link>
-          <Link
-            to="/cart"
-            aria-label="Cart"
-            className="relative hidden size-10 items-center justify-center rounded-full text-ink hover:bg-stone-100 lg:flex"
-          >
-            <ShoppingBag className="size-5" />
-            {cartItemCount > 0 && (
-              <span className="absolute right-0.5 top-0.5 flex size-4 items-center justify-center rounded-full bg-favorite text-[10px] font-bold text-white">
-                {cartItemCount}
-              </span>
+            <span className="flex items-center gap-2 text-lg font-extrabold tracking-tight text-primary lg:hidden">
+              <Logo size={28} />
+              PulseShop
+            </span>
+            {/* desktop: shop identity takes the wordmark's place, once loaded */}
+            {merchant && (
+              <Link to={homeTo} className="hidden items-center gap-2.5 lg:flex">
+                <img
+                  src={merchant.avatarUrl}
+                  alt=""
+                  className="size-8 rounded-full object-cover"
+                />
+                <span className="text-sm font-extrabold text-ink">{merchant.name}</span>
+              </Link>
             )}
-          </Link>
-          <Link
-            to="/account"
-            aria-label="Account"
-            className="hidden size-10 items-center justify-center rounded-full text-ink hover:bg-stone-100 lg:flex"
-          >
-            <UserRound className="size-5" />
-          </Link>
-          {merchant && (
-            <div className="ml-1 hidden items-center gap-1.5 border-l border-stone-200 pl-3 lg:flex">
-              <SocialLinks
-                links={merchantSocialLinks(merchant)}
-                ariaPrefix="Chat on"
-                size="size-9"
-                iconSize="size-4"
-              />
-            </div>
-          )}
-        </div>
-      </header>
+          </div>
 
-      {searchOpen && (
-        <div className="px-4 pt-3 animate-grid-fade">
-          <input
-            autoFocus
-            value={search}
-            onChange={(e) => setSearch(e.target.value)}
-            placeholder="Search products…"
-            className="h-11 w-full rounded-btn border border-stone-200 bg-card px-3.5 text-sm outline-none focus:border-primary focus:ring-2 focus:ring-primary/20"
-          />
+          {/* Desktop has the width to carry the field in the header row itself. */}
+          <div className="hidden min-w-0 flex-1 lg:block lg:max-w-md">{searchField}</div>
+
+          <div className="flex items-center gap-1 lg:gap-2">
+            {/* desktop: quick links that replace the bottom tab bar's job up here */}
+            <Link
+              to="/favorites"
+              aria-label="Favorites"
+              className="hidden size-10 items-center justify-center rounded-full text-ink hover:bg-stone-100 lg:flex"
+            >
+              <Heart className="size-5" />
+            </Link>
+            <Link
+              to="/cart"
+              aria-label="Cart"
+              className="relative hidden size-10 items-center justify-center rounded-full text-ink hover:bg-stone-100 lg:flex"
+            >
+              <ShoppingBag className="size-5" />
+              {cartItemCount > 0 && (
+                <span className="absolute right-0.5 top-0.5 flex size-4 items-center justify-center rounded-full bg-favorite text-[10px] font-bold text-white">
+                  {cartItemCount}
+                </span>
+              )}
+            </Link>
+            <Link
+              to="/account"
+              aria-label="Account"
+              className="hidden size-10 items-center justify-center rounded-full text-ink hover:bg-stone-100 lg:flex"
+            >
+              <UserRound className="size-5" />
+            </Link>
+            {merchant && (
+              <div className="ml-1 hidden items-center gap-1.5 border-l border-stone-200 pl-3 lg:flex">
+                <SocialLinks
+                  links={merchantSocialLinks(merchant)}
+                  ariaPrefix="Chat on"
+                  size="size-9"
+                  iconSize="size-4"
+                />
+              </div>
+            )}
+          </div>
         </div>
-      )}
+
+        {/* Phone: its own row under the wordmark, still inside the sticky
+            header so it stays reachable however far the grid has scrolled. */}
+        <div className="mt-2.5 lg:hidden">{searchField}</div>
+      </header>
 
       {/* store banner */}
       {merchant?.bannerUrl && (
@@ -683,7 +721,10 @@ export function StorefrontPage() {
           ) : (
             <>
               <div
-                key={`${category}-${search}-${sort}-${availableOnly}-${maxPrice}-${sizes}-${colors}-${minRating}`}
+                // `term`, not `search`: keyed on the raw field the grid would
+                // replay its fade-in on every keystroke, while the results
+                // underneath only change once the debounce settles.
+                key={`${category}-${term}-${sort}-${availableOnly}-${maxPrice}-${sizes}-${colors}-${minRating}`}
                 className="grid grid-cols-2 gap-3 animate-grid-fade lg:grid-cols-3 xl:grid-cols-4"
               >
                 {filtered.map((p) => (
