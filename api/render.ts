@@ -65,12 +65,13 @@ const RESERVED = new Set([
   "shop", "shops", "product", "cart", "checkout", "order", "orders", "account",
   "favorites", "login", "signup", "welcome", "auth", "reset-password",
   "dashboard", "dev", "api", "assets", "icons", "prices", "about", "faq",
+  "admindev",
 ]);
 
 /** Pages that exist for a signed-in human and must never be indexed. */
 const PRIVATE_ROOTS = new Set([
   "cart", "checkout", "order", "orders", "account", "favorites", "login",
-  "signup", "auth", "reset-password", "dashboard", "dev", "shop",
+  "signup", "auth", "reset-password", "dashboard", "dev", "shop", "admindev",
 ]);
 
 // ---------------------------------------------------------------------------

@@ -19,6 +19,8 @@ import type {
   PcSpecs,
   PhoneSpecs,
   PlacedOrderRef,
+  PlatformStats,
+  GrowthPoint,
   Product,
   ProductReview,
   ProductType,
@@ -469,8 +471,24 @@ export interface StorageService {
   deleteImage(url: string): Promise<void>;
 }
 
+/**
+ * The owner dashboard at /admindev (migration 0047).
+ *
+ * Every method here is refused by the database for anyone who is not on the
+ * platform_admins list, so this interface is a convenience over that boundary
+ * rather than the boundary itself. `isAdmin` exists so the page can render
+ * "not authorised" instead of an error state; it is NOT what protects the data.
+ */
+export interface AdminService {
+  isAdmin(): Promise<boolean>;
+  stats(): Promise<PlatformStats>;
+  /** Daily signups plus running totals, for the last `days` days (7 to 365). */
+  growth(days?: number): Promise<GrowthPoint[]>;
+}
+
 export interface Services {
   auth: AuthService;
+  admin: AdminService;
   products: ProductService;
   orders: OrderService;
   analytics: AnalyticsService;

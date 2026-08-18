@@ -52,6 +52,7 @@ import { StorefrontPage } from "@/routes/storefront/StorefrontPage";
 import { RequireMerchant } from "./routes/auth/RequireAuth";
 import { AuthCallbackPage } from "./routes/auth/AuthCallbackPage";
 import { MarketplacePage } from "@/routes/marketplace/MarketplacePage";
+import { AdminPage } from "@/routes/admin/AdminPage";
 
 registerSW({ immediate: true });
 
@@ -238,6 +239,9 @@ createRoot(document.getElementById("root")!).render(
             <Route path="/dashboard/analytics" element={<RequireMerchant><AnalyticsPage /></RequireMerchant>} />
             <Route path="/dashboard/settings" element={<RequireMerchant><SettingsPage /></RequireMerchant>} />
             <Route path="/dev/components" element={<ComponentsPage />} />
+            {/* Owner-only platform statistics. The gate is in the database
+                (migration 0047), not in this route. */}
+            <Route path="/admindev" element={<AdminPage />} />
             {/* public shop by slug — keep LAST so static routes match first.
                 A single-segment miss (/nosuchshop) is genuinely ambiguous, so it
                 lands on the storefront's "Shop not found", which names the handle. */}

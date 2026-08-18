@@ -20,6 +20,8 @@ import type {
   Product,
   ProductReview,
   ShopFacets,
+  PlatformStats,
+  GrowthPoint,
 } from "@/types";
 import type {
   Credentials,
@@ -34,6 +36,7 @@ import type {
   ShopQuery,
   ShopperProfile,
   ShopperSignupInput,
+  AdminService,
   SignupInput,
 } from "../types";
 import type { ProductCsvInput } from "@/lib/productCsv";
@@ -495,7 +498,68 @@ function merchantStats(): Merchant["stats"] {
   };
 }
 
+/**
+ * The owner dashboard, in memory.
+ *
+ * `isAdmin` is true here on purpose: the mock exists so the page can be built
+ * and looked at without a live admin session, and an adapter that always
+ * answered "not authorised" would make the dashboard unreachable. The real
+ * adapter asks the database, which refuses everyone not on platform_admins.
+ */
+const mockAdmin: AdminService = {
+  async isAdmin() {
+    await delay();
+    return true;
+  },
+
+  async stats(): Promise<PlatformStats> {
+    await delay();
+    const inStock = products.filter((p) => p.status !== "out").length;
+    return {
+      shops: { total: 7, open: 4, closed: 3, closing: 0, withProducts: 5, soldLast30d: 5 },
+      plans: { explorer: 5, boutique: 0, influencer: 2 },
+      products: {
+        total: products.length,
+        available: inStock,
+        low: products.filter((p) => p.status === "low").length,
+        out: products.filter((p) => p.status === "out").length,
+        withPhoto: products.filter((p) => p.images.length > 0).length,
+      },
+      users: { total: 13, sellers: 7, shoppers: 6, newLast30d: 4 },
+      orders: { total: 19, last30d: 6, grossKes: 1_532_026 },
+      generatedAt: new Date().toISOString(),
+    };
+  },
+
+  async growth(days = 30): Promise<GrowthPoint[]> {
+    await delay();
+    const span = Math.max(7, Math.min(days, 365));
+    const out: GrowthPoint[] = [];
+    let sellersTotal = 1;
+    let shoppersTotal = 0;
+    for (let i = span - 1; i >= 0; i--) {
+      const d = new Date();
+      d.setDate(d.getDate() - i);
+      // A deterministic trickle, so the curve looks like a curve rather than
+      // re-rolling every render.
+      const sellers = (i * 7) % 11 === 0 ? 1 : 0;
+      const shoppers = (i * 5) % 7 === 0 ? 1 : 0;
+      sellersTotal += sellers;
+      shoppersTotal += shoppers;
+      out.push({
+        day: d.toISOString().slice(0, 10),
+        sellers,
+        shoppers,
+        sellersTotal,
+        shoppersTotal,
+      });
+    }
+    return out;
+  },
+};
+
 export const mockServices: Services = {
+  admin: mockAdmin,
   auth: {
     // Accepts any credentials and returns the demo shop's session.
     async login({ email }: Credentials): Promise<AuthUser> {

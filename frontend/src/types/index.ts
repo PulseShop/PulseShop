@@ -214,6 +214,40 @@ export type ShopStatus = "open" | "closed" | "closing";
  */
 export type Plan = "explorer" | "boutique" | "influencer";
 
+/**
+ * Platform-wide counters for the owner dashboard (migration 0047).
+ *
+ * Comes back as one jsonb payload from platform_stats() rather than a row of
+ * typed columns, so a new counter is a change to the function and this
+ * interface, with no signature to drop and recreate.
+ */
+export interface PlatformStats {
+  shops: {
+    total: number;
+    open: number;
+    closed: number;
+    closing: number;
+    /** Shops that have listed at least one product. */
+    withProducts: number;
+    /** Shops with at least one order in the last 30 days. */
+    soldLast30d: number;
+  };
+  plans: { explorer: number; boutique: number; influencer: number };
+  products: { total: number; available: number; low: number; out: number; withPhoto: number };
+  users: { total: number; sellers: number; shoppers: number; newLast30d: number };
+  orders: { total: number; last30d: number; grossKes: number };
+  generatedAt: string;
+}
+
+/** One day on the growth curve. Totals are running, not daily. */
+export interface GrowthPoint {
+  day: string;
+  sellers: number;
+  shoppers: number;
+  sellersTotal: number;
+  shoppersTotal: number;
+}
+
 export interface Merchant {
   id: string;
   name: string;
