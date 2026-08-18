@@ -20,6 +20,7 @@ import { useFavorites } from "@/stores/favorites";
 import { useToasts } from "@/stores/toast";
 import { ColorSelector } from "./ColorSelector";
 import { ProductImage } from "./ProductImage";
+import { RatingRow } from "./RatingRow";
 import { SizeSelector } from "./SizeSelector";
 import { StockBadge } from "./StockBadge";
 
@@ -122,8 +123,23 @@ export function ProductCard({ product, className }: { product: Product; classNam
             </span>
           )}
         </div>
+        {/* Title, rating, price, stock — in that order, which is the order the
+            decision actually gets made in: what is it, do people rate it, what
+            does it cost, can I have it. */}
         <div className="space-y-1.5 p-3">
-          <h3 className="truncate text-sm font-semibold text-ink">{product.name}</h3>
+          {/* Two lines, always reserved. A single truncated line puts the price
+              of a product called "Belt" on a different baseline from one called
+              "Samsung Galaxy A54 5G 128GB", so nothing lines up across a grid
+              row; clamping to two and holding the height fixes the baseline and
+              stops long names being cut at "Samsung Galaxy A54 5G…". */}
+          <h3 className="line-clamp-2 min-h-10 text-sm font-semibold leading-5 text-ink">
+            {product.name}
+          </h3>
+          {/* Only once someone has actually reviewed it. An unreviewed product
+              showing "0.0 (0)" reads as a bad product rather than a new one. */}
+          {product.reviewCount > 0 && (
+            <RatingRow rating={product.rating} reviewCount={product.reviewCount} compact />
+          )}
           <div className="flex items-baseline gap-1.5">
             {ranged && <span className="text-xs font-medium text-muted">from</span>}
             <span className="text-sm font-extrabold text-ink">{formatKes(fromPrice)}</span>
