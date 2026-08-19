@@ -292,7 +292,7 @@ export const productsApi: ProductService = {
    * component. The live window is enforced by RLS on banner_placements, not
    * here: an expired advert is not a row this call can see.
    */
-  async listBannerPlacements(limit = 6): Promise<BannerProduct[]> {
+  async listBannerPlacements(limit = 12): Promise<BannerProduct[]> {
     const { data, error } = await supabase.rpc("list_banner_placements", { p_limit: limit });
     if (error) throw error;
     return ((data ?? []) as PlacementRow[]).map((row) => {

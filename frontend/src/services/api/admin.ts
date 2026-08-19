@@ -67,6 +67,7 @@ interface PlacementRow {
   amount_kes: number | null;
   note: string | null;
   created_at: string;
+  sort_order: number;
   live: boolean;
   product_name: string;
   product_slug: string;
@@ -183,6 +184,7 @@ export const adminApi: AdminService = {
       amountKes: r.amount_kes,
       note: r.note,
       createdAt: r.created_at,
+      sortOrder: r.sort_order,
       live: r.live,
       productName: r.product_name,
       productSlug: r.product_slug,
@@ -206,6 +208,7 @@ export const adminApi: AdminService = {
       p_active: input.active ?? true,
       p_amount_kes: input.amountKes ?? null,
       p_note: input.note ?? null,
+      p_sort_order: input.sortOrder ?? null,
     });
     if (error) throw error;
     return data as string;
@@ -213,6 +216,11 @@ export const adminApi: AdminService = {
 
   async deletePlacement(id: string): Promise<void> {
     const { error } = await supabase.rpc("admin_delete_banner_placement", { p_id: id });
+    if (error) throw error;
+  },
+
+  async reorderPlacements(ids: string[]): Promise<void> {
+    const { error } = await supabase.rpc("admin_reorder_banner_placements", { p_ids: ids });
     if (error) throw error;
   },
 

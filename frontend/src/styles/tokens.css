@@ -58,6 +58,11 @@
   --radius-card: 16px;
   --radius-btn: 14px;
   --radius-modal: 22px;
+  /* The marketplace bento. Deliberately larger than --radius-card: these are
+     panels a whole section lives inside, not tiles, and at 16px a 400px-tall
+     panel reads as a rectangle with the corners filed off rather than as a
+     rounded surface. */
+  --radius-bento: 26px;
 
   --shadow-soft: 0 1px 4px rgba(0, 0, 0, 0.06);
   --shadow-modal: 0 24px 64px rgba(0, 0, 0, 0.22);
@@ -420,6 +425,82 @@ input[type="radio"] {
   will-change: transform;
   backface-visibility: hidden;
   -webkit-backface-visibility: hidden;
+}
+
+/* ---------------------------------------------------------------------------
+   The marketplace hero.
+
+   THE ONE SURFACE THAT DOES NOT FOLLOW THE THEME, and the only one. Everything
+   else on the front page flips with Light/Dark because it is content the
+   shopper reads for minutes at a stretch. The hero is a poster: it is looked
+   at, not read, it carries one product at a time at display size, and product
+   photography sits on it. A poster that turns into a white slab in the light
+   theme loses the thing that makes it a poster.
+
+   So the ink and the teal bloom are fixed, and the foreground token below is
+   fixed with them — text on this panel is light in both themes, which is what
+   makes the contrast ratio a constant rather than something to re-check every
+   time the palette moves. Nothing else in the app may use these.
+   --------------------------------------------------------------------------- */
+.hero-ink {
+  --hero-fg: #fafaf9;
+  --hero-fg-dim: rgba(250, 250, 249, 0.66);
+  color: var(--hero-fg);
+  background-color: #12100f;
+  background-image:
+    radial-gradient(78% 120% at 88% 8%, rgba(20, 184, 166, 0.26), transparent 62%),
+    radial-gradient(60% 100% at 6% 96%, rgba(13, 148, 136, 0.2), transparent 66%),
+    radial-gradient(120% 90% at 50% -20%, rgba(255, 255, 255, 0.07), transparent 60%);
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.08), 0 18px 48px rgba(0, 0, 0, 0.28);
+}
+
+/* Crossfade for the slide the hero is currently on. Keyed on the slide index in
+   React, so a new element mounts per rotation and the animation replays without
+   any transition bookkeeping. */
+@keyframes hero-slide-in {
+  from {
+    opacity: 0;
+    transform: translateY(10px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+.animate-hero-slide {
+  animation: hero-slide-in 460ms cubic-bezier(0.22, 1, 0.36, 1) both;
+}
+
+/* The active dot filling over the dwell time — the only thing on the page that
+   tells a shopper the hero is going to move, and roughly when. Duration is set
+   inline from the same constant the timer uses, so the two cannot drift.
+
+   Paused with the rotation rather than left running: a bar that keeps filling
+   while the slide is held reads as broken. */
+@keyframes dot-progress {
+  from {
+    transform: scaleX(0);
+  }
+  to {
+    transform: scaleX(1);
+  }
+}
+.animate-dot-progress {
+  transform-origin: left;
+  animation: dot-progress linear both;
+}
+
+/* No auto-rotation without motion, so no progress bar either: it would be the
+   only thing moving on the page and it would be promising something that is
+   not going to happen. */
+@media (prefers-reduced-motion: reduce) {
+  .animate-hero-slide,
+  .animate-dot-progress {
+    animation: none;
+  }
+  .animate-dot-progress {
+    transform: scaleX(1);
+  }
 }
 
 /* subtle pulse for the online indicator */

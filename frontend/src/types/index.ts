@@ -302,6 +302,14 @@ export interface AdminPlacement {
   amountKes: number | null;
   note: string | null;
   createdAt: string;
+  /**
+   * Where this sits in the marketplace hero's rotation (migration 0049).
+   *
+   * Low first. It exists because the hero is a carousel, not a strip: without
+   * an owner-chosen order the rotation falls back to booking date, and every
+   * seller's position quietly degrades each time somebody else books.
+   */
+  sortOrder: number;
   live: boolean;
   productName: string;
   productSlug: string;
@@ -325,6 +333,8 @@ export interface PlacementInput {
   active?: boolean;
   amountKes?: number | null;
   note?: string | null;
+  /** Omit to leave the position alone; a new placement lands at the end. */
+  sortOrder?: number | null;
 }
 
 /** A product as the placement picker lists it. */

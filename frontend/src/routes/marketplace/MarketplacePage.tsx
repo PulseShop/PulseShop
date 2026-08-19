@@ -1,15 +1,36 @@
 import { keepPreviousData, useInfiniteQuery, useQuery } from "@tanstack/react-query";
 import {
+  ArrowUpRight,
+  Baby,
+  BookOpen,
+  Camera,
+  Dumbbell,
+  Footprints,
+  Gamepad2,
+  Gem,
+  Headphones,
   LayoutGrid,
+  Laptop,
   List,
   Megaphone,
+  Music4,
+  Package,
+  PawPrint,
   Search,
+  Shirt,
   SlidersHorizontal,
+  Smartphone,
+  Sofa,
   Sparkles,
+  SprayCan,
   Store,
+  Tv,
+  Utensils,
+  Watch,
   X,
 } from "lucide-react";
-import { useMemo, useState } from "react";
+import type { LucideIcon } from "lucide-react";
+import { useEffect, useMemo, useState } from "react";
 import { Link } from "react-router";
 import { MobileShell } from "@/components/layout/MobileShell";
 import { LogoLink } from "@/components/common/Logo";
@@ -23,35 +44,60 @@ import { ProductCardSkeleton, Skeleton } from "@/components/ui/Skeleton";
 import { useDebounced } from "@/hooks/useDebounced";
 import { useSeo } from "@/hooks/useSeo";
 import { colorHex, sortSizes } from "@/lib/constants";
-import { formatKes } from "@/lib/currency";
+import { formatKes, hasPriceRange, minVariantPrice } from "@/lib/currency";
+import { productHref } from "@/lib/productUrl";
 import { homeSeo } from "@/lib/seo";
 import { cn } from "@/lib/utils";
 import { services } from "@/services";
-import type { BannerProduct, Product } from "@/types";
+import type { BannerProduct, Merchant, Product } from "@/types";
 
 type SortOrder = "newest" | "price-asc" | "price-desc";
 
 const PAGE_SIZE = 12;
-const GRID_CLASS = "grid grid-cols-2 gap-3 xl:grid-cols-3";
+const GRID_CLASS = "grid grid-cols-2 gap-3 sm:grid-cols-3 xl:grid-cols-4";
 const LIST_CLASS = "flex flex-col gap-3";
+
+/**
+ * How long one promoted product holds the hero, in milliseconds.
+ *
+ * Twelve seconds. Long enough to read a headline, a shop name and a price
+ * without racing it, short enough that the eighth advertiser in a full
+ * rotation is still reachable inside a couple of minutes. The dot that fills
+ * under the slide is driven from this same constant, so the thing the shopper
+ * is shown and the thing the timer does cannot drift apart.
+ */
+const ROTATE_MS = 12_000;
 
 /**
  * The marketplace.
  *
- * This is the front door now: `/` used to be the seller pitch, which is the
- * wrong page to land a shopper on when the whole point is that there are shops
- * to browse. The pitch still exists at /welcome, where the marketing nav points.
+ * This is the front door: `/` used to be the seller pitch, which is the wrong
+ * page to land a shopper on when the whole point is that there are shops to
+ * browse. The pitch still exists at /welcome, where the marketing nav points.
  *
- * Everything here is a composition of services that already existed —
- * searchProducts() has taken a null merchant since migration 0023, listShops()
- * is the directory, getFacets() aggregates across every shop when given a null.
+ * THE PAGE IS A BENTO OVER A CATALOGUE. The top screenful is four panels of
+ * different sizes — a hero, a shop collage, colours, shops — and everything
+ * under it is the filterable grid that was always here. The split is not
+ * decorative: the top half answers "what is worth looking at", which is a
+ * browsing question and wants big pictures, and the bottom half answers "find
+ * me this", which is a searching question and wants filters and density. The
+ * old page led with three small identical strips, which served the second
+ * question twice and the first not at all.
  *
- * THE BANNER IS TWO STRIPS, and the order is the product decision. Paid
- * placements come first (PromotedStrip, migration 0048) and are labelled as
- * paid; under them, one product from EVERY registered shop, rotated hourly and
- * bought by nobody (ShopFeatureStrip, migration 0046). Selling the top slot is
- * how the platform earns; keeping the second strip unsellable is what stops the
- * front page collapsing into an advert board where a shop that opened this
+ * THE HERO IS PAID PLACEMENT, AND ONLY PAID PLACEMENT. One product at a time,
+ * rotating every twelve seconds, labelled Promoted on every slide (migrations
+ * 0048 and 0049). It is a rotation rather than a row because a row prices its
+ * slots by position — slot one is worth more than slot three and slot seven is
+ * worth nothing — whereas a rotation sells the same thing to everybody. When
+ * nobody has bought a slot the hero carries the platform's own copy instead of
+ * quietly filling with free content, because a shopper who cannot tell the two
+ * apart is the thing that makes the Promoted label worthless.
+ *
+ * THE FREE ROTATION IS STILL HERE AND STILL UNSELLABLE. One product from every
+ * registered shop, picked and rotated hourly by the database (migration 0046).
+ * It leads the collage panel and continues in the rail below the bento. Selling
+ * the hero is how the platform earns; keeping this half unbuyable is what stops
+ * the front page collapsing into an advert board where a shop that opened this
  * morning is invisible. Neither replaces the other.
  */
 export function MarketplacePage() {
@@ -167,19 +213,31 @@ export function MarketplacePage() {
     queryFn: () => services.products.listShopFeatures(8),
   });
 
-  // The bought slots (migration 0048). A separate query from the free rotation
-  // above, so a failure in one cannot blank the other: if paid placement is
-  // unreachable the page still shows the shops, which is the half that matters
-  // more.
+  // The bought slots (migrations 0048 and 0049). A separate query from the free
+  // rotation above, so a failure in one cannot blank the other: if paid
+  // placement is unreachable the page still shows the shops, which is the half
+  // that matters more.
   const placementsQ = useQuery({
     queryKey: ["banner-placements"],
-    queryFn: () => services.products.listBannerPlacements(6),
+    queryFn: () => services.products.listBannerPlacements(),
   });
 
   const shopsQ = useQuery({
     queryKey: ["marketplace-shops"],
     queryFn: () => services.follows.listShops({ pageSize: 8 }),
   });
+
+  const features = featuresQ.data ?? [];
+  // The collage takes the first four of the free rotation and the rail below the
+  // bento continues from where it stopped, so a shop appears in exactly one of
+  // them. Splitting the same list rather than querying twice is what keeps "one
+  // product from EVERY shop" true across both.
+  //
+  // Four, not three, because four is how many shops a young platform has: at
+  // three the collage was full and the rail below it held a single lonely card,
+  // which reads as a rendering fault rather than as a small marketplace.
+  const collageItems = features.slice(0, 4);
+  const railItems = features.slice(4);
 
   const filterControls = (
     <>
@@ -290,30 +348,68 @@ export function MarketplacePage() {
       </header>
 
       <div className="px-4 pb-6 pt-4 lg:px-6">
-        <PromotedStrip items={placementsQ.data ?? []} />
-        <ShopFeatureStrip
-          items={featuresQ.data ?? []}
-          loading={featuresQ.isLoading}
-          className={(placementsQ.data?.length ?? 0) > 0 ? "mt-5" : undefined}
-        />
+        {/* The page's one h1. It is off-screen because the visible headline is
+            whichever product happens to be in the hero this second, and a
+            document outline that changes every twelve seconds is no outline. */}
+        <h1 className="sr-only">PulseShop marketplace — every shop in one place</h1>
 
-        {/* Filters left, grid centre, shops right — the storefront already put
-            its filters on the left, and having them swap sides between the two
-            browsing pages would be the kind of inconsistency nobody can name but
-            everybody feels. */}
+        {/* THE BENTO. Twelve columns past lg: the hero takes seven because it
+            is the only panel carrying a photograph at display size, the collage
+            three, and the two stacked cards share the last two. Below lg it is
+            one column in the same order, which is also reading order. */}
+        <div className="grid gap-3 lg:grid-cols-12 lg:gap-4">
+          <PromotedHero
+            className="lg:col-span-7"
+            items={placementsQ.data ?? []}
+            loading={placementsQ.isLoading}
+            fallbackImages={features.slice(0, 4)}
+            categories={categories}
+            category={category}
+            onCategory={setCategory}
+          />
+
+          <ShopCollageCard
+            className="lg:col-span-3"
+            items={collageItems}
+            loading={featuresQ.isLoading}
+          />
+
+          {/* auto-rows-min so these two keep their natural heights. Left to
+              stretch they split the bento row between them, and a card holding
+              five colour swatches becomes three hundred pixels tall. */}
+          <div className="grid auto-rows-min gap-3 sm:grid-cols-2 lg:col-span-2 lg:grid-cols-1 lg:gap-4">
+            <ColorsCard
+              colors={colorOptions}
+              selected={colors}
+              onToggle={toggleIn(setColors)}
+              loading={facetsQ.isLoading}
+            />
+            <ShopsCard shops={shopsQ.data?.items ?? []} loading={shopsQ.isLoading} />
+          </div>
+        </div>
+
+        <ShopFeatureStrip items={railItems} loading={featuresQ.isLoading} className="mt-5" />
+
+        {/* Filters left, grid right — the storefront already put its filters on
+            the left, and having them swap sides between the two browsing pages
+            would be the kind of inconsistency nobody can name but everybody
+            feels. The shops rail that used to sit on the right is now a bento
+            card; two lists of the same shops on one screen was one too many. */}
         <div className="mt-5 lg:flex lg:gap-6 xl:gap-8">
           <aside className="hidden shrink-0 lg:block lg:w-52">
             <div className="space-y-6">{filterControls}</div>
           </aside>
 
           <section className="min-w-0 flex-1">
-            <div className="no-scrollbar -mx-4 mb-3 flex gap-2 overflow-x-auto px-4 lg:hidden">
+            {/* Categories are in the hero's rail now, at every width, so this
+                row carries the one control that has nowhere else to be. */}
+            <div className="mb-3 lg:hidden">
               <button
                 type="button"
                 onClick={() => setFiltersOpen(true)}
                 aria-label={activeFilterCount > 0 ? `Filters, ${activeFilterCount} active` : "Filters"}
                 className={cn(
-                  "flex min-h-11 shrink-0 items-center gap-1.5 rounded-full px-4 text-sm font-semibold",
+                  "flex min-h-11 items-center gap-1.5 rounded-full px-4 text-sm font-semibold",
                   activeFilterCount > 0 ? "bg-ink text-on-accent" : "bg-card text-muted shadow-soft",
                 )}
               >
@@ -325,19 +421,6 @@ export function MarketplacePage() {
                   </span>
                 )}
               </button>
-              {categories.slice(0, 8).map((cat) => (
-                <button
-                  key={cat}
-                  type="button"
-                  onClick={() => setCategory(cat)}
-                  className={cn(
-                    "flex min-h-11 shrink-0 items-center rounded-full px-4 text-sm font-semibold",
-                    cat === category ? "bg-primary text-on-accent" : "bg-card text-muted shadow-soft",
-                  )}
-                >
-                  {cat}
-                </button>
-              ))}
             </div>
 
             {appliedFilters.length > 0 && (
@@ -409,7 +492,7 @@ export function MarketplacePage() {
 
             {productsQ.isLoading ? (
               <div className={view === "grid" ? GRID_CLASS : LIST_CLASS}>
-                {Array.from({ length: 6 }).map((_, i) => (
+                {Array.from({ length: 8 }).map((_, i) => (
                   <ProductCardSkeleton key={i} layout={view === "list" ? "row" : "grid"} />
                 ))}
               </div>
@@ -420,7 +503,7 @@ export function MarketplacePage() {
                 retrying={productsQ.isFetching}
               />
             ) : products.length === 0 ? (
-              <div className="rounded-card bg-card p-8 text-center shadow-soft">
+              <div className="rounded-bento bg-card p-8 text-center shadow-soft">
                 <p className="font-semibold text-ink">Nothing matches that</p>
                 <p className="mt-1 text-sm text-muted">Try a different search or clear the filters.</p>
               </div>
@@ -448,55 +531,6 @@ export function MarketplacePage() {
               </>
             )}
           </section>
-
-          {/* Shops rail. The social half of the merge: a shopper who likes what
-              they see should be able to go to the seller, not just the SKU. */}
-          <aside className="mt-6 shrink-0 lg:mt-0 lg:w-60">
-            <div className="flex items-center justify-between">
-              <h2 className="text-sm font-bold text-ink">Shops to explore</h2>
-              <Link to="/shops" className="text-xs font-semibold text-primary hover:underline">
-                See all
-              </Link>
-            </div>
-            <div className="mt-3 space-y-2">
-              {shopsQ.isLoading
-                ? Array.from({ length: 5 }).map((_, i) => (
-                    <div key={i} className="flex items-center gap-2.5 rounded-card bg-card p-2.5 shadow-soft">
-                      <Skeleton className="size-9 rounded-full" />
-                      <div className="flex-1 space-y-1.5">
-                        <Skeleton className="h-3.5 w-24 rounded" />
-                        <Skeleton className="h-3 w-16 rounded" />
-                      </div>
-                    </div>
-                  ))
-                : (shopsQ.data?.items ?? []).map((shop) => (
-                    <Link
-                      key={shop.id}
-                      to={`/${shop.handle}`}
-                      className="flex items-center gap-2.5 rounded-card bg-card p-2.5 shadow-soft transition-shadow hover:shadow-md"
-                    >
-                      {shop.avatarUrl ? (
-                        <img
-                          src={shop.avatarUrl}
-                          alt=""
-                          className="size-9 shrink-0 rounded-full object-cover ring-2 ring-line-soft"
-                        />
-                      ) : (
-                        <span className="flex size-9 shrink-0 items-center justify-center rounded-full bg-primary/10">
-                          <Store className="size-4 text-primary" />
-                        </span>
-                      )}
-                      <div className="min-w-0">
-                        <p className="truncate text-sm font-bold text-ink">{shop.name}</p>
-                        <p className="truncate text-xs text-muted">
-                          @{shop.handle}
-                          {shop.location ? ` · ${shop.location}` : ""}
-                        </p>
-                      </div>
-                    </Link>
-                  ))}
-            </div>
-          </aside>
         </div>
       </div>
 
@@ -531,63 +565,616 @@ function priceChipLabel(min: number | null, max: number | null): string {
   return `Under ${formatKes(max ?? 0)}`;
 }
 
+/* ------------------------------------------------------------------------- */
+
 /**
- * The bought slots at the top of the marketplace (migration 0048).
+ * Which slide the hero is on, and when it moves.
  *
- * LABELLED, always. Each tile says "Promoted", and the strip says so again in
- * its heading. That is not a legal checkbox: the whole reason the free rotation
- * below it works is that shoppers can tell the two apart, and a paid slot that
- * looks identical to an earned one devalues both. It is also the only honest
- * way to run paid placement on a page that also claims to give every shop a
- * turn.
+ * A chain of timeouts rather than one interval, so that a manual jump to a
+ * slide restarts the full twelve seconds instead of inheriting whatever was
+ * left of the previous tick — clicking a dot and having the slide change again
+ * half a second later reads as a bug.
  *
- * Renders nothing at all when nobody has bought a slot, rather than a "no
- * promotions yet" placeholder — an empty advert rail is not information a
- * shopper needs.
+ * It stops in three situations, all of them the same idea: nobody is watching,
+ * so nobody's advert should be spent.
+ *   - the pointer or the keyboard focus is inside the hero (they are reading it)
+ *   - the tab is in the background
+ *   - the reader asked the system for reduced motion, in which case the hero
+ *     never moves on its own at all and the dots are the only way through
  */
-function PromotedStrip({ items }: { items: BannerProduct[] }) {
-  if (items.length === 0) return null;
+function useHeroRotation(count: number) {
+  const [index, setIndex] = useState(0);
+  const [held, setHeld] = useState(false);
+  const [tabHidden, setTabHidden] = useState(
+    () => typeof document !== "undefined" && document.visibilityState === "hidden",
+  );
+  const reducedMotion = usePrefersReducedMotion();
+
+  // An advert can end mid-session and the list comes back shorter, so the index
+  // is clamped on read rather than trusted. Modulo, not min: it keeps the
+  // rotation continuous instead of parking on the last slide forever.
+  const safeIndex = count > 0 ? index % count : 0;
+
+  useEffect(() => {
+    const onVisibility = () => setTabHidden(document.visibilityState === "hidden");
+    document.addEventListener("visibilitychange", onVisibility);
+    return () => document.removeEventListener("visibilitychange", onVisibility);
+  }, []);
+
+  const paused = held || tabHidden || reducedMotion;
+
+  useEffect(() => {
+    if (count < 2 || paused) return;
+    const id = window.setTimeout(() => setIndex((i) => (i + 1) % count), ROTATE_MS);
+    return () => window.clearTimeout(id);
+  }, [count, paused, safeIndex]);
+
+  return {
+    index: safeIndex,
+    paused,
+    go: (i: number) => setIndex(i),
+    hold: () => setHeld(true),
+    release: () => setHeld(false),
+  };
+}
+
+/** Whether the reader has asked the system for less movement. Live, because it
+ *  is a setting people change while a page is open. */
+function usePrefersReducedMotion() {
+  const [reduced, setReduced] = useState(
+    () =>
+      typeof window !== "undefined" &&
+      window.matchMedia("(prefers-reduced-motion: reduce)").matches,
+  );
+
+  useEffect(() => {
+    const query = window.matchMedia("(prefers-reduced-motion: reduce)");
+    const onChange = () => setReduced(query.matches);
+    query.addEventListener("change", onChange);
+    return () => query.removeEventListener("change", onChange);
+  }, []);
+
+  return reduced;
+}
+
+/**
+ * The bought slot at the top of the marketplace, as a rotation.
+ *
+ * LABELLED, always. Every slide says "Promoted", and the panel says so again in
+ * its accessible name. That is not a legal checkbox: the whole reason the free
+ * rotation elsewhere on the page works is that shoppers can tell the two apart,
+ * and a paid slide that looks identical to an earned one devalues both.
+ *
+ * WITH NOTHING BOOKED IT DOES NOT QUIETLY FILL WITH FREE CONTENT. It runs the
+ * platform's own copy instead — see HouseSlide. Borrowing the free rotation
+ * here would put unpaid products under a Promoted badge or, worse, teach
+ * shoppers that the badge is decoration.
+ *
+ * The category rail lives inside this panel rather than above the grid because
+ * it is the same kind of control as the hero: a way in, not a way to narrow
+ * something you are already looking at. Picking one still drives the same
+ * `category` filter the sidebar does.
+ */
+function PromotedHero({
+  items,
+  loading,
+  fallbackImages,
+  categories,
+  category,
+  onCategory,
+  className,
+}: {
+  items: BannerProduct[];
+  loading: boolean;
+  /** Shown beside the house copy when nothing is booked, so the panel is not a
+   *  wall of text on the one day the platform has sold nothing. */
+  fallbackImages: Product[];
+  categories: string[];
+  category: string;
+  onCategory: (c: string) => void;
+  className?: string;
+}) {
+  const { index, paused, go, hold, release } = useHeroRotation(items.length);
+  const current = items[index];
 
   return (
-    <section aria-label="Promoted products">
-      <div className="mb-2.5 flex items-center gap-1.5">
-        <Megaphone className="size-4 text-warning" aria-hidden />
-        <h2 className="text-sm font-bold text-ink">Promoted</h2>
+    <section
+      aria-label="Promoted products"
+      aria-roledescription="carousel"
+      onMouseEnter={hold}
+      onMouseLeave={release}
+      onFocusCapture={hold}
+      onBlurCapture={release}
+      className={cn(
+        "hero-ink relative flex flex-col overflow-hidden rounded-bento p-5 sm:p-6 lg:min-h-[26rem] lg:p-8",
+        className,
+      )}
+    >
+      {/* Centred rather than top-aligned: the panel's height is set by whichever
+          bento column is tallest, not by this content, so anchoring the slide to
+          the top leaves a hole above the category rail on most screens. */}
+      <div className="flex flex-1 items-center">
+        {loading ? (
+          <HeroSkeleton />
+        ) : current ? (
+          // Keyed on the index so React mounts a fresh subtree per rotation and
+          // the entry animation replays without any transition bookkeeping.
+          <HeroSlide key={index} product={current} />
+        ) : (
+          <HouseSlide images={fallbackImages} />
+        )}
       </div>
-      <div className="no-scrollbar -mx-4 flex gap-3 overflow-x-auto px-4 lg:mx-0 lg:grid lg:grid-cols-3 lg:px-0">
-        {items.map((p) => (
-          <Link
-            key={p.placementId}
-            to={`/${p.shopSlug}/${p.slug}`}
-            className="group relative w-64 shrink-0 overflow-hidden rounded-card bg-card shadow-soft ring-1 ring-warning/30 transition-shadow hover:shadow-md lg:w-auto"
-          >
-            <div className="flex h-40">
-              <div className="flex min-w-0 flex-1 flex-col justify-center gap-1 p-4">
-                <span className="flex w-fit items-center gap-1 rounded-full bg-warning/12 px-2 py-0.5 text-[10px] font-bold uppercase tracking-wide text-warning">
-                  Promoted
-                </span>
-                {/* The headline is the copy the seller paid for; without one the
-                    product's own name does the job, which is why null is a
-                    perfectly ordinary value here rather than missing data. */}
-                <p className="line-clamp-2 text-sm font-extrabold leading-snug text-ink">
-                  {p.headline?.trim() || p.name}
-                </p>
-                {p.shopName && (
-                  <p className="truncate text-xs font-semibold text-muted">{p.shopName}</p>
+
+      {items.length > 1 && (
+        <div className="mt-6 flex items-center gap-2">
+          {items.map((item, i) => (
+            <button
+              key={item.placementId}
+              type="button"
+              onClick={() => go(i)}
+              aria-label={`Show promoted product ${i + 1} of ${items.length}`}
+              aria-current={i === index}
+              className="group flex h-8 items-center focus-visible:outline-none"
+            >
+              <span
+                className={cn(
+                  "block h-1.5 overflow-hidden rounded-full bg-white/25 transition-all duration-300 group-focus-visible:ring-2 group-focus-visible:ring-white/70",
+                  i === index ? "w-11" : "w-3.5 group-hover:bg-white/50",
                 )}
-                <p className="text-sm font-extrabold text-primary">{formatKes(p.priceKes)}</p>
-              </div>
-              <div className="w-28 shrink-0 overflow-hidden bg-fill">
+              >
+                {i === index && (
+                  // Fills over exactly one dwell, so the shopper can see the
+                  // slide is about to move rather than being surprised by it.
+                  <span
+                    className="animate-dot-progress block size-full rounded-full bg-white"
+                    style={{
+                      animationDuration: `${ROTATE_MS}ms`,
+                      animationPlayState: paused ? "paused" : "running",
+                    }}
+                  />
+                )}
+              </span>
+            </button>
+          ))}
+        </div>
+      )}
+
+      <CategoryRail categories={categories} value={category} onChange={onCategory} />
+    </section>
+  );
+}
+
+/** One promoted product, at poster size. */
+function HeroSlide({ product }: { product: BannerProduct }) {
+  const from = minVariantPrice(product);
+  const ranged = hasPriceRange(product);
+
+  return (
+    <div className="animate-hero-slide grid gap-5 sm:grid-cols-[1.1fr_0.9fr] sm:items-center sm:gap-6">
+      <div className="min-w-0 order-2 sm:order-1">
+        <span className="inline-flex items-center gap-1.5 rounded-full bg-warning/20 px-2.5 py-1 text-[11px] font-bold uppercase tracking-wide text-warning">
+          <Megaphone className="size-3.5" aria-hidden />
+          Promoted
+        </span>
+
+        {/* The headline is the copy the seller paid for; without one the
+            product's own name does the job, which is why null is a perfectly
+            ordinary value here rather than missing data. */}
+        <p className="mt-3 line-clamp-3 text-[1.6rem] font-extrabold leading-[1.08] tracking-tight sm:text-[2rem] lg:text-[2.5rem]">
+          {product.headline?.trim() || product.name}
+        </p>
+
+        {/* Only when the headline is the seller's own copy — repeating the
+            product name under itself is noise. */}
+        {product.headline?.trim() && (
+          <p className="mt-2 line-clamp-1 text-sm" style={{ color: "var(--hero-fg-dim)" }}>
+            {product.name}
+          </p>
+        )}
+
+        <p className="mt-3 flex items-baseline gap-1.5">
+          {ranged && (
+            <span className="text-sm" style={{ color: "var(--hero-fg-dim)" }}>
+              from
+            </span>
+          )}
+          <span className="text-xl font-extrabold sm:text-2xl">{formatKes(from)}</span>
+        </p>
+
+        <div className="mt-5 flex flex-wrap items-center gap-3">
+          <Link
+            to={productHref(product)}
+            className="group inline-flex items-center gap-2 rounded-full bg-primary py-1.5 pl-5 pr-1.5 text-sm font-bold text-on-accent transition-colors hover:bg-primary-deep"
+          >
+            Shop this
+            <span className="flex size-8 items-center justify-center rounded-full bg-black/20 transition-transform group-hover:rotate-45">
+              <ArrowUpRight className="size-4" aria-hidden />
+            </span>
+          </Link>
+          {product.shopSlug && product.shopName && (
+            <Link
+              to={`/${product.shopSlug}`}
+              className="inline-flex min-h-9 max-w-full items-center gap-1.5 rounded-full bg-white/10 px-3 text-sm font-semibold transition-colors hover:bg-white/20"
+            >
+              <Store className="size-3.5 shrink-0" aria-hidden />
+              <span className="truncate">{product.shopName}</span>
+            </Link>
+          )}
+        </div>
+      </div>
+
+      <div className="order-1 sm:order-2">
+        <Link to={productHref(product)} tabIndex={-1} aria-hidden className="block">
+          {/* Letterboxed on a phone, square from sm up. A square photo across
+              the full width of a 430px screen is 390px of picture before the
+              headline even starts, which pushes the price and the button off
+              the first screenful — the two things the advertiser is paying to
+              have seen. */}
+          <ProductImage
+            src={product.images[0]}
+            alt={product.imageAlts?.[0]?.trim() || product.name}
+            className="aspect-16/10 w-full rounded-[20px] object-cover shadow-float ring-1 ring-white/10 sm:aspect-square"
+          />
+        </Link>
+      </div>
+    </div>
+  );
+}
+
+/**
+ * What the hero says when nobody has bought it.
+ *
+ * The platform's own pitch, not borrowed inventory. An unsold advert slot is
+ * the one piece of space a marketplace can honestly talk about itself in, and
+ * filling it with free products under the same treatment paid ones get is how
+ * the Promoted label stops meaning anything.
+ */
+function HouseSlide({ images }: { images: Product[] }) {
+  const tiles = images.slice(0, 4);
+
+  return (
+    <div className="animate-hero-slide grid gap-5 sm:grid-cols-[1.1fr_0.9fr] sm:items-center sm:gap-6">
+      <div className="min-w-0">
+        <span className="inline-flex items-center gap-1.5 rounded-full bg-primary/25 px-2.5 py-1 text-[11px] font-bold uppercase tracking-wide text-primary">
+          <Sparkles className="size-3.5" aria-hidden />
+          PulseShop
+        </span>
+        <p className="mt-3 text-[1.6rem] font-extrabold leading-[1.08] tracking-tight sm:text-[2rem] lg:text-[2.5rem]">
+          Every shop, one search box.
+        </p>
+        <p className="mt-2 max-w-sm text-sm leading-relaxed" style={{ color: "var(--hero-fg-dim)" }}>
+          Browse independent Kenyan shops side by side, follow the ones you like, and check out
+          without leaving the page.
+        </p>
+        <Link
+          to="/shops"
+          className="group mt-5 inline-flex items-center gap-2 rounded-full bg-primary py-1.5 pl-5 pr-1.5 text-sm font-bold text-on-accent transition-colors hover:bg-primary-deep"
+        >
+          Explore the shops
+          <span className="flex size-8 items-center justify-center rounded-full bg-black/20 transition-transform group-hover:rotate-45">
+            <ArrowUpRight className="size-4" aria-hidden />
+          </span>
+        </Link>
+      </div>
+
+      {tiles.length > 0 && (
+        <div className="grid grid-cols-2 gap-2" aria-hidden>
+          {tiles.map((p) => (
+            <ProductImage
+              key={p.id}
+              src={p.images[0]}
+              alt=""
+              loading="lazy"
+              className="aspect-square w-full rounded-2xl object-cover ring-1 ring-white/10"
+            />
+          ))}
+        </div>
+      )}
+    </div>
+  );
+}
+
+function HeroSkeleton() {
+  return (
+    <div className="grid gap-5 sm:grid-cols-[1.1fr_0.9fr] sm:items-center sm:gap-6">
+      <div className="space-y-3">
+        <Skeleton className="h-6 w-28 rounded-full bg-white/10" />
+        <Skeleton className="h-10 w-full bg-white/10" />
+        <Skeleton className="h-10 w-2/3 bg-white/10" />
+        <Skeleton className="h-11 w-40 rounded-full bg-white/10" />
+      </div>
+      <Skeleton className="aspect-square w-full rounded-[20px] bg-white/10" />
+    </div>
+  );
+}
+
+/**
+ * The way in by category, drawn on the hero.
+ *
+ * Icons because this is a rail of eight-odd chips that has to be readable at a
+ * glance in peripheral vision; the icon is what makes "Footwear" findable
+ * without reading every label. Unknown categories fall back to a parcel, which
+ * is honest — sellers name their own categories and the map cannot be complete.
+ */
+function CategoryRail({
+  categories,
+  value,
+  onChange,
+}: {
+  categories: string[];
+  value: string;
+  onChange: (c: string) => void;
+}) {
+  if (categories.length <= 1) return null;
+
+  return (
+    <div
+      className="no-scrollbar -mx-5 mt-6 flex gap-2 overflow-x-auto px-5 sm:-mx-6 sm:px-6 lg:-mx-8 lg:px-8"
+    >
+      {categories.map((cat) => {
+        const Icon = categoryIcon(cat);
+        const active = cat === value;
+        return (
+          <button
+            key={cat}
+            type="button"
+            onClick={() => onChange(cat)}
+            aria-pressed={active}
+            className={cn(
+              "flex min-h-10 shrink-0 items-center gap-1.5 rounded-full px-3.5 text-sm font-semibold transition-colors",
+              active
+                ? "bg-white text-[#12100f]"
+                : "bg-white/10 text-(--hero-fg) hover:bg-white/20",
+            )}
+          >
+            <Icon className="size-4 shrink-0" aria-hidden />
+            {cat}
+          </button>
+        );
+      })}
+    </div>
+  );
+}
+
+/**
+ * A picture for a category name.
+ *
+ * Keyword matching rather than an exact table, because sellers type their own
+ * categories: "Headphones", "Audio Equipment" and "Audio gear" are three
+ * strings and one icon. Ordered longest-idea-first so "gaming console" is not
+ * caught by the bare "phone" inside it.
+ */
+const CATEGORY_ICONS: [RegExp, LucideIcon][] = [
+  [/head\s*phone|earbud|earphone/i, Headphones],
+  [/console|gaming|game/i, Gamepad2],
+  [/audio|speaker|sound|music/i, Music4],
+  [/shoe|footwear|sneaker|boot|sandal/i, Footprints],
+  [/jewel|jewellery|jewelry|ring|necklace|gold/i, Gem],
+  [/watch|timepiece/i, Watch],
+  [/phone|mobile|smart\s*device|tablet/i, Smartphone],
+  [/laptop|computer|pc\b|notebook/i, Laptop],
+  [/tv|television|monitor|screen/i, Tv],
+  [/camera|photo|lens/i, Camera],
+  [/cloth|apparel|fashion|shirt|dress|wear/i, Shirt],
+  [/beauty|cosmetic|skin|hair|fragrance|perfume/i, SprayCan],
+  [/furniture|home|decor|kitchen|living/i, Sofa],
+  [/food|grocer|snack|drink|beverage/i, Utensils],
+  [/sport|fitness|gym|outdoor/i, Dumbbell],
+  [/book|stationery|station/i, BookOpen],
+  [/baby|kid|child|toy/i, Baby],
+  [/pet|dog|cat/i, PawPrint],
+];
+
+function categoryIcon(name: string): LucideIcon {
+  if (name === "All") return Sparkles;
+  return CATEGORY_ICONS.find(([pattern]) => pattern.test(name))?.[1] ?? Package;
+}
+
+/**
+ * The free rotation, as a collage.
+ *
+ * The lead product gets the wide tile and the next two share the row under it,
+ * which is the arrangement that says "here is a place to look" rather than
+ * "here are three ranked results" — and ranking would be wrong, because nothing
+ * in this panel was bought and the order is whatever the hourly rotation
+ * handed back.
+ */
+function ShopCollageCard({
+  items,
+  loading,
+  className,
+}: {
+  items: Product[];
+  loading: boolean;
+  className?: string;
+}) {
+  const [lead, ...rest] = items;
+
+  return (
+    <section
+      className={cn("flex flex-col rounded-bento bg-card p-4 shadow-soft", className)}
+      aria-label="A product from each shop"
+    >
+      <div className="flex items-start justify-between gap-2">
+        <h2 className="text-sm font-bold leading-snug text-ink">
+          Curated shop
+          <br className="hidden lg:inline" /> collections
+        </h2>
+        <Link to="/shops" className="shrink-0 text-xs font-semibold text-primary hover:underline">
+          See all
+        </Link>
+      </div>
+
+      {loading ? (
+        <div className="mt-3 grid flex-1 grid-cols-3 grid-rows-[minmax(7rem,1fr)_auto] gap-2">
+          <Skeleton className="col-span-3 size-full rounded-2xl" />
+          {Array.from({ length: 3 }).map((_, i) => (
+            <Skeleton key={i} className="aspect-square w-full rounded-2xl" />
+          ))}
+        </div>
+      ) : !lead ? (
+        <p className="mt-3 flex-1 text-xs leading-relaxed text-muted">
+          No shop has listed a product yet. This panel fills itself from the hourly rotation the
+          moment one does.
+        </p>
+      ) : (
+        <>
+          {/* One wide tile over a row of three. The lead is not a ranking — the
+              hourly rotation decides the order and nothing here was bought — it
+              is just the shape that reads as a place to look rather than as a
+              list of results. */}
+          {/* The lead tile absorbs whatever height the bento row has spare
+              (1fr), the three under it stay square. The alternative — fixing
+              every tile's aspect ratio — leaves the card with a dead strip at
+              the bottom on any screen where another column is taller, which is
+              most of them. */}
+          <div className="mt-3 grid flex-1 grid-cols-3 grid-rows-[minmax(7rem,1fr)_auto] gap-2">
+            <Link
+              to={productHref(lead)}
+              className="group col-span-3 overflow-hidden rounded-2xl bg-fill"
+            >
+              <ProductImage
+                src={lead.images[0]}
+                alt={lead.imageAlts?.[0]?.trim() || lead.name}
+                loading="lazy"
+                className="size-full object-cover transition-transform duration-300 group-hover:scale-[1.04]"
+              />
+            </Link>
+            {rest.map((p) => (
+              <Link
+                key={p.id}
+                to={productHref(p)}
+                className="group overflow-hidden rounded-2xl bg-fill"
+              >
                 <ProductImage
                   src={p.images[0]}
                   alt={p.imageAlts?.[0]?.trim() || p.name}
                   loading="lazy"
-                  className="size-full object-cover transition-transform duration-300 group-hover:scale-[1.04]"
+                  className="aspect-square w-full object-cover transition-transform duration-300 group-hover:scale-[1.04]"
                 />
+              </Link>
+            ))}
+          </div>
+
+          <div className="mt-3">
+            <Link
+              to={lead.shopSlug ? `/${lead.shopSlug}` : "/shops"}
+              className="truncate text-sm font-extrabold text-ink hover:underline"
+            >
+              {lead.shopName ?? lead.name}
+            </Link>
+            <p className="mt-0.5 text-xs leading-relaxed text-muted">
+              One product from every shop on PulseShop, rotated hourly. Nobody pays for this.
+            </p>
+          </div>
+        </>
+      )}
+    </section>
+  );
+}
+
+/**
+ * Colour as a way in.
+ *
+ * These are swatches, not decoration: each one is the colour filter the sidebar
+ * offers, which is why they toggle rather than navigate and why a chosen one
+ * shows its state. The names come from the facet aggregate, so the panel only
+ * ever offers a colour something is actually listed in.
+ */
+function ColorsCard({
+  colors,
+  selected,
+  onToggle,
+  loading,
+}: {
+  colors: string[];
+  selected: string[];
+  onToggle: (c: string) => void;
+  loading: boolean;
+}) {
+  if (!loading && colors.length === 0) return null;
+
+  return (
+    <section className="rounded-bento bg-card p-4 shadow-soft">
+      <h2 className="text-sm font-bold text-ink">Popular colours</h2>
+      {loading ? (
+        <div className="mt-3 flex gap-2">
+          {Array.from({ length: 5 }).map((_, i) => (
+            <Skeleton key={i} className="size-8 rounded-full" />
+          ))}
+        </div>
+      ) : (
+        <div className="mt-3 flex flex-wrap gap-2">
+          {colors.slice(0, 8).map((c) => {
+            const active = selected.includes(c);
+            return (
+              <button
+                key={c}
+                type="button"
+                onClick={() => onToggle(c)}
+                aria-label={active ? `Remove the ${c} filter` : `Show ${c} products`}
+                aria-pressed={active}
+                title={c}
+                style={{ backgroundColor: colorHex(c) }}
+                className={cn(
+                  // The inset ring keeps a white or cream swatch visible on the
+                  // card; the outline is the selected state, and it is an
+                  // outline rather than a second ring so the two cannot fight.
+                  "size-8 rounded-full ring-1 ring-inset ring-black/15 transition-transform hover:scale-110",
+                  active && "outline-2 outline-offset-2 outline-primary",
+                )}
+              />
+            );
+          })}
+        </div>
+      )}
+    </section>
+  );
+}
+
+/**
+ * Shops to explore.
+ *
+ * The social half of the front page: a shopper who likes what they see should
+ * be able to go to the seller, not just the SKU.
+ */
+function ShopsCard({ shops, loading }: { shops: Merchant[]; loading: boolean }) {
+  return (
+    <section className="rounded-bento bg-card p-4 shadow-soft">
+      <div className="flex items-center justify-between gap-2">
+        <h2 className="text-sm font-bold text-ink">Explore shops</h2>
+        <Link to="/shops" className="text-xs font-semibold text-primary hover:underline">
+          See all
+        </Link>
+      </div>
+      <div className="mt-3 space-y-1">
+        {loading
+          ? Array.from({ length: 4 }).map((_, i) => (
+              <div key={i} className="flex items-center gap-2 py-1">
+                <Skeleton className="size-8 shrink-0 rounded-full" />
+                <Skeleton className="h-3.5 w-24 rounded" />
               </div>
-            </div>
-          </Link>
-        ))}
+            ))
+          : shops.slice(0, 5).map((shop) => (
+              <Link
+                key={shop.id}
+                to={`/${shop.handle}`}
+                className="flex items-center gap-2 rounded-btn py-1.5 pr-1 transition-colors hover:bg-fill"
+              >
+                {shop.avatarUrl ? (
+                  <img
+                    src={shop.avatarUrl}
+                    alt=""
+                    className="size-8 shrink-0 rounded-full object-cover ring-1 ring-line-soft"
+                  />
+                ) : (
+                  <span className="flex size-8 shrink-0 items-center justify-center rounded-full bg-primary/10">
+                    <Store className="size-3.5 text-primary" />
+                  </span>
+                )}
+                <span className="min-w-0 truncate text-sm font-semibold text-ink">{shop.name}</span>
+              </Link>
+            ))}
       </div>
     </section>
   );
@@ -606,7 +1193,7 @@ function SearchField({ value, onChange }: { value: string; onChange: (v: string)
         onChange={(e) => onChange(e.target.value)}
         aria-label="Search every shop"
         placeholder="Search every shop…"
-        className="h-11 w-full rounded-btn border border-line bg-card pl-9 pr-10 text-sm outline-none focus:border-primary focus:ring-2 focus:ring-primary/20 [&::-webkit-search-cancel-button]:appearance-none"
+        className="h-11 w-full rounded-full border border-line bg-card pl-9 pr-10 text-sm outline-none focus:border-primary focus:ring-2 focus:ring-primary/20 [&::-webkit-search-cancel-button]:appearance-none"
       />
       {value && (
         <button
@@ -623,13 +1210,15 @@ function SearchField({ value, onChange }: { value: string; onChange: (v: string)
 }
 
 /**
- * One product from every shop on the platform.
+ * The rest of the free rotation, under the bento.
  *
- * This used to be paid placement, which was pulled in 0046. Nothing here is
- * bought: the database picks one product per registered shop and rotates the
- * selection hourly, so a shop that opened this morning sits beside the busiest
- * one on the platform. That is the point of leading the page with it, and it is
- * why the heading says which shop rather than that anything is featured.
+ * Nothing here is bought: the database picks one product per registered shop
+ * and rotates the selection hourly, so a shop that opened this morning sits
+ * beside the busiest one on the platform. The first three lead the collage
+ * panel above; this rail carries whichever shops that panel had no room for,
+ * which is why it is a scrolling rail at every width rather than a grid of
+ * three — the count depends on how many shops exist, and a grid that leaves one
+ * card alone on a second row is worse than a rail.
  */
 function ShopFeatureStrip({
   items,
@@ -642,14 +1231,9 @@ function ShopFeatureStrip({
 }) {
   if (loading) {
     return (
-      <div
-        className={cn(
-          "no-scrollbar -mx-4 flex gap-3 overflow-x-auto px-4 lg:mx-0 lg:grid lg:grid-cols-3 lg:px-0",
-          className,
-        )}
-      >
-        {Array.from({ length: 3 }).map((_, i) => (
-          <Skeleton key={i} className="h-40 w-64 shrink-0 lg:w-auto" />
+      <div className={cn("no-scrollbar -mx-4 flex gap-3 overflow-x-auto px-4 lg:-mx-6 lg:px-6", className)}>
+        {Array.from({ length: 4 }).map((_, i) => (
+          <Skeleton key={i} className="h-36 w-64 shrink-0 rounded-card" />
         ))}
       </div>
     );
@@ -657,19 +1241,19 @@ function ShopFeatureStrip({
   if (items.length === 0) return null;
 
   return (
-    <section aria-label="A product from each shop" className={className}>
+    <section aria-label="More from the shops on PulseShop" className={className}>
       <div className="mb-2.5 flex items-center gap-1.5">
         <Sparkles className="size-4 text-primary" aria-hidden />
-        <h2 className="text-sm font-bold text-ink">From the shops on PulseShop</h2>
+        <h2 className="text-sm font-bold text-ink">More from the shops on PulseShop</h2>
       </div>
-      <div className="no-scrollbar -mx-4 flex gap-3 overflow-x-auto px-4 lg:mx-0 lg:grid lg:grid-cols-3 lg:px-0">
+      <div className="no-scrollbar -mx-4 flex gap-3 overflow-x-auto px-4 lg:-mx-6 lg:px-6">
         {items.map((p) => (
           <Link
             key={p.id}
-            to={`/${p.shopSlug}/${p.slug}`}
-            className="group relative w-64 shrink-0 overflow-hidden rounded-card bg-card shadow-soft transition-shadow hover:shadow-md lg:w-auto"
+            to={productHref(p)}
+            className="group relative w-64 shrink-0 overflow-hidden rounded-card bg-card shadow-soft transition-shadow hover:shadow-md"
           >
-            <div className="flex h-40">
+            <div className="flex h-36">
               <div className="flex min-w-0 flex-1 flex-col justify-center gap-1 p-4">
                 {p.shopName && (
                   <span className="flex w-fit items-center gap-1 rounded-full bg-fill px-2 py-0.5 text-[10px] font-bold uppercase tracking-wide text-muted">

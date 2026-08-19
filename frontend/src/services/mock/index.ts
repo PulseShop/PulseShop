@@ -555,9 +555,14 @@ interface MockPlacement {
   amountKes: number | null;
   note: string | null;
   createdAt: string;
+  sortOrder: number;
 }
 
 const mockPlacements: MockPlacement[] = [];
+
+/** Rotation order, the way both RPCs in 0049 sort. */
+const byRotation = (a: MockPlacement, b: MockPlacement) =>
+  a.sortOrder - b.sortOrder || a.createdAt.localeCompare(b.createdAt);
 
 /** A stored placement, joined to its product and shop the way the RPC does. */
 function toAdminPlacement(pl: MockPlacement): AdminPlacement {
@@ -573,6 +578,7 @@ function toAdminPlacement(pl: MockPlacement): AdminPlacement {
     amountKes: pl.amountKes,
     note: pl.note,
     createdAt: pl.createdAt,
+    sortOrder: pl.sortOrder,
     live:
       pl.active &&
       new Date(pl.startsAt).getTime() <= now &&
@@ -676,7 +682,7 @@ const mockAdmin: AdminService = {
 
   async listPlacements(): Promise<AdminPlacement[]> {
     await delay();
-    return mockPlacements.map(toAdminPlacement);
+    return [...mockPlacements].sort(byRotation).map(toAdminPlacement);
   },
 
   async savePlacement(input: PlacementInput): Promise<string> {
@@ -697,6 +703,7 @@ const mockAdmin: AdminService = {
       existing.active = input.active ?? existing.active;
       existing.amountKes = input.amountKes ?? null;
       existing.note = input.note?.trim() || null;
+      existing.sortOrder = input.sortOrder ?? existing.sortOrder;
       return existing.id;
     }
 
@@ -711,6 +718,11 @@ const mockAdmin: AdminService = {
       amountKes: input.amountKes ?? null,
       note: input.note?.trim() || null,
       createdAt: new Date().toISOString(),
+      // Same rule as the RPC: a new booking joins the END of the rotation, so
+      // placing one does not demote everybody who booked earlier.
+      sortOrder:
+        input.sortOrder ??
+        mockPlacements.reduce((max, pl) => Math.max(max, pl.sortOrder + 1), 0),
     });
     return id;
   },
@@ -719,6 +731,17 @@ const mockAdmin: AdminService = {
     await delay();
     const i = mockPlacements.findIndex((pl) => pl.id === id);
     if (i >= 0) mockPlacements.splice(i, 1);
+  },
+
+  async reorderPlacements(ids: string[]) {
+    await delay();
+    if (ids.length === 0) return;
+    for (const pl of mockPlacements) {
+      const pos = ids.indexOf(pl.id);
+      // Anything the caller did not name keeps its relative order below the
+      // named block, matching admin_reorder_banner_placements().
+      pl.sortOrder = pos >= 0 ? pos : ids.length + pl.sortOrder;
+    }
   },
 
   async searchProducts(search: string, limit = 12): Promise<AdminProductHit[]> {
@@ -965,9 +988,10 @@ export const mockServices: Services = {
      * it does against the real backend. Empty until something is placed, which
      * is also the honest default: nobody has bought a slot yet.
      */
-    async listBannerPlacements(limit = 6): Promise<BannerProduct[]> {
+    async listBannerPlacements(limit = 12): Promise<BannerProduct[]> {
       await delay();
-      return mockPlacements
+      return [...mockPlacements]
+        .sort(byRotation)
         .filter((pl) => {
           const product = products.find((p) => p.id === pl.productId);
           if (!product || product.status === "out" || product.images.length === 0) return false;

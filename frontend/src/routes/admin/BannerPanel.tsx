@@ -1,5 +1,14 @@
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { Megaphone, Pause, Play, Plus, Search, Trash2 } from "lucide-react";
+import {
+  ArrowDown,
+  ArrowUp,
+  Megaphone,
+  Pause,
+  Play,
+  Plus,
+  Search,
+  Trash2,
+} from "lucide-react";
 import { useState } from "react";
 import { QueryError } from "@/components/common/QueryError";
 import { Button } from "@/components/ui/Button";
@@ -34,8 +43,20 @@ import type { AdminPlacement, AdminProductHit, PlacementInput } from "@/types";
  * front page by any path, including a plan upgrade. That is the mistake 0045
  * made and 0046 reverted: an entitlement that says "paid" while nothing takes
  * payment is just a feature the higher tiers get free.
+ *
+ * HOW MANY CAN RUN AT ONCE. As many as twelve, and that has been true since
+ * 0048 — the unique constraint is on product_id, so it stops the same product
+ * being booked twice and nothing else. What made it look like a one-product
+ * feature was the marketplace, which drew the first three side by side and
+ * asked for six. The front page rotates them through one hero slide now
+ * (0049), so the list below IS the rotation: top of this list leads, and the
+ * arrows on each row are what sets that order. Booking a new ad puts it last
+ * rather than first, because otherwise every seller's position would quietly
+ * degrade each time somebody else paid.
  */
 export function BannerPanel() {
+  const queryClient = useQueryClient();
+  const push = useToasts((s) => s.push);
   const [editing, setEditing] = useState<AdminPlacement | null>(null);
   const [adding, setAdding] = useState(false);
 
@@ -46,6 +67,49 @@ export function BannerPanel() {
 
   const placements = placementsQ.data ?? [];
   const liveCount = placements.filter((p) => p.live).length;
+
+  /**
+   * Move one placement up or down the rotation.
+   *
+   * Sends the whole reordered list of ids rather than the one that moved: the
+   * RPC rewrites every position from the array, so two rows swapping cannot
+   * end up sharing a slot. Optimistic, because a reorder that visibly lags a
+   * click gets clicked again.
+   */
+  const reorder = useMutation({
+    mutationFn: (ids: string[]) => services.admin.reorderPlacements(ids),
+    onMutate: async (ids) => {
+      await queryClient.cancelQueries({ queryKey: ["admin-placements"] });
+      const previous = queryClient.getQueryData<AdminPlacement[]>(["admin-placements"]);
+      if (previous) {
+        const byId = new Map(previous.map((p) => [p.id, p]));
+        queryClient.setQueryData<AdminPlacement[]>(
+          ["admin-placements"],
+          ids.flatMap((id, i) => {
+            const row = byId.get(id);
+            return row ? [{ ...row, sortOrder: i }] : [];
+          }),
+        );
+      }
+      return { previous };
+    },
+    onError: (err: Error, _ids, context) => {
+      if (context?.previous) queryClient.setQueryData(["admin-placements"], context.previous);
+      push(err.message || "Could not reorder the rotation", "danger");
+    },
+    onSettled: () => {
+      queryClient.invalidateQueries({ queryKey: ["admin-placements"] });
+      queryClient.invalidateQueries({ queryKey: ["banner-placements"] });
+    },
+  });
+
+  const move = (index: number, delta: number) => {
+    const target = index + delta;
+    if (target < 0 || target >= placements.length) return;
+    const ids = placements.map((p) => p.id);
+    [ids[index], ids[target]] = [ids[target], ids[index]];
+    reorder.mutate(ids);
+  };
 
   return (
     <section className="rounded-card bg-card p-5 shadow-soft">
@@ -66,6 +130,13 @@ export function BannerPanel() {
         </Button>
       </div>
 
+      {placements.length > 1 && (
+        <p className="mt-3 rounded-btn bg-fill-soft px-3 py-2 text-xs text-muted">
+          The marketplace hero cycles these one at a time, twelve seconds each, in this order. Use
+          the arrows to move an ad up or down the rotation; up to 12 run at once.
+        </p>
+      )}
+
       {placementsQ.isError ? (
         <div className="mt-4">
           <QueryError
@@ -82,13 +153,22 @@ export function BannerPanel() {
         </div>
       ) : placements.length === 0 ? (
         <p className="mt-6 text-sm text-muted">
-          Nobody has bought a slot yet. The banner is showing the free rotation only, which is the
-          intended resting state.
+          Nobody has bought a slot yet, so the marketplace hero is cycling the free rotation
+          instead — one product from every registered shop. That is the intended resting state.
+          Place several ads and the hero cycles those instead, twelve seconds each.
         </p>
       ) : (
         <ul className="mt-4 space-y-2">
-          {placements.map((p) => (
-            <PlacementRow key={p.id} placement={p} onEdit={() => setEditing(p)} />
+          {placements.map((p, i) => (
+            <PlacementRow
+              key={p.id}
+              placement={p}
+              position={i}
+              total={placements.length}
+              reordering={reorder.isPending}
+              onMove={(delta) => move(i, delta)}
+              onEdit={() => setEditing(p)}
+            />
           ))}
         </ul>
       )}
@@ -109,9 +189,18 @@ export function BannerPanel() {
 
 function PlacementRow({
   placement,
+  position,
+  total,
+  reordering,
+  onMove,
   onEdit,
 }: {
   placement: AdminPlacement;
+  /** Zero-based index in the rotation; shown to the owner as 1-based. */
+  position: number;
+  total: number;
+  reordering: boolean;
+  onMove: (delta: number) => void;
   onEdit: () => void;
 }) {
   const queryClient = useQueryClient();
@@ -157,6 +246,31 @@ function PlacementRow({
 
   return (
     <li className="flex flex-wrap items-center gap-3 rounded-card border border-line p-3">
+      {/* Where this sits in the hero's rotation, and the two controls that
+          change it. The number is not decoration: "move up" is meaningless
+          without something that says what it moved to. */}
+      {total > 1 && (
+        <div className="flex shrink-0 flex-col items-center gap-0.5">
+          <IconButton
+            label={`Move ${placement.productName} earlier in the rotation`}
+            onClick={() => onMove(-1)}
+            disabled={position === 0 || reordering}
+            className="size-7"
+          >
+            <ArrowUp className="size-3.5" />
+          </IconButton>
+          <span className="text-[11px] font-bold tabular-nums text-muted">{position + 1}</span>
+          <IconButton
+            label={`Move ${placement.productName} later in the rotation`}
+            onClick={() => onMove(1)}
+            disabled={position === total - 1 || reordering}
+            className="size-7"
+          >
+            <ArrowDown className="size-3.5" />
+          </IconButton>
+        </div>
+      )}
+
       <div className="size-12 shrink-0 overflow-hidden rounded-xl bg-fill">
         {placement.productImage && (
           <img src={placement.productImage} alt="" className="size-full object-cover" />
@@ -399,7 +513,7 @@ function PlacementDialog({
       open={open}
       onOpenChange={(next) => !next && onClose()}
       title={placement ? "Edit banner ad" : "Place a banner ad"}
-      description="Paid slots sit above the free rotation and are labelled Promoted on the marketplace."
+      description="Paid ads take the marketplace hero, one at a time on a twelve-second rotation, and are labelled Promoted. A new ad joins the end of the rotation."
       className="max-w-lg"
     >
       <div className="space-y-4">

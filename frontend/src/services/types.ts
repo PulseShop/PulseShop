@@ -537,6 +537,15 @@ export interface AdminService {
   /** Create (no `id`) or edit (with `id`) a placement. Returns its id. */
   savePlacement(input: PlacementInput): Promise<string>;
   deletePlacement(id: string): Promise<void>;
+  /**
+   * Rewrite the rotation order, given every placement id in the order the
+   * marketplace hero should cycle them.
+   *
+   * The whole list rather than a "move this one up" delta: the caller already
+   * holds it, and rewriting it wholesale cannot leave two placements sharing a
+   * position the way two concurrent swaps can.
+   */
+  reorderPlacements(ids: string[]): Promise<void>;
   /** Product lookup for the placement picker — every shop, including closing
    * ones, which the shopper-facing search deliberately hides. */
   searchProducts(search: string, limit?: number): Promise<AdminProductHit[]>;
