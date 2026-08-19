@@ -268,7 +268,7 @@ async function resolve(pathname: string, origin: string): Promise<Resolution> {
 // Handler
 // ---------------------------------------------------------------------------
 
-export default async function handler(request: Request): Promise<Response> {
+async function handler(request: Request): Promise<Response> {
   const url = new URL(request.url);
 
   /**
@@ -335,3 +335,21 @@ export default async function handler(request: Request): Promise<Response> {
     },
   });
 }
+
+/**
+ * Exported as an object with a `fetch` method, NOT as a bare default function.
+ *
+ * That distinction is load-bearing and cost this site an outage. Vercel's Node
+ * runtime reads a bare `export default function(...)` as the legacy Node
+ * handler and calls it with `(req, res)`. This function is written against the
+ * Web standard, so under that calling convention `new URL(request.url)` throws
+ * on a relative path, `request.headers.get` is not a function, and the Response
+ * it returns is discarded because nothing ever calls `res.end()`. The symptom
+ * is every route either hanging until timeout or answering 500, with a build
+ * that passed and logs that show nothing wrong.
+ *
+ * The object-with-fetch form is what tells the runtime this is a Web handler.
+ * See https://vercel.com/docs/functions/runtimes/node-js. Do not "simplify"
+ * this back into `export default async function handler`.
+ */
+export default { fetch: handler };

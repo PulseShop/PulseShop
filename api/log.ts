@@ -75,7 +75,7 @@ function rateLimited(ip: string): boolean {
 const str = (value: unknown, max: number): string =>
   typeof value === "string" ? value.slice(0, max) : "";
 
-export default async function handler(request: Request): Promise<Response> {
+async function handler(request: Request): Promise<Response> {
   if (request.method !== "POST") {
     return new Response("Method Not Allowed", { status: 405, headers: { Allow: "POST" } });
   }
@@ -148,3 +148,7 @@ export default async function handler(request: Request): Promise<Response> {
 
   return new Response(null, { status: 204 });
 }
+
+// Web-standard handler on Vercel's Node runtime: must be an object with a
+// `fetch` method, not a bare default function. See the note in api/render.ts.
+export default { fetch: handler };

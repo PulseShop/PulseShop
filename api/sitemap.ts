@@ -112,7 +112,7 @@ const xml = (body: string, status = 200) =>
     },
   });
 
-export default async function handler(request: Request): Promise<Response> {
+async function handler(request: Request): Promise<Response> {
   if (request.method !== "GET" && request.method !== "HEAD") {
     return new Response("Method Not Allowed", { status: 405, headers: { Allow: "GET, HEAD" } });
   }
@@ -203,3 +203,7 @@ export default async function handler(request: Request): Promise<Response> {
       `\n</sitemapindex>\n`,
   );
 }
+
+// Web-standard handler on Vercel's Node runtime: must be an object with a
+// `fetch` method, not a bare default function. See the note in api/render.ts.
+export default { fetch: handler };
