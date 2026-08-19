@@ -13,7 +13,16 @@ export function MobileShell({
 }: {
   children: ReactNode;
   nav?: boolean;
-  /** Where the Home tab points — the current shop on a public storefront. */
+  /**
+   * Where "back" lands when there is no history to go back to — the current
+   * shop on a public storefront.
+   *
+   * This no longer moves the Home tab. Home is the marketplace on every page
+   * now (see useBuyerNavItems), because a shopper inside a storefront had no
+   * control anywhere that led back out to the full catalogue. The floating back
+   * button still uses this, which is the control that genuinely means "the
+   * place I came from".
+   */
   homeTo?: string;
   /** Let the page grow into a real desktop layout past lg — storefront and
    * product detail use this; cart/checkout/orders stay phone-width, just
@@ -48,7 +57,7 @@ export function MobileShell({
         {children}
       </div>
       {floatingBack && <FloatingBack homeTo={homeTo} />}
-      {nav && <BottomNav homeTo={homeTo} />}
+      {nav && <BottomNav />}
     </div>
   );
 }

@@ -248,6 +248,102 @@ export interface GrowthPoint {
   shoppersTotal: number;
 }
 
+/**
+ * A product occupying a paid slot on the marketplace banner (migration 0048).
+ *
+ * A Product with the placement's own two fields attached, so the banner can
+ * render bought and free slots through one component: `headline` is the copy
+ * the seller paid for and falls back to the product name when null.
+ */
+export interface BannerProduct extends Product {
+  placementId: string;
+  headline: string | null;
+}
+
+/**
+ * One shop as the control room lists it (migration 0048).
+ *
+ * Carries the counts that make a tier mean something — a shop on Influencer
+ * with no products is a refund waiting to happen — plus the account email,
+ * which comes from auth.users and is therefore only ever readable by an admin.
+ */
+export interface AdminShop {
+  id: string;
+  name: string;
+  handle: string;
+  /** Null when the auth user has been deleted but the shop row survives. */
+  email: string | null;
+  plan: Plan;
+  shopStatus: ShopStatus;
+  location: string;
+  avatarUrl: string;
+  createdAt: string;
+  productCount: number;
+  orderCount: number;
+  /** Excludes failed payments, matching platform_stats(). */
+  grossKes: number;
+  /** How many of this shop's products are on the marketplace banner. */
+  bannerCount: number;
+}
+
+/**
+ * A paid banner slot, as the owner manages it (migration 0048).
+ *
+ * `live` is computed in the database rather than here so this list and the
+ * banner itself can never disagree about what "running" means.
+ */
+export interface AdminPlacement {
+  id: string;
+  productId: string;
+  headline: string | null;
+  startsAt: string;
+  endsAt: string | null;
+  active: boolean;
+  amountKes: number | null;
+  note: string | null;
+  createdAt: string;
+  live: boolean;
+  productName: string;
+  productSlug: string;
+  productImage: string | null;
+  priceKes: number;
+  status: StockStatus;
+  merchantId: string;
+  shopName: string;
+  shopHandle: string;
+  shopPlan: Plan;
+}
+
+/** What the owner writes when creating or editing a placement. */
+export interface PlacementInput {
+  /** Omit to create; supply to edit that placement. */
+  id?: string | null;
+  productId: string;
+  headline?: string | null;
+  startsAt?: string | null;
+  endsAt?: string | null;
+  active?: boolean;
+  amountKes?: number | null;
+  note?: string | null;
+}
+
+/** A product as the placement picker lists it. */
+export interface AdminProductHit {
+  id: string;
+  name: string;
+  slug: string;
+  sku: string;
+  priceKes: number;
+  status: StockStatus;
+  image: string | null;
+  shopName: string;
+  shopHandle: string;
+  shopPlan: Plan;
+  /** Already on the banner — the picker greys these out rather than letting the
+   * unique constraint fail on submit. */
+  alreadyPlaced: boolean;
+}
+
 export interface Merchant {
   id: string;
   name: string;
@@ -312,6 +408,10 @@ export interface ShopFacets {
   ram: number[];
   storage: number[];
   conditions: string[];
+  /** The two ends of the price filter, both measured as the LOWEST variant
+   * price after discount — the same number the filter compares against, so the
+   * cheapest and dearest products in scope are always selectable. */
+  priceFloor: number;
   priceCeiling: number;
   total: number;
   available: number;

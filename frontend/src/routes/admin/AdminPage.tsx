@@ -2,13 +2,15 @@ import { useQuery } from "@tanstack/react-query";
 import { useMemo, useState } from "react";
 import { Link } from "react-router";
 import { Lock, RefreshCw, ShieldAlert } from "lucide-react";
-import { Logo } from "@/components/common/Logo";
+import { LogoLink } from "@/components/common/Logo";
 import { QueryError } from "@/components/common/QueryError";
 import { Skeleton } from "@/components/ui/Skeleton";
 import { formatKes } from "@/lib/currency";
 import { cn } from "@/lib/utils";
 import { services } from "@/services";
 import { useAuth } from "@/stores/auth";
+import { BannerPanel } from "./BannerPanel";
+import { ShopsPanel } from "./ShopsPanel";
 import type { GrowthPoint } from "@/types";
 
 /**
@@ -16,10 +18,17 @@ import type { GrowthPoint } from "@/types";
  *
  * READ THIS BEFORE ADDING ANYTHING. This page is not what keeps the numbers
  * private. The browser holds the anon key, so anyone can call the same RPCs
- * this calls; what refuses them is platform_stats() and platform_growth()
- * asserting is_platform_admin() in the database (migration 0047). The
- * `isAdmin` query below only decides whether to render a dashboard or a polite
- * refusal. Never move a check here that belongs there.
+ * this calls; what refuses them is every function it calls asserting
+ * is_platform_admin() in the database (migrations 0047 and 0048). The `isAdmin`
+ * query below only decides whether to render a dashboard or a polite refusal.
+ * Never move a check here that belongs there.
+ *
+ * IT IS NO LONGER READ-ONLY. Two panels write: ShopsPanel moves a shop between
+ * tiers, and BannerPanel sells the slot at the top of the marketplace. Both go
+ * through admin_* RPCs for exactly the reason above — `authenticated` holds no
+ * UPDATE privilege on merchants.plan (0041) and no write privilege at all on
+ * banner_placements (0048), so neither write is expressible as a table call
+ * from a browser, whoever is holding it.
  *
  * Being an internal tool is not a reason for it to be ugly, but it is a reason
  * not to give it navigation, SEO or a mobile-first layout. It is deliberately
@@ -86,7 +95,8 @@ export function AdminPage() {
     <main className="min-h-dvh bg-surface px-4 py-6 lg:px-8">
       <header className="mx-auto flex max-w-6xl flex-wrap items-center justify-between gap-3">
         <div className="flex items-center gap-2.5">
-          <Logo size={32} />
+          {/* Standalone page, so the mark is the only way back to the app. */}
+          <LogoLink size={32} />
           <div>
             <h1 className="text-lg font-extrabold tracking-tight text-ink">Control room</h1>
             <p className="text-xs text-muted">
@@ -170,7 +180,7 @@ export function AdminPage() {
             <div className="grid gap-4 lg:grid-cols-2">
               <Breakdown
                 title="Plans"
-                caption="Every shop is on Explorer until billing exists."
+                caption="Set by hand in the shop register below; billing does not exist yet."
                 rows={[
                   { label: "Explorer", value: stats.plans.explorer },
                   { label: "Boutique", value: stats.plans.boutique },
@@ -198,6 +208,12 @@ export function AdminPage() {
           days={days}
           onDaysChange={setDays}
         />
+
+        {/* Ads before shops: the banner is the thing with money attached and a
+            clock running on it, so it is the panel worth seeing without
+            scrolling past a seven-hundred-row register to reach. */}
+        <BannerPanel />
+        <ShopsPanel />
       </div>
     </main>
   );

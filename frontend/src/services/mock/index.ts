@@ -1,6 +1,10 @@
 import type {
+  AdminPlacement,
+  AdminProductHit,
+  AdminShop,
   Analytics,
   AuthUser,
+  BannerProduct,
   CartItem,
   CartOrderDraft,
   DiscountCode,
@@ -17,6 +21,8 @@ import type {
   PaymentResult,
   PaymentStatus,
   PlacedOrderRef,
+  PlacementInput,
+  Plan,
   Product,
   ProductReview,
   ShopFacets,
@@ -119,6 +125,10 @@ function queryProducts(all: Product[], q: ProductQuery = {}): Paged<Product> {
   // by a number no variant of it costs.
   const price = (p: Product) => minVariantPrice(p);
   if (q.maxPrice != null) list = list.filter((p) => price(p) <= q.maxPrice!);
+  // The other end of the range (migration 0048). Mirrors p_min_price, and is
+  // compared against the same eff_price as the ceiling so the two bounds cannot
+  // disagree about what "price" means.
+  if (q.minPrice != null) list = list.filter((p) => price(p) >= q.minPrice!);
   // Array OVERLAP, not containment — "M or L" means either. Mirrors the `&&`
   // in search_products (migration 0026); drift here is a bug you only ever see
   // against the real backend.
@@ -499,6 +509,88 @@ function merchantStats(): Merchant["stats"] {
 }
 
 /**
+ * The shop register, in memory.
+ *
+ * Seven rows because platform_stats() below reports seven shops, and a control
+ * room whose headline number disagrees with the list under it is a control room
+ * nobody trusts. The first row is the demo merchant itself, so changing its
+ * tier in the mock moves the same shop the rest of the app is looking at.
+ */
+const mockShops: AdminShop[] = [
+  { name: "Pulse Threads", handle: "pulsethreads", plan: "influencer", shopStatus: "open" },
+  { name: "Nairobi Kicks", handle: "nairobikicks", plan: "boutique", shopStatus: "open" },
+  { name: "Coast Ceramics", handle: "coastceramics", plan: "explorer", shopStatus: "open" },
+  { name: "Karen Home", handle: "karenhome", plan: "explorer", shopStatus: "open" },
+  { name: "Westlands Tech", handle: "westlandstech", plan: "influencer", shopStatus: "closed" },
+  { name: "Kisumu Crafts", handle: "kisumucrafts", plan: "explorer", shopStatus: "closed" },
+  { name: "Eldoret Outdoors", handle: "eldoretoutdoors", plan: "explorer", shopStatus: "closing" },
+].map((row, i) => ({
+  ...row,
+  id: `shop-${i + 1}`,
+  email: `${row.handle}@example.com`,
+  location: ["Nairobi", "Mombasa", "Kisumu", "Eldoret"][i % 4],
+  avatarUrl: "",
+  // Staggered by a fortnight each, so "newest first" has something to order by.
+  createdAt: new Date(Date.now() - (i + 1) * 14 * 86_400_000).toISOString(),
+  productCount: [12, 8, 5, 3, 0, 2, 1][i],
+  orderCount: [31, 19, 6, 2, 0, 1, 0][i],
+  grossKes: [842_000, 391_500, 128_000, 44_000, 0, 12_500, 0][i],
+  bannerCount: 0,
+})) as AdminShop[];
+
+/**
+ * Banner placements, in memory.
+ *
+ * Mutable module state rather than a constant: the control room's add/edit/
+ * delete write here, and listBannerPlacements() above reads it, so the mock
+ * shows the same round trip the real backend does.
+ */
+interface MockPlacement {
+  id: string;
+  productId: string;
+  headline: string | null;
+  startsAt: string;
+  endsAt: string | null;
+  active: boolean;
+  amountKes: number | null;
+  note: string | null;
+  createdAt: string;
+}
+
+const mockPlacements: MockPlacement[] = [];
+
+/** A stored placement, joined to its product and shop the way the RPC does. */
+function toAdminPlacement(pl: MockPlacement): AdminPlacement {
+  const product = products.find((p) => p.id === pl.productId);
+  const now = Date.now();
+  return {
+    id: pl.id,
+    productId: pl.productId,
+    headline: pl.headline,
+    startsAt: pl.startsAt,
+    endsAt: pl.endsAt,
+    active: pl.active,
+    amountKes: pl.amountKes,
+    note: pl.note,
+    createdAt: pl.createdAt,
+    live:
+      pl.active &&
+      new Date(pl.startsAt).getTime() <= now &&
+      (pl.endsAt === null || new Date(pl.endsAt).getTime() > now) &&
+      product?.status !== "out",
+    productName: product?.name ?? "(deleted product)",
+    productSlug: product?.slug ?? "",
+    productImage: product?.images[0] ?? null,
+    priceKes: product?.priceKes ?? 0,
+    status: product?.status ?? "out",
+    merchantId: merchant.id,
+    shopName: merchant.name,
+    shopHandle: merchant.handle,
+    shopPlan: mockShops[0].plan,
+  };
+}
+
+/**
  * The owner dashboard, in memory.
  *
  * `isAdmin` is true here on purpose: the mock exists so the page can be built
@@ -555,6 +647,106 @@ const mockAdmin: AdminService = {
       });
     }
     return out;
+  },
+
+  async listShops(query = {}) {
+    await delay();
+    const term = query.search?.trim().toLowerCase() ?? "";
+    const filtered = mockShops.filter(
+      (s) =>
+        (!query.plan || query.plan === "all" || s.plan === query.plan) &&
+        (term === "" ||
+          s.name.toLowerCase().includes(term) ||
+          s.handle.toLowerCase().includes(term) ||
+          s.location.toLowerCase().includes(term) ||
+          (s.email ?? "").toLowerCase().includes(term)),
+    );
+    const pageSize = query.pageSize ?? 20;
+    const page = Math.max(1, query.page ?? 1);
+    const start = (page - 1) * pageSize;
+    return { items: filtered.slice(start, start + pageSize), total: filtered.length };
+  },
+
+  async setShopPlan(merchantId: string, plan: Plan) {
+    await delay();
+    const shop = mockShops.find((s) => s.id === merchantId);
+    if (!shop) throw new Error("no such shop");
+    shop.plan = plan;
+  },
+
+  async listPlacements(): Promise<AdminPlacement[]> {
+    await delay();
+    return mockPlacements.map(toAdminPlacement);
+  },
+
+  async savePlacement(input: PlacementInput): Promise<string> {
+    await delay();
+    // Mirrors the unique constraint on banner_placements.product_id, and the
+    // readable message the RPC raises in its place.
+    const clash = mockPlacements.find(
+      (pl) => pl.productId === input.productId && pl.id !== input.id,
+    );
+    if (clash) throw new Error("that product is already on the banner");
+
+    const existing = input.id ? mockPlacements.find((pl) => pl.id === input.id) : undefined;
+    if (existing) {
+      existing.productId = input.productId;
+      existing.headline = input.headline?.trim() || null;
+      existing.startsAt = input.startsAt ?? existing.startsAt;
+      existing.endsAt = input.endsAt ?? null;
+      existing.active = input.active ?? existing.active;
+      existing.amountKes = input.amountKes ?? null;
+      existing.note = input.note?.trim() || null;
+      return existing.id;
+    }
+
+    const id = `placement-${mockPlacements.length + 1}`;
+    mockPlacements.unshift({
+      id,
+      productId: input.productId,
+      headline: input.headline?.trim() || null,
+      startsAt: input.startsAt ?? new Date().toISOString(),
+      endsAt: input.endsAt ?? null,
+      active: input.active ?? true,
+      amountKes: input.amountKes ?? null,
+      note: input.note?.trim() || null,
+      createdAt: new Date().toISOString(),
+    });
+    return id;
+  },
+
+  async deletePlacement(id: string) {
+    await delay();
+    const i = mockPlacements.findIndex((pl) => pl.id === id);
+    if (i >= 0) mockPlacements.splice(i, 1);
+  },
+
+  async searchProducts(search: string, limit = 12): Promise<AdminProductHit[]> {
+    await delay();
+    const term = search.trim().toLowerCase();
+    return products
+      .filter(
+        (p) =>
+          term === "" ||
+          p.name.toLowerCase().includes(term) ||
+          p.sku.toLowerCase().includes(term) ||
+          merchant.name.toLowerCase().includes(term) ||
+          merchant.handle.toLowerCase().includes(term),
+      )
+      .slice(0, limit)
+      .map((p) => ({
+        id: p.id,
+        name: p.name,
+        slug: p.slug,
+        sku: p.sku,
+        priceKes: p.priceKes,
+        status: p.status,
+        image: p.images[0] ?? null,
+        shopName: merchant.name,
+        shopHandle: merchant.handle,
+        shopPlan: mockShops[0].plan,
+        alreadyPlaced: mockPlacements.some((pl) => pl.productId === p.id),
+      }));
   },
 };
 
@@ -765,7 +957,41 @@ export const mockServices: Services = {
         .map((p) => ({ ...p, shopSlug: merchant.handle, shopName: merchant.name }));
     },
 
-    async getFacets(_merchantId?: string): Promise<ShopFacets> {
+    /**
+     * The paid half of the banner, in memory (migration 0048).
+     *
+     * Reads the same array the mock admin panel writes to, so placing a product
+     * in the control room and then looking at the marketplace behaves the way
+     * it does against the real backend. Empty until something is placed, which
+     * is also the honest default: nobody has bought a slot yet.
+     */
+    async listBannerPlacements(limit = 6): Promise<BannerProduct[]> {
+      await delay();
+      return mockPlacements
+        .filter((pl) => {
+          const product = products.find((p) => p.id === pl.productId);
+          if (!product || product.status === "out" || product.images.length === 0) return false;
+          const now = Date.now();
+          return (
+            pl.active &&
+            new Date(pl.startsAt).getTime() <= now &&
+            (pl.endsAt === null || new Date(pl.endsAt).getTime() > now)
+          );
+        })
+        .slice(0, limit)
+        .map((pl) => {
+          const product = products.find((p) => p.id === pl.productId)!;
+          return {
+            ...product,
+            shopSlug: merchant.handle,
+            shopName: merchant.name,
+            placementId: pl.id,
+            headline: pl.headline,
+          };
+        });
+    },
+
+    async getFacets(_merchantId?: string | null): Promise<ShopFacets> {
       await delay();
       const ramOf = (p: Product) => p.phoneSpecs?.ramGb ?? p.pcSpecs?.ramGb ?? null;
       const storageOf = (p: Product) => p.phoneSpecs?.storageGb ?? p.pcSpecs?.storageGb ?? null;
@@ -785,8 +1011,10 @@ export const mockServices: Services = {
         conditions: [
           ...new Set(products.flatMap((p) => (p.phoneSpecs ? [p.phoneSpecs.condition] : []))),
         ].sort(),
-        // Ceiling of the DISCOUNTED prices — it's the top of the price slider,
-        // whose value is handed straight back to the discount-aware filter.
+        // Both ends of the DISCOUNTED price range — these are the two ends of
+        // the price slider, whose values are handed straight back to the
+        // discount-aware filter, so they have to be the same measure.
+        priceFloor: products.length ? Math.min(...products.map(minVariantPrice)) : 0,
         priceCeiling: Math.max(0, ...products.map(minVariantPrice)),
         total: products.length,
         available: products.filter((p) => p.status === "available").length,

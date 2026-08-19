@@ -1,4 +1,4 @@
-import type { Merchant, Paged, Product, ShopFacets } from "@/types";
+import type { BannerProduct, Merchant, Paged, Product, ShopFacets } from "@/types";
 import { MAX_IMPORT_ROWS, type ProductCsvInput } from "@/lib/productCsv";
 import type {
   ProductExportEmailResult,
@@ -77,6 +77,10 @@ type SearchRow = ProductRow & { shop_handle: string | null; total_count: number 
  * to, named as well as handled because the banner credits the seller. */
 type FeatureRow = ProductRow & { shop_handle: string | null; shop_name: string | null };
 
+/** A row from list_banner_placements() (0048): a FeatureRow plus the two
+ * columns that belong to the placement rather than to the product. */
+type PlacementRow = FeatureRow & { placement_id: string; headline: string | null };
+
 function toPagedProducts(rows: SearchRow[]): Paged<Product> {
   return {
     items: rows.map((row) => {
@@ -103,6 +107,7 @@ function searchArgs(merchantId: string | null, q: ProductQuery = {}) {
     p_category: q.category && q.category !== "All" ? q.category : null,
     p_status: q.status && q.status !== "all" ? q.status : null,
     p_max_price: q.maxPrice ?? null,
+    p_min_price: q.minPrice ?? null,
     // Null rather than [] for "no constraint": the SQL treats an empty array the
     // same way, but null is what the parameter's default says and keeps an
     // unfiltered call byte-identical to the pre-0026 one.
@@ -280,6 +285,27 @@ export const productsApi: ProductService = {
   },
 
   /**
+   * The bought half of the banner (migration 0048).
+   *
+   * Same row shape as list_shop_features plus the placement's id and headline,
+   * so both halves map through toProduct and the banner renders them with one
+   * component. The live window is enforced by RLS on banner_placements, not
+   * here: an expired advert is not a row this call can see.
+   */
+  async listBannerPlacements(limit = 6): Promise<BannerProduct[]> {
+    const { data, error } = await supabase.rpc("list_banner_placements", { p_limit: limit });
+    if (error) throw error;
+    return ((data ?? []) as PlacementRow[]).map((row) => {
+      const product = toProduct(row) as BannerProduct;
+      product.shopSlug = row.shop_handle ?? undefined;
+      product.shopName = row.shop_name ?? undefined;
+      product.placementId = row.placement_id;
+      product.headline = row.headline;
+      return product;
+    });
+  },
+
+  /**
    * Bulk upsert keyed on (merchant_id, sku), the unique constraint the table
    * has carried since 0001. One round trip decides create-vs-update per row;
    * doing it in the client (read, diff, then insert some and update others)
@@ -368,9 +394,19 @@ export const productsApi: ProductService = {
     return { email: data.email, count: Number(data.count ?? 0) };
   },
 
-  async getFacets(merchantId?: string): Promise<ShopFacets> {
-    const uid = merchantId ?? (await requireUserId());
-    const { data, error } = await supabase.rpc("shop_facets", { p_merchant_id: uid });
+  /**
+   * Filter options for a scope.
+   *
+   * `undefined` means the signed-in merchant's own catalogue (the dashboard).
+   * `null` means EVERY shop, which is what the marketplace wants — and used to
+   * be spelt by omitting the argument, which quietly resolved to the caller's
+   * own id and threw outright for a guest, leaving the front page with no
+   * categories and no price filter at all. The two scopes now say which they
+   * mean, and shop_facets() understands a null (migration 0048).
+   */
+  async getFacets(merchantId?: string | null): Promise<ShopFacets> {
+    const scope = merchantId === undefined ? await requireUserId() : merchantId;
+    const { data, error } = await supabase.rpc("shop_facets", { p_merchant_id: scope });
     if (error) throw error;
     const f = (data ?? {}) as Partial<ShopFacets>;
     return {
@@ -381,6 +417,7 @@ export const productsApi: ProductService = {
       ram: (f.ram ?? []).map(Number),
       storage: (f.storage ?? []).map(Number),
       conditions: f.conditions ?? [],
+      priceFloor: Number(f.priceFloor ?? 0),
       priceCeiling: Number(f.priceCeiling ?? 0),
       total: Number(f.total ?? 0),
       available: Number(f.available ?? 0),

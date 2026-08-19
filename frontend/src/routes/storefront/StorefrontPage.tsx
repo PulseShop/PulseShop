@@ -6,8 +6,9 @@ import { useAuth } from "@/stores/auth";
 import { cartCount, useCart } from "@/stores/cart";
 import { useShop } from "@/stores/shop";
 import { MobileShell } from "@/components/layout/MobileShell";
-import { Logo } from "@/components/common/Logo";
+import { LogoLink } from "@/components/common/Logo";
 import { ProductCard } from "@/components/product/ProductCard";
+import { PriceRangeFilter } from "@/components/product/PriceRangeFilter";
 import { QueryError } from "@/components/common/QueryError";
 import { FollowButton } from "@/components/shop/FollowButton";
 import { FulfillmentBadge } from "@/components/shop/FulfillmentBadge";
@@ -68,6 +69,9 @@ export function StorefrontPage() {
 
   const [sort, setSort] = useState<SortOrder>("newest");
   const [availableOnly, setAvailableOnly] = useState(false);
+  // A band, not a ceiling (migration 0048). Either end may stay null, which
+  // means "no bound there" rather than a bound that happens to match everything.
+  const [minPrice, setMinPrice] = useState<number | null>(null);
   const [maxPrice, setMaxPrice] = useState<number | null>(null);
   // Multi-select: picking M and L means "available in either", which is what a
   // shopper who wears both means. Server-side (array overlap, migration 0026).
@@ -102,7 +106,8 @@ export function StorefrontPage() {
     colors.length +
     conditions.length +
     (availableOnly ? 1 : 0) +
-    (maxPrice !== null ? 1 : 0) +
+    // One decision, one chip, however many ends of the band are set.
+    (minPrice !== null || maxPrice !== null ? 1 : 0) +
     (minRating !== null ? 1 : 0) +
     (productType !== null ? 1 : 0) +
     (ramMin !== null ? 1 : 0) +
@@ -131,8 +136,22 @@ export function StorefrontPage() {
     ...(availableOnly
       ? [{ key: "available", label: "Available only", remove: () => setAvailableOnly(false) }]
       : []),
-    ...(maxPrice !== null
-      ? [{ key: "price", label: `Under ${formatKes(maxPrice)}`, remove: () => setMaxPrice(null) }]
+    ...(minPrice !== null || maxPrice !== null
+      ? [
+          {
+            key: "price",
+            label:
+              minPrice !== null && maxPrice !== null
+                ? `${formatKes(minPrice)} to ${formatKes(maxPrice)}`
+                : minPrice !== null
+                  ? `${formatKes(minPrice)} and up`
+                  : `Under ${formatKes(maxPrice ?? 0)}`,
+            remove: () => {
+              setMinPrice(null);
+              setMaxPrice(null);
+            },
+          },
+        ]
       : []),
     ...(minRating !== null
       ? [{ key: "rating", label: `${minRating}+ stars`, remove: () => setMinRating(null) }]
@@ -193,6 +212,7 @@ export function StorefrontPage() {
     search: term,
     category,
     status: availableOnly ? ("in-stock" as const) : ("all" as const),
+    minPrice,
     maxPrice,
     sizes,
     colors,
@@ -235,6 +255,7 @@ export function StorefrontPage() {
   });
 
   const categories = ["All", ...(facetsQ.data?.categories ?? [])];
+  const priceFloor = facetsQ.data?.priceFloor ?? 0;
   const priceCeiling = facetsQ.data?.priceCeiling ?? 0;
   // Only what this shop actually stocks — offering a filter that can only ever
   // return nothing is worse than offering none.
@@ -407,21 +428,16 @@ export function StorefrontPage() {
       )}
 
       {priceCeiling > 0 && (
-        <div>
-          <h2 className="text-sm font-bold text-ink">Price Range</h2>
-          <p className="mt-1 text-xs text-muted">
-            {formatKes(0)} to {formatKes(maxPrice ?? priceCeiling)}
-          </p>
-          <input
-            type="range"
-            aria-label="Maximum price"
-            min={0}
-            max={priceCeiling}
-            value={maxPrice ?? priceCeiling}
-            onChange={(e) => setMaxPrice(Number(e.target.value))}
-            className="mt-2 w-full accent-primary"
-          />
-        </div>
+        <PriceRangeFilter
+          floor={priceFloor}
+          ceiling={priceCeiling}
+          min={minPrice}
+          max={maxPrice}
+          onChange={({ min, max }) => {
+            setMinPrice(min);
+            setMaxPrice(max);
+          }}
+        />
       )}
 
       <div>
@@ -540,10 +556,10 @@ export function StorefrontPage() {
                 <ArrowLeft className="size-5" />
               </Link>
             )}
-            <span className="flex items-center gap-2 text-lg font-extrabold tracking-tight text-primary lg:hidden">
-              <Logo size={28} />
-              PulseShop
-            </span>
+            {/* The wordmark is the way back to the marketplace, which from
+                inside a storefront had no control at all. It goes to "/" and
+                not to this shop: it says PulseShop. */}
+            <LogoLink size={28} wordmark className="lg:hidden" />
             {/* desktop: shop identity takes the wordmark's place, once loaded */}
             {merchant && (
               <Link to={homeTo} className="hidden items-center gap-2.5 lg:flex">

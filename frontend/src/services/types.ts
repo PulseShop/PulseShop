@@ -1,7 +1,11 @@
 import type { ProductCsvInput } from "@/lib/productCsv";
 import type {
+  AdminPlacement,
+  AdminProductHit,
+  AdminShop,
   Analytics,
   AuthUser,
+  BannerProduct,
   CartItem,
   CartOrderDraft,
   DiscountCode,
@@ -9,6 +13,8 @@ import type {
   FollowerSeries,
   Fulfillment,
   Merchant,
+  PlacementInput,
+  Plan,
   MerchantOrder,
   MerchantReviewsSummary,
   MyOrder,
@@ -188,6 +194,16 @@ export interface ProductQuery {
   category?: string;
   /** "in-stock" = anything not out of stock. */
   status?: "all" | "in-stock" | "available" | "low" | "out";
+  /**
+   * The price range, in whole shillings, compared against the LOWEST variant
+   * price after discount. Either end may be null for "no bound", so `minPrice`
+   * alone is "anything from X up" and the pair is a band.
+   *
+   * A range rather than a ceiling alone (migration 0048): "under 5,000" buries
+   * someone shopping the 3,000–5,000 shelf under every cheap accessory on the
+   * platform, which is the same as having no filter.
+   */
+  minPrice?: number | null;
   maxPrice?: number | null;
   /**
    * Match products available in ANY of these sizes/colours (array overlap, not
@@ -269,10 +285,23 @@ export interface ProductService {
    * are more shops than slots. Each item carries `shopSlug` and `shopName`.
    */
   listShopFeatures(limit?: number): Promise<Product[]>;
-  /** The category list, price ceiling and stock counts a filter UI needs —
+  /**
+   * Public: the products a seller has PAID to put on the marketplace banner
+   * (migration 0048). Returned newest first and already filtered to the live
+   * window by RLS. Each item carries the placement's optional `headline`, which
+   * is the banner copy the seller bought; null falls back to the product name.
+   *
+   * Separate from listShopFeatures() rather than merged into it because the two
+   * are different products: one is bought, the other is the free rotation every
+   * registered shop gets. The page shows paid slots first and fills the rest
+   * from the rotation, which is only expressible if they arrive apart.
+   */
+  listBannerPlacements(limit?: number): Promise<BannerProduct[]>;
+  /** The category list, price range and stock counts a filter UI needs —
    * aggregates over the whole catalogue, which a single page can't give you.
-   * Omit `merchantId` for the signed-in merchant's own catalogue. */
-  getFacets(merchantId?: string): Promise<ShopFacets>;
+   * Omit `merchantId` for the WHOLE marketplace (every shop); pass one for a
+   * single shop's catalogue. */
+  getFacets(merchantId?: string | null): Promise<ShopFacets>;
   /**
    * Bulk create-or-update from an uploaded CSV, keyed on SKU: a row whose SKU
    * this shop already has updates that product, a new one creates it.
@@ -484,6 +513,33 @@ export interface AdminService {
   stats(): Promise<PlatformStats>;
   /** Daily signups plus running totals, for the last `days` days (7 to 365). */
   growth(days?: number): Promise<GrowthPoint[]>;
+
+  /**
+   * The shop register, narrowed by plan and/or a search over name, handle,
+   * location and account email. `plan: "all"` (or omitted) is every tier.
+   */
+  listShops(query?: {
+    plan?: Plan | "all";
+    search?: string;
+    page?: number;
+    pageSize?: number;
+  }): Promise<Paged<AdminShop>>;
+  /**
+   * Move a shop to a tier. This is the by-hand step 0041 described: sellers
+   * have no UPDATE privilege on merchants.plan, so until billing exists the
+   * owner grants it. A pending upgrade request for the same plan is marked
+   * approved by the same call.
+   */
+  setShopPlan(merchantId: string, plan: Plan): Promise<void>;
+
+  /** Every banner placement, running or not, with what was paid. */
+  listPlacements(): Promise<AdminPlacement[]>;
+  /** Create (no `id`) or edit (with `id`) a placement. Returns its id. */
+  savePlacement(input: PlacementInput): Promise<string>;
+  deletePlacement(id: string): Promise<void>;
+  /** Product lookup for the placement picker — every shop, including closing
+   * ones, which the shopper-facing search deliberately hides. */
+  searchProducts(search: string, limit?: number): Promise<AdminProductHit[]>;
 }
 
 export interface Services {

@@ -3,8 +3,8 @@ import { cn } from "@/lib/utils";
 import { useBuyerNavItems } from "@/hooks/useBuyerNavItems";
 
 /** Desktop's stand-in for the mobile floating tab bar — a persistent icon row in the header. */
-export function DesktopQuickNav({ homeTo }: { homeTo?: string }) {
-  const { home, items, badgeFor } = useBuyerNavItems(homeTo);
+export function DesktopQuickNav() {
+  const { home, items, badgeFor } = useBuyerNavItems();
 
   return (
     <div className="hidden items-center gap-1 lg:flex">

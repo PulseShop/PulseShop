@@ -19,6 +19,20 @@ import { cn } from "@/lib/utils";
  * typed before the palette existed) are surfaced in their own row so editing an
  * old product doesn't quietly drop them on the next save — same reasoning as
  * the legacy-category and legacy-size handling in the product form.
+ *
+ * EVERY COLOUR HERE IS A ROLE, not a literal. This panel used to reach for
+ * `border-stone-200` and `text-white` directly, which are fixed values and so
+ * cannot flip: in dark mode the swatch borders drew a light grey box on a
+ * near-black card, and the labels on a selected swatch were white text on
+ * dark-mode's lighter teal at about 2.5:1 — legible in the mockup, unreadable
+ * on a phone. `border-line` and `text-on-accent` are the same values in light
+ * and the right ones in dark (see styles/tokens.css).
+ *
+ * The two exceptions are deliberate. The ring around a swatch and the tick
+ * inside it sit on an ARBITRARY product colour rather than on a themed surface,
+ * so they cannot be tokens: the ring keeps a black alpha over light and gains a
+ * white one in dark, and the tick stays `mix-blend-difference`, which is what
+ * makes it readable on white, on navy, and on everything between.
  */
 export function ColorPalettePicker({
   selected,
@@ -52,7 +66,7 @@ export function ColorPalettePicker({
             "flex h-9 items-center gap-1.5 rounded-btn border-2 px-3 text-xs font-bold transition-colors",
             wheelOpen
               ? "border-primary bg-primary/5 text-primary"
-              : "border-stone-200 bg-card text-ink hover:border-primary/50",
+              : "border-line bg-card text-ink hover:border-primary/50",
           )}
         >
           {wheelOpen ? <X className="size-3.5" /> : <Pipette className="size-3.5" />}
@@ -61,7 +75,7 @@ export function ColorPalettePicker({
       </div>
 
       {wheelOpen && (
-        <div className="space-y-2 rounded-card border border-stone-200 bg-card p-3">
+        <div className="space-y-2 rounded-card border border-line bg-card p-3">
           <div className="flex flex-wrap items-center gap-3">
             <label className="flex items-center gap-2 text-sm font-semibold text-ink">
               <input
@@ -69,7 +83,7 @@ export function ColorPalettePicker({
                 value={wheelHex}
                 onChange={(e) => setWheelHex(e.target.value)}
                 aria-label="Pick your product's colour"
-                className="size-10 cursor-pointer rounded-btn border border-stone-200 bg-card p-1"
+                className="size-10 cursor-pointer rounded-btn border border-line bg-card p-1"
               />
               Pick your colour
             </label>
@@ -79,7 +93,7 @@ export function ColorPalettePicker({
                 <span
                   aria-hidden
                   style={{ backgroundColor: colorHex(match) }}
-                  className="size-6 shrink-0 rounded-full ring-1 ring-inset ring-black/15"
+                  className="size-6 shrink-0 rounded-full ring-1 ring-inset ring-black/15 dark:ring-white/20"
                 />
                 <span className="text-sm text-muted">
                   Closest match: <span className="font-bold text-ink">{match}</span>
@@ -88,7 +102,7 @@ export function ColorPalettePicker({
                   type="button"
                   disabled={alreadyStocked}
                   onClick={() => onToggle(match)}
-                  className="h-9 rounded-btn bg-primary px-3 text-xs font-bold text-white transition-opacity disabled:opacity-40"
+                  className="h-9 rounded-btn bg-primary px-3 text-xs font-bold text-on-accent transition-opacity disabled:opacity-40"
                 >
                   {alreadyStocked ? "Already added" : `Add ${match}`}
                 </button>
@@ -154,14 +168,14 @@ function Swatch({ name, on, onClick }: { name: string; on: boolean; onClick: () 
       className={cn(
         "flex h-9 items-center gap-2 rounded-btn border-2 pl-1.5 pr-2.5 text-xs font-semibold transition-colors",
         on
-          ? "border-primary bg-primary text-white"
-          : "border-stone-200 bg-card text-ink hover:border-primary/50",
+          ? "border-primary bg-primary text-on-accent"
+          : "border-line bg-card text-ink hover:border-primary/50",
       )}
     >
       <span
         aria-hidden
         style={{ backgroundColor: colorHex(name) }}
-        className="flex size-5 shrink-0 items-center justify-center rounded-full ring-1 ring-inset ring-black/15"
+        className="flex size-5 shrink-0 items-center justify-center rounded-full ring-1 ring-inset ring-black/15 dark:ring-white/20"
       >
         {on && <Check className="size-3 text-white mix-blend-difference" />}
       </span>

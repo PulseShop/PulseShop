@@ -5,7 +5,7 @@ import { Link } from "react-router";
 import type { Merchant } from "@/types";
 import { MobileShell } from "@/components/layout/MobileShell";
 import { DesktopQuickNav } from "@/components/layout/DesktopQuickNav";
-import { Logo } from "@/components/common/Logo";
+import { LogoLink } from "@/components/common/Logo";
 import { FollowButton } from "@/components/shop/FollowButton";
 import { ProductCard } from "@/components/product/ProductCard";
 import { ProductImage } from "@/components/product/ProductImage";
@@ -95,7 +95,8 @@ export function ShopsPage() {
     <MobileShell wide>
       <header className="glass-header sticky top-0 z-30 flex items-center justify-between gap-3 px-4 py-4 lg:px-6">
         <div className="flex min-w-0 items-center gap-3">
-          <Logo size={40} />
+          {/* The masthead mark is the way back to the marketplace. */}
+          <LogoLink size={40} />
           <div className="min-w-0">
             <h1 className="text-lg font-extrabold text-ink lg:text-xl">Shops</h1>
             <p className="truncate text-xs font-medium text-muted lg:text-sm">

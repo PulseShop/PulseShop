@@ -1,11 +1,24 @@
 import { keepPreviousData, useInfiniteQuery, useQuery } from "@tanstack/react-query";
-import { ChevronRight, LayoutGrid, List, Search, SlidersHorizontal, Sparkles, Store, X } from "lucide-react";
+import {
+  ChevronRight,
+  Home,
+  LayoutGrid,
+  List,
+  Megaphone,
+  Search,
+  SlidersHorizontal,
+  Sparkles,
+  Store,
+  X,
+} from "lucide-react";
 import { useMemo, useState } from "react";
 import { Link } from "react-router";
 import { MobileShell } from "@/components/layout/MobileShell";
-import { Logo } from "@/components/common/Logo";
+import { LogoLink } from "@/components/common/Logo";
+import { ProfileMenu } from "@/components/layout/ProfileMenu";
 import { ProductCard } from "@/components/product/ProductCard";
 import { ProductImage } from "@/components/product/ProductImage";
+import { PriceRangeFilter } from "@/components/product/PriceRangeFilter";
 import { QueryError } from "@/components/common/QueryError";
 import { Sheet } from "@/components/ui/Modal";
 import { ProductCardSkeleton, Skeleton } from "@/components/ui/Skeleton";
@@ -16,7 +29,7 @@ import { formatKes } from "@/lib/currency";
 import { homeSeo } from "@/lib/seo";
 import { cn } from "@/lib/utils";
 import { services } from "@/services";
-import type { Product } from "@/types";
+import type { BannerProduct, Product } from "@/types";
 
 type SortOrder = "newest" | "price-asc" | "price-desc";
 
@@ -33,9 +46,15 @@ const LIST_CLASS = "flex flex-col gap-3";
  *
  * Everything here is a composition of services that already existed —
  * searchProducts() has taken a null merchant since migration 0023, listShops()
- * is the directory, getFacets() aggregates across every shop when given no id.
- * The only new thing is the strip at the top, which gives every registered shop
- * a slot rather than selling one (see ShopFeatureStrip).
+ * is the directory, getFacets() aggregates across every shop when given a null.
+ *
+ * THE BANNER IS TWO STRIPS, and the order is the product decision. Paid
+ * placements come first (PromotedStrip, migration 0048) and are labelled as
+ * paid; under them, one product from EVERY registered shop, rotated hourly and
+ * bought by nobody (ShopFeatureStrip, migration 0046). Selling the top slot is
+ * how the platform earns; keeping the second strip unsellable is what stops the
+ * front page collapsing into an advert board where a shop that opened this
+ * morning is invisible. Neither replaces the other.
  */
 export function MarketplacePage() {
   useSeo(useMemo(() => homeSeo(window.location.origin), []));
@@ -45,6 +64,7 @@ export function MarketplacePage() {
   const [category, setCategory] = useState("All");
   const [sort, setSort] = useState<SortOrder>("newest");
   const [availableOnly, setAvailableOnly] = useState(false);
+  const [minPrice, setMinPrice] = useState<number | null>(null);
   const [maxPrice, setMaxPrice] = useState<number | null>(null);
   const [sizes, setSizes] = useState<string[]>([]);
   const [colors, setColors] = useState<string[]>([]);
@@ -59,7 +79,10 @@ export function MarketplacePage() {
     sizes.length +
     colors.length +
     (availableOnly ? 1 : 0) +
-    (maxPrice !== null ? 1 : 0) +
+    // The band counts as ONE filter however many ends are set: "3,000 to 5,000"
+    // is one decision the shopper made, and badging it as two overstates how
+    // much is switched on.
+    (minPrice !== null || maxPrice !== null ? 1 : 0) +
     (minRating !== null ? 1 : 0) +
     (category !== "All" ? 1 : 0);
 
@@ -67,6 +90,7 @@ export function MarketplacePage() {
     setSizes([]);
     setColors([]);
     setAvailableOnly(false);
+    setMinPrice(null);
     setMaxPrice(null);
     setMinRating(null);
     setCategory("All");
@@ -81,8 +105,17 @@ export function MarketplacePage() {
     ...(availableOnly
       ? [{ key: "avail", label: "Available only", remove: () => setAvailableOnly(false) }]
       : []),
-    ...(maxPrice !== null
-      ? [{ key: "price", label: `Under ${formatKes(maxPrice)}`, remove: () => setMaxPrice(null) }]
+    ...(minPrice !== null || maxPrice !== null
+      ? [
+          {
+            key: "price",
+            label: priceChipLabel(minPrice, maxPrice),
+            remove: () => {
+              setMinPrice(null);
+              setMaxPrice(null);
+            },
+          },
+        ]
       : []),
     ...(minRating !== null
       ? [{ key: "rating", label: `${minRating}+ stars`, remove: () => setMinRating(null) }]
@@ -93,6 +126,7 @@ export function MarketplacePage() {
     search: term,
     category,
     status: availableOnly ? ("in-stock" as const) : ("all" as const),
+    minPrice,
     maxPrice,
     sizes,
     colors,
@@ -116,12 +150,16 @@ export function MarketplacePage() {
   const products = productsQ.data?.pages.flatMap((p) => p.items) ?? [];
   const totalMatches = productsQ.data?.pages[0]?.total ?? 0;
 
-  // No merchant id: the facets are the whole marketplace's, not one shop's.
+  // Explicit null = every shop. OMITTING the argument means "the signed-in
+  // merchant's own catalogue", which is what this used to pass by accident: the
+  // front page asked for one shop's facets, and for a guest, who has no id, the
+  // call threw outright and the whole filter panel rendered empty.
   const facetsQ = useQuery({
     queryKey: ["marketplace-facets"],
-    queryFn: () => services.products.getFacets(),
+    queryFn: () => services.products.getFacets(null),
   });
   const categories = ["All", ...(facetsQ.data?.categories ?? [])];
+  const priceFloor = facetsQ.data?.priceFloor ?? 0;
   const priceCeiling = facetsQ.data?.priceCeiling ?? 0;
   const sizeOptions = sortSizes(facetsQ.data?.sizes ?? []);
   const colorOptions = facetsQ.data?.colors ?? [];
@@ -129,6 +167,15 @@ export function MarketplacePage() {
   const featuresQ = useQuery({
     queryKey: ["shop-features"],
     queryFn: () => services.products.listShopFeatures(8),
+  });
+
+  // The bought slots (migration 0048). A separate query from the free rotation
+  // above, so a failure in one cannot blank the other: if paid placement is
+  // unreachable the page still shows the shops, which is the half that matters
+  // more.
+  const placementsQ = useQuery({
+    queryKey: ["banner-placements"],
+    queryFn: () => services.products.listBannerPlacements(6),
   });
 
   const shopsQ = useQuery({
@@ -187,21 +234,16 @@ export function MarketplacePage() {
       )}
 
       {priceCeiling > 0 && (
-        <div>
-          <h2 className="text-sm font-bold text-ink">Price</h2>
-          <p className="mt-1 text-xs text-muted">
-            {formatKes(0)} to {formatKes(maxPrice ?? priceCeiling)}
-          </p>
-          <input
-            type="range"
-            aria-label="Maximum price"
-            min={0}
-            max={priceCeiling}
-            value={maxPrice ?? priceCeiling}
-            onChange={(e) => setMaxPrice(Number(e.target.value))}
-            className="mt-2 w-full accent-primary"
-          />
-        </div>
+        <PriceRangeFilter
+          floor={priceFloor}
+          ceiling={priceCeiling}
+          min={minPrice}
+          max={maxPrice}
+          onChange={({ min, max }) => {
+            setMinPrice(min);
+            setMaxPrice(max);
+          }}
+        />
       )}
 
       <div>
@@ -234,20 +276,33 @@ export function MarketplacePage() {
     <MobileShell homeTo="/" wide>
       <header className="glass-header sticky top-0 z-30 px-4 py-3 lg:px-6">
         <div className="flex items-center justify-between gap-3">
-          <Link to="/" className="flex shrink-0 items-center gap-2">
-            <Logo size={30} />
-            <span className="text-lg font-extrabold tracking-tight text-primary">PulseShop</span>
-          </Link>
+          <LogoLink size={30} wordmark />
           <div className="hidden min-w-0 flex-1 lg:block lg:max-w-md">
             <SearchField value={search} onChange={setSearch} />
           </div>
-          <Link
-            to="/shops"
-            className="hidden shrink-0 items-center gap-1 text-sm font-semibold text-muted hover:text-ink lg:flex"
-          >
-            All shops
-            <ChevronRight className="size-4" />
-          </Link>
+          <div className="flex shrink-0 items-center gap-1 sm:gap-2">
+            <Link
+              to="/shops"
+              className="hidden shrink-0 items-center gap-1 text-sm font-semibold text-muted hover:text-ink lg:flex"
+            >
+              All shops
+              <ChevronRight className="size-4" />
+            </Link>
+            {/* Home is a no-op on this page and still belongs here: it is the
+                same control in the same place on every buyer route, and one
+                that disappears on the page it points at is one people stop
+                looking for. aria-current says it is already the current page
+                rather than hiding it from a screen reader. */}
+            <Link
+              to="/"
+              aria-label="Home"
+              aria-current="page"
+              className="flex size-10 items-center justify-center rounded-full text-ink transition-colors hover:bg-fill focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary"
+            >
+              <Home className="size-5" />
+            </Link>
+            <ProfileMenu />
+          </div>
         </div>
         <div className="mt-2.5 lg:hidden">
           <SearchField value={search} onChange={setSearch} />
@@ -255,7 +310,12 @@ export function MarketplacePage() {
       </header>
 
       <div className="px-4 pb-6 pt-4 lg:px-6">
-        <ShopFeatureStrip items={featuresQ.data ?? []} loading={featuresQ.isLoading} />
+        <PromotedStrip items={placementsQ.data ?? []} />
+        <ShopFeatureStrip
+          items={featuresQ.data ?? []}
+          loading={featuresQ.isLoading}
+          className={(placementsQ.data?.length ?? 0) > 0 ? "mt-5" : undefined}
+        />
 
         {/* Filters left, grid centre, shops right — the storefront already put
             its filters on the left, and having them swap sides between the two
@@ -478,6 +538,81 @@ export function MarketplacePage() {
 
 /* ------------------------------------------------------------------------- */
 
+/**
+ * How a price band reads as a removable chip.
+ *
+ * Three phrasings rather than one template, because "KES 0 to KES 5,000" is a
+ * worse label than "Under KES 5,000" for the same filter, and an open-ended
+ * bottom is genuinely a different sentence from a closed band.
+ */
+function priceChipLabel(min: number | null, max: number | null): string {
+  if (min !== null && max !== null) return `${formatKes(min)} to ${formatKes(max)}`;
+  if (min !== null) return `${formatKes(min)} and up`;
+  return `Under ${formatKes(max ?? 0)}`;
+}
+
+/**
+ * The bought slots at the top of the marketplace (migration 0048).
+ *
+ * LABELLED, always. Each tile says "Promoted", and the strip says so again in
+ * its heading. That is not a legal checkbox: the whole reason the free rotation
+ * below it works is that shoppers can tell the two apart, and a paid slot that
+ * looks identical to an earned one devalues both. It is also the only honest
+ * way to run paid placement on a page that also claims to give every shop a
+ * turn.
+ *
+ * Renders nothing at all when nobody has bought a slot, rather than a "no
+ * promotions yet" placeholder — an empty advert rail is not information a
+ * shopper needs.
+ */
+function PromotedStrip({ items }: { items: BannerProduct[] }) {
+  if (items.length === 0) return null;
+
+  return (
+    <section aria-label="Promoted products">
+      <div className="mb-2.5 flex items-center gap-1.5">
+        <Megaphone className="size-4 text-warning" aria-hidden />
+        <h2 className="text-sm font-bold text-ink">Promoted</h2>
+      </div>
+      <div className="no-scrollbar -mx-4 flex gap-3 overflow-x-auto px-4 lg:mx-0 lg:grid lg:grid-cols-3 lg:px-0">
+        {items.map((p) => (
+          <Link
+            key={p.placementId}
+            to={`/${p.shopSlug}/${p.slug}`}
+            className="group relative w-64 shrink-0 overflow-hidden rounded-card bg-card shadow-soft ring-1 ring-warning/30 transition-shadow hover:shadow-md lg:w-auto"
+          >
+            <div className="flex h-40">
+              <div className="flex min-w-0 flex-1 flex-col justify-center gap-1 p-4">
+                <span className="flex w-fit items-center gap-1 rounded-full bg-warning/12 px-2 py-0.5 text-[10px] font-bold uppercase tracking-wide text-warning">
+                  Promoted
+                </span>
+                {/* The headline is the copy the seller paid for; without one the
+                    product's own name does the job, which is why null is a
+                    perfectly ordinary value here rather than missing data. */}
+                <p className="line-clamp-2 text-sm font-extrabold leading-snug text-ink">
+                  {p.headline?.trim() || p.name}
+                </p>
+                {p.shopName && (
+                  <p className="truncate text-xs font-semibold text-muted">{p.shopName}</p>
+                )}
+                <p className="text-sm font-extrabold text-primary">{formatKes(p.priceKes)}</p>
+              </div>
+              <div className="w-28 shrink-0 overflow-hidden bg-fill">
+                <ProductImage
+                  src={p.images[0]}
+                  alt={p.imageAlts?.[0]?.trim() || p.name}
+                  loading="lazy"
+                  className="size-full object-cover transition-transform duration-300 group-hover:scale-[1.04]"
+                />
+              </div>
+            </div>
+          </Link>
+        ))}
+      </div>
+    </section>
+  );
+}
+
 function SearchField({ value, onChange }: { value: string; onChange: (v: string) => void }) {
   return (
     <div className="relative">
@@ -516,10 +651,23 @@ function SearchField({ value, onChange }: { value: string; onChange: (v: string)
  * one on the platform. That is the point of leading the page with it, and it is
  * why the heading says which shop rather than that anything is featured.
  */
-function ShopFeatureStrip({ items, loading }: { items: Product[]; loading: boolean }) {
+function ShopFeatureStrip({
+  items,
+  loading,
+  className,
+}: {
+  items: Product[];
+  loading: boolean;
+  className?: string;
+}) {
   if (loading) {
     return (
-      <div className="no-scrollbar -mx-4 flex gap-3 overflow-x-auto px-4 lg:mx-0 lg:grid lg:grid-cols-3 lg:px-0">
+      <div
+        className={cn(
+          "no-scrollbar -mx-4 flex gap-3 overflow-x-auto px-4 lg:mx-0 lg:grid lg:grid-cols-3 lg:px-0",
+          className,
+        )}
+      >
         {Array.from({ length: 3 }).map((_, i) => (
           <Skeleton key={i} className="h-40 w-64 shrink-0 lg:w-auto" />
         ))}
@@ -529,7 +677,7 @@ function ShopFeatureStrip({ items, loading }: { items: Product[]; loading: boole
   if (items.length === 0) return null;
 
   return (
-    <section aria-label="A product from each shop">
+    <section aria-label="A product from each shop" className={className}>
       <div className="mb-2.5 flex items-center gap-1.5">
         <Sparkles className="size-4 text-primary" aria-hidden />
         <h2 className="text-sm font-bold text-ink">From the shops on PulseShop</h2>

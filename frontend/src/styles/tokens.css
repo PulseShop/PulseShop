@@ -551,3 +551,71 @@ input[type="radio"] {
   -ms-overflow-style: none;
   scrollbar-width: none;
 }
+
+/* ---------------------------------------------------------------------------
+   Dual-thumb range slider (PriceRangeFilter).
+
+   Two <input type="range"> stacked on one track. The native track and fill are
+   removed entirely — the visible track, the selected span and the theme colours
+   are drawn by the component as ordinary divs, which is the only way to get a
+   filled range that looks the same in both themes and in every engine.
+
+   `pointer-events: none` on the input with the thumb restored is what lets the
+   two overlap: the upper slider is transparent to the pointer except on its own
+   thumb, so a click on the bare track always reaches the lower one instead of
+   being swallowed by the element on top of it.
+   --------------------------------------------------------------------------- */
+.range-thumb {
+  -webkit-appearance: none;
+  appearance: none;
+  background: transparent;
+  pointer-events: none;
+}
+.range-thumb:focus {
+  outline: none;
+}
+
+.range-thumb::-webkit-slider-runnable-track {
+  background: transparent;
+  height: 100%;
+  border: none;
+}
+.range-thumb::-moz-range-track {
+  background: transparent;
+  height: 100%;
+  border: none;
+}
+
+.range-thumb::-webkit-slider-thumb {
+  -webkit-appearance: none;
+  appearance: none;
+  pointer-events: auto;
+  height: 18px;
+  width: 18px;
+  border-radius: 9999px;
+  background: var(--color-card);
+  border: 3px solid var(--color-primary);
+  box-shadow: var(--shadow-soft);
+  cursor: pointer;
+  /* Centres the thumb on the 4px track the component draws behind it. */
+  margin-top: 0;
+}
+.range-thumb::-moz-range-thumb {
+  pointer-events: auto;
+  height: 18px;
+  width: 18px;
+  border-radius: 9999px;
+  background: var(--color-card);
+  border: 3px solid var(--color-primary);
+  box-shadow: var(--shadow-soft);
+  cursor: pointer;
+}
+
+/* Keyboard focus has to be visible on the thumb itself: the input has no
+   border of its own to ring, and the track is not the thing being moved. */
+.range-thumb:focus-visible::-webkit-slider-thumb {
+  box-shadow: 0 0 0 3px color-mix(in oklab, var(--color-primary) 30%, transparent);
+}
+.range-thumb:focus-visible::-moz-range-thumb {
+  box-shadow: 0 0 0 3px color-mix(in oklab, var(--color-primary) 30%, transparent);
+}

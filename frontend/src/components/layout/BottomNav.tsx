@@ -10,8 +10,8 @@ import { useBuyerNavItems } from "@/hooks/useBuyerNavItems";
  * content scrolls beneath and stays visible through — the blur is doing real
  * work, so the bar has to be flush and full-bleed for anything to pass under it.
  */
-export function BottomNav({ homeTo }: { homeTo?: string }) {
-  const { home, items, badgeFor } = useBuyerNavItems(homeTo);
+export function BottomNav() {
+  const { home, items, badgeFor } = useBuyerNavItems();
 
   return (
     <nav className="glass-bar fixed-stable fixed inset-x-0 bottom-0 z-40 lg:hidden">
