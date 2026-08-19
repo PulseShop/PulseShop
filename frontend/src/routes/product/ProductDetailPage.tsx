@@ -38,6 +38,7 @@ import type { Product } from "@/types";
 import { useAddToCart } from "@/hooks/useCart";
 import { useFavoriteToggle } from "@/hooks/useFavorites";
 import { useAuth } from "@/stores/auth";
+import { useBrowsingHistory } from "@/stores/browsingHistory";
 import { useFavorites } from "@/stores/favorites";
 import { useOrderStore } from "@/stores/order";
 import { useShop, useShopHome } from "@/stores/shop";
@@ -76,6 +77,21 @@ export function ProductDetailPage() {
   // Everything downstream keys off the loaded product rather than a URL param,
   // so it no longer matters which of the two routes we arrived by.
   const id = product?.id ?? "";
+
+  /**
+   * Remember that this was looked at.
+   *
+   * Feeds the marketplace's Recommendations panel and the browsing-history rail
+   * above the footer. Keyed on the product id rather than on `product`, so a
+   * refetch that hands back an equal-but-new object does not re-record the same
+   * view; opening the page IS the event, and re-opening it later legitimately
+   * moves it back to the front.
+   */
+  const recordView = useBrowsingHistory((s) => s.record);
+  useEffect(() => {
+    if (product) recordView(product);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [product?.id]);
 
   /**
    * Collapse a legacy URL onto the canonical one.

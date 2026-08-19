@@ -1,6 +1,7 @@
 import { useEffect, useRef } from "react";
 import { services } from "@/services";
 import { useAuth } from "@/stores/auth";
+import { useBrowsingHistory } from "@/stores/browsingHistory";
 import { useFavorites } from "@/stores/favorites";
 import { useToasts } from "@/stores/toast";
 
@@ -28,7 +29,13 @@ export function useFavoritesSync() {
 
   useEffect(() => {
     if (!userId) {
-      if (wasSignedIn.current) useFavorites.getState().clear();
+      if (wasSignedIn.current) {
+        useFavorites.getState().clear();
+        // Browsing history rides along for the same reason: it is a record of
+        // what a person looked at, kept under a fixed localStorage key, and the
+        // next person on a shared phone must not inherit it.
+        useBrowsingHistory.getState().clear();
+      }
       wasSignedIn.current = false;
       syncedFor.current = null;
       return;

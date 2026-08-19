@@ -159,7 +159,27 @@ function queryProducts(all: Product[], q: ProductQuery = {}): Paged<Product> {
   list = [...list];
   if (q.sort === "price-asc") list.sort((a, b) => price(a) - price(b));
   else if (q.sort === "price-desc") list.sort((a, b) => price(b) - price(a));
-  else list.sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime());
+  else {
+    // Mirrors the match_rank tiers in search_products (migration 0050): the
+    // thing you actually searched for leads, created_at breaks ties inside a
+    // tier, and relevance is skipped entirely under an explicit price sort.
+    const rank = (p: Product) => {
+      if (!term) return 0;
+      const name = p.name.toLowerCase();
+      const sku = p.sku.toLowerCase();
+      if (name === term) return 0;
+      if (sku === term) return 1;
+      if (name.startsWith(term)) return 2;
+      if (name.includes(term)) return 3;
+      if (sku.includes(term)) return 4;
+      return 5;
+    };
+    list.sort(
+      (a, b) =>
+        rank(a) - rank(b) ||
+        new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime(),
+    );
+  }
 
   return paginate(list, q.page, q.pageSize ?? DEFAULT_PRODUCT_PAGE);
 }

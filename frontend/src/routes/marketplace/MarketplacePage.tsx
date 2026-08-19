@@ -4,6 +4,8 @@ import {
   Baby,
   BookOpen,
   Camera,
+  ChevronLeft,
+  ChevronRight,
   Dumbbell,
   Footprints,
   Gamepad2,
@@ -30,11 +32,13 @@ import {
   X,
 } from "lucide-react";
 import type { LucideIcon } from "lucide-react";
-import { useEffect, useMemo, useState } from "react";
-import { Link } from "react-router";
+import { useEffect, useMemo, useRef, useState } from "react";
+import { Link, useSearchParams } from "react-router";
 import { MobileShell } from "@/components/layout/MobileShell";
 import { LogoLink } from "@/components/common/Logo";
 import { DesktopQuickNav } from "@/components/layout/DesktopQuickNav";
+import { SiteFooter } from "@/components/layout/SiteFooter";
+import { BrowsingHistoryRail } from "@/components/product/BrowsingHistoryRail";
 import { ProductCard } from "@/components/product/ProductCard";
 import { ProductImage } from "@/components/product/ProductImage";
 import { PriceRangeFilter } from "@/components/product/PriceRangeFilter";
@@ -49,6 +53,8 @@ import { productHref } from "@/lib/productUrl";
 import { homeSeo } from "@/lib/seo";
 import { cn } from "@/lib/utils";
 import { services } from "@/services";
+import { lastViewed, useBrowsingHistory } from "@/stores/browsingHistory";
+import type { ViewedProduct } from "@/stores/browsingHistory";
 import type { BannerProduct, Merchant, Product } from "@/types";
 
 type SortOrder = "newest" | "price-asc" | "price-desc";
@@ -103,8 +109,37 @@ const ROTATE_MS = 12_000;
 export function MarketplacePage() {
   useSeo(useMemo(() => homeSeo(window.location.origin), []));
 
-  const [search, setSearch] = useState("");
+  /**
+   * The search box, seeded from `?q=`.
+   *
+   * Not local-only state. The product page's own search field navigates here
+   * with `?q=...` (see submitSearch in ProductDetailPage), and until now this
+   * page ignored the parameter completely — searching from a product dropped
+   * you on an unfiltered front page. Seeding from the URL also makes a search
+   * shareable and survivable across a reload.
+   */
+  const [params, setParams] = useSearchParams();
+  const [search, setSearch] = useState(() => params.get("q") ?? "");
   const term = useDebounced(search.trim());
+
+  // Mirror the settled term back into the URL, replacing rather than pushing:
+  // every keystroke would otherwise be a history entry and Back would walk the
+  // shopper letter by letter out of their own query.
+  useEffect(() => {
+    const current = params.get("q") ?? "";
+    if (current === term) return;
+    const next = new URLSearchParams(params);
+    if (term) next.set("q", term);
+    else next.delete("q");
+    setParams(next, { replace: true });
+    // `params` is deliberately absent: this effect owns the q parameter and
+    // reacting to its own write would loop.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [term]);
+
+  /** Searching is a different intent from browsing, and the page changes shape
+   *  for it — see the note on the bento below. */
+  const isSearching = term.length > 0;
   const [category, setCategory] = useState("All");
   const [sort, setSort] = useState<SortOrder>("newest");
   const [availableOnly, setAvailableOnly] = useState(false);
@@ -226,6 +261,64 @@ export function MarketplacePage() {
     queryKey: ["marketplace-shops"],
     queryFn: () => services.follows.listShops({ pageSize: 8 }),
   });
+
+  /* ----------------------------------------------------------------------- *
+   * Search: the match first, then what surrounds it.
+   *
+   * The matches themselves are ordered by relevance server-side (migration
+   * 0050), so products[0] is the best hit rather than merely the newest one.
+   * These two queries are the "and then" half of the request: once a shopper
+   * has found the thing, the useful next question is what else is like it, and
+   * that is answered by its category and by its shop.
+   *
+   * Both are gated on `isSearching`, so a browsing visitor pays for neither.
+   * ----------------------------------------------------------------------- */
+  const topHit = isSearching ? products[0] : undefined;
+
+  const relatedCategoryQ = useQuery({
+    queryKey: ["search-related-category", topHit?.category],
+    queryFn: () =>
+      services.products.searchProducts({ category: topHit!.category, pageSize: 12 }),
+    enabled: Boolean(topHit?.category),
+  });
+
+  // The shop behind the best match, resolved from its handle because a Product
+  // row carries the handle but not the merchant id.
+  const topHitShopQ = useQuery({
+    queryKey: ["shop", topHit?.shopSlug],
+    queryFn: () => services.products.getShop(topHit!.shopSlug!),
+    enabled: Boolean(topHit?.shopSlug),
+  });
+
+  const relatedShopQ = useQuery({
+    queryKey: ["search-related-shop", topHitShopQ.data?.id],
+    queryFn: () =>
+      services.products.listShopProducts(topHitShopQ.data!.id, { pageSize: 12 }),
+    enabled: Boolean(topHitShopQ.data?.id),
+  });
+
+  /**
+   * Related products, minus anything the shopper is already looking at.
+   *
+   * Category first, then the shop, because "more like this" is a stronger
+   * signal than "more from these people" — someone searching for a phone
+   * charger wants other chargers before they want that seller's shoes.
+   */
+  const relatedProducts = useMemo(() => {
+    if (!isSearching) return [];
+    const shown = new Set(products.map((p) => p.id));
+    const out: Product[] = [];
+    for (const p of [
+      ...(relatedCategoryQ.data?.items ?? []),
+      ...(relatedShopQ.data?.items ?? []),
+    ]) {
+      if (shown.has(p.id)) continue;
+      shown.add(p.id);
+      out.push(p);
+      if (out.length === 8) break;
+    }
+    return out;
+  }, [isSearching, products, relatedCategoryQ.data, relatedShopQ.data]);
 
   const features = featuresQ.data ?? [];
   // The collage takes the first four of the free rotation and the rail below the
@@ -356,39 +449,51 @@ export function MarketplacePage() {
         {/* THE BENTO. Twelve columns past lg: the hero takes seven because it
             is the only panel carrying a photograph at display size, the collage
             three, and the two stacked cards share the last two. Below lg it is
-            one column in the same order, which is also reading order. */}
-        <div className="grid gap-3 lg:grid-cols-12 lg:gap-4">
-          <PromotedHero
-            className="lg:col-span-7"
-            items={placementsQ.data ?? []}
-            loading={placementsQ.isLoading}
-            fallbackImages={features.slice(0, 4)}
-            categories={categories}
-            category={category}
-            onCategory={setCategory}
-          />
+            one column in the same order, which is also reading order.
 
-          <ShopCollageCard
-            className="lg:col-span-3"
-            items={collageItems}
-            loading={featuresQ.isLoading}
-          />
-
-          {/* auto-rows-min so these two keep their natural heights. Left to
-              stretch they split the bento row between them, and a card holding
-              five colour swatches becomes three hundred pixels tall. */}
-          <div className="grid auto-rows-min gap-3 sm:grid-cols-2 lg:col-span-2 lg:grid-cols-1 lg:gap-4">
-            <ColorsCard
-              colors={colorOptions}
-              selected={colors}
-              onToggle={toggleIn(setColors)}
-              loading={facetsQ.isLoading}
+            IT DISAPPEARS THE MOMENT SOMEBODY SEARCHES. A shopper who typed a
+            query has told you exactly what they want, and making them scroll
+            past a hero, a collage and two side panels to reach it is the site
+            arguing with them. On a phone that was most of a screen of furniture
+            before the first result. Browsing gets the bento; searching gets
+            results at the top of the page. */}
+        {!isSearching && (
+          <div className="grid gap-3 lg:grid-cols-12 lg:gap-4">
+            <PromotedHero
+              className="lg:col-span-7"
+              items={placementsQ.data ?? []}
+              loading={placementsQ.isLoading}
+              fallbackImages={features.slice(0, 4)}
+              categories={categories}
+              category={category}
+              onCategory={setCategory}
             />
-            <ShopsCard shops={shopsQ.data?.items ?? []} loading={shopsQ.isLoading} />
-          </div>
-        </div>
 
-        <ShopFeatureStrip items={railItems} loading={featuresQ.isLoading} className="mt-5" />
+            <ShopCollageCard
+              className="lg:col-span-3"
+              items={collageItems}
+              loading={featuresQ.isLoading}
+            />
+
+            {/* Desktop only. On a phone this column was a colour swatch panel
+                and a shop list stacked between the hero and the products —
+                two panels of browsing aids in the narrowest place on the site,
+                pushing the actual catalogue below a second screenful. Both
+                live on elsewhere: colours in the filter sheet, shops on /shops
+                and in the bottom tab bar.
+
+                auto-rows-min so the cards keep their natural heights rather
+                than splitting the row between them. */}
+            <div className="hidden auto-rows-min gap-3 lg:col-span-2 lg:grid lg:grid-cols-1 lg:gap-4">
+              <RecommendationsCard />
+              <ShopsCard shops={shopsQ.data?.items ?? []} loading={shopsQ.isLoading} />
+            </div>
+          </div>
+        )}
+
+        {!isSearching && (
+          <ShopFeatureStrip items={railItems} loading={featuresQ.isLoading} className="mt-5" />
+        )}
 
         {/* Filters left, grid right — the storefront already put its filters on
             the left, and having them swap sides between the two browsing pages
@@ -530,9 +635,33 @@ export function MarketplacePage() {
                 )}
               </>
             )}
+
+            {/* What surrounds the match. Only while searching, and only under
+                the matches — a shopper who found the thing is done, and this is
+                for the one who did not. Kept visually quieter than the grid
+                above (a plain heading, the same tiles) so it reads as a second
+                answer rather than as more results for the query. */}
+            {isSearching && relatedProducts.length > 0 && (
+              <section aria-label="Related products" className="mt-8">
+                <h2 className="mb-3 text-sm font-bold text-ink">
+                  {/* Trimmed: seller-entered names carry stray trailing spaces,
+                      and the quote marks put them on display. */}
+                  {topHit ? `More like "${topHit.name.trim()}"` : "Related products"}
+                </h2>
+                <div className={GRID_CLASS}>
+                  {relatedProducts.map((p) => (
+                    <ProductCard key={p.id} product={p} />
+                  ))}
+                </div>
+              </section>
+            )}
           </section>
         </div>
+
+        <BrowsingHistoryRail className="mt-10" />
       </div>
+
+      <SiteFooter className="mt-4" />
 
       <Sheet open={filtersOpen} onOpenChange={setFiltersOpen} title="Filters">
         <div className="space-y-6">
@@ -613,8 +742,65 @@ function useHeroRotation(count: number) {
     index: safeIndex,
     paused,
     go: (i: number) => setIndex(i),
+    // Wrapping in both directions, so the arrows never dead-end: the shopper on
+    // the last slide who wants the first one presses next once, rather than
+    // pressing back seven times or finding the control disabled.
+    next: () => setIndex((i) => (count > 0 ? (i + 1) % count : 0)),
+    prev: () => setIndex((i) => (count > 0 ? (i - 1 + count) % count : 0)),
     hold: () => setHeld(true),
     release: () => setHeld(false),
+  };
+}
+
+/** Below this many pixels a horizontal drag is a tap with a shaky thumb. */
+const SWIPE_PX = 48;
+
+/**
+ * Swipe-to-advance for the hero.
+ *
+ * Pointer events rather than touch events, so a trackpad drag and a finger are
+ * the same gesture and there is one code path to reason about.
+ *
+ * The click suppression is the load-bearing part. Every slide is wrapped in
+ * links, and a swipe that lifts over one would otherwise fire its click and
+ * navigate to the product the shopper was trying to swipe away from. So a drag
+ * past the threshold arms a flag that the capture-phase click handler consumes
+ * before the link ever sees the event.
+ *
+ * `touch-action: pan-y` gives the browser the vertical axis and keeps the
+ * horizontal for us, so the page still scrolls normally through the hero.
+ */
+function useSwipe({ onNext, onPrev }: { onNext: () => void; onPrev: () => void }) {
+  const start = useRef<{ x: number; y: number } | null>(null);
+  const swiped = useRef(false);
+
+  return {
+    style: { touchAction: "pan-y" as const },
+    onPointerDown: (e: React.PointerEvent) => {
+      start.current = { x: e.clientX, y: e.clientY };
+      swiped.current = false;
+    },
+    onPointerUp: (e: React.PointerEvent) => {
+      const from = start.current;
+      start.current = null;
+      if (!from) return;
+      const dx = e.clientX - from.x;
+      const dy = e.clientY - from.y;
+      // Dominantly horizontal, or it was a scroll that happened to drift.
+      if (Math.abs(dx) < SWIPE_PX || Math.abs(dx) <= Math.abs(dy)) return;
+      swiped.current = true;
+      if (dx < 0) onNext();
+      else onPrev();
+    },
+    onPointerCancel: () => {
+      start.current = null;
+    },
+    onClickCapture: (e: React.MouseEvent) => {
+      if (!swiped.current) return;
+      swiped.current = false;
+      e.preventDefault();
+      e.stopPropagation();
+    },
   };
 }
 
@@ -674,8 +860,10 @@ function PromotedHero({
   onCategory: (c: string) => void;
   className?: string;
 }) {
-  const { index, paused, go, hold, release } = useHeroRotation(items.length);
+  const { index, paused, go, next, prev, hold, release } = useHeroRotation(items.length);
+  const swipe = useSwipe({ onNext: next, onPrev: prev });
   const current = items[index];
+  const navigable = items.length > 1;
 
   return (
     <section
@@ -685,15 +873,27 @@ function PromotedHero({
       onMouseLeave={release}
       onFocusCapture={hold}
       onBlurCapture={release}
+      {...(navigable ? swipe : {})}
       className={cn(
-        "hero-ink relative flex flex-col overflow-hidden rounded-bento p-5 sm:p-6 lg:min-h-[26rem] lg:p-8",
+        "hero-ink relative flex flex-col overflow-hidden rounded-bento p-5 sm:p-6 lg:min-h-104 lg:p-8",
         className,
       )}
     >
+      {navigable && (
+        <>
+          <HeroArrow side="left" onClick={prev} />
+          <HeroArrow side="right" onClick={next} />
+        </>
+      )}
       {/* Centred rather than top-aligned: the panel's height is set by whichever
           bento column is tallest, not by this content, so anchoring the slide to
-          the top leaves a hole above the category rail on most screens. */}
-      <div className="flex flex-1 items-center">
+          the top leaves a hole above the category rail on most screens.
+
+          The horizontal padding is the arrows' gutter, and only exists when
+          there are arrows. Without it they land on the vertical centre of the
+          slide, which is exactly where the CTA button sits — the one control on
+          the panel that must never be covered. */}
+      <div className={cn("flex flex-1 items-center", navigable && "px-8 sm:px-9")}>
         {loading ? (
           <HeroSkeleton />
         ) : current ? (
@@ -741,6 +941,33 @@ function PromotedHero({
 
       <CategoryRail categories={categories} value={category} onChange={onCategory} />
     </section>
+  );
+}
+
+/**
+ * Step the rotation by hand.
+ *
+ * Deliberately faint — bg-white/10 over the ink, lifting to /25 on hover. These
+ * sit ON the advertiser's photograph, and a solid button there is furniture
+ * taking up space somebody paid for. They are still real buttons: 40px, always
+ * present rather than hover-only (a touch device has no hover, and controls
+ * that appear only on desktop are controls half the traffic never learns
+ * about), and named for screen readers.
+ */
+function HeroArrow({ side, onClick }: { side: "left" | "right"; onClick: () => void }) {
+  const Icon = side === "left" ? ChevronLeft : ChevronRight;
+  return (
+    <button
+      type="button"
+      onClick={onClick}
+      aria-label={side === "left" ? "Previous promoted product" : "Next promoted product"}
+      className={cn(
+        "absolute top-1/2 z-10 flex size-10 -translate-y-1/2 items-center justify-center rounded-full bg-white/10 text-white backdrop-blur-sm transition-colors hover:bg-white/25 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-white/70",
+        side === "left" ? "left-1 sm:left-2" : "right-1 sm:right-2",
+      )}
+    >
+      <Icon className="size-5" aria-hidden />
+    </button>
   );
 }
 
@@ -1073,62 +1300,115 @@ function ShopCollageCard({
   );
 }
 
+
 /**
- * Colour as a way in.
+ * Recommended for you, built from the last thing they opened.
  *
- * These are swatches, not decoration: each one is the colour filter the sidebar
- * offers, which is why they toggle rather than navigate and why a chosen one
- * shows its state. The names come from the facet aggregate, so the panel only
- * ever offers a colour something is actually listed in.
+ * REPLACES THE COLOUR SWATCHES that used to sit here. Those were a filter
+ * wearing a panel's clothes: they did the same job as the colour section of the
+ * filter sidebar, three inches away, and gave the most valuable strip of the
+ * page over to restating a control rather than to showing merchandise.
+ *
+ * What goes there instead is the one thing this page knew about the shopper and
+ * was not using — which product they last opened (stores/browsingHistory.ts).
+ * The card shows what is LIKE that, not the product itself: recommending
+ * something they were just looking at is the shape of a recommendation without
+ * the substance.
+ *
+ * Renders nothing on a first visit. A recommendations panel with nothing behind
+ * it would have to be filled with something arbitrary and called a
+ * recommendation, which is worse than an honest absence — and the column below
+ * simply moves up.
  */
-function ColorsCard({
-  colors,
-  selected,
-  onToggle,
-  loading,
-}: {
-  colors: string[];
-  selected: string[];
-  onToggle: (c: string) => void;
-  loading: boolean;
-}) {
-  if (!loading && colors.length === 0) return null;
+function RecommendationsCard() {
+  const viewed = useBrowsingHistory((s) => s.viewed);
+  const seed = lastViewed(viewed);
+
+  const relatedQ = useQuery({
+    queryKey: ["recommended", seed?.category],
+    queryFn: () => services.products.searchProducts({ category: seed!.category, pageSize: 6 }),
+    enabled: Boolean(seed?.category),
+  });
+
+  // Everything they have already seen is filtered out, not just the seed: a
+  // "recommendation" the shopper has opened twice this session is a reminder,
+  // and they have the browsing-history rail for those.
+  const seenIds = new Set(viewed.map((v) => v.id));
+  const picks = (relatedQ.data?.items ?? []).filter((p) => !seenIds.has(p.id)).slice(0, 4);
+
+  if (!seed) return null;
 
   return (
-    <section className="rounded-bento bg-card p-4 shadow-soft">
-      <h2 className="text-sm font-bold text-ink">Popular colours</h2>
-      {loading ? (
-        <div className="mt-3 flex gap-2">
-          {Array.from({ length: 5 }).map((_, i) => (
-            <Skeleton key={i} className="size-8 rounded-full" />
+    <section className="rounded-bento bg-card p-4 shadow-soft" aria-label="Recommended for you">
+      <h2 className="text-sm font-bold text-ink">Recommended for you</h2>
+      <p className="mt-0.5 line-clamp-2 text-xs text-muted">
+        Because you viewed <span className="font-semibold text-ink">{seed.name}</span>
+      </p>
+
+      {relatedQ.isLoading ? (
+        <div className="mt-3 space-y-2">
+          {Array.from({ length: 3 }).map((_, i) => (
+            <div key={i} className="flex items-center gap-2">
+              <Skeleton className="size-10 shrink-0 rounded-lg" />
+              <div className="flex-1 space-y-1">
+                <Skeleton className="h-3 w-full rounded" />
+                <Skeleton className="h-3 w-12 rounded" />
+              </div>
+            </div>
           ))}
         </div>
+      ) : picks.length === 0 ? (
+        // The seed is still worth a link even when nothing new sits beside it —
+        // "take me back to what I was looking at" is a real thing to want.
+        <ViewedSeedLink seed={seed} />
       ) : (
-        <div className="mt-3 flex flex-wrap gap-2">
-          {colors.slice(0, 8).map((c) => {
-            const active = selected.includes(c);
-            return (
-              <button
-                key={c}
-                type="button"
-                onClick={() => onToggle(c)}
-                aria-label={active ? `Remove the ${c} filter` : `Show ${c} products`}
-                aria-pressed={active}
-                title={c}
-                style={{ backgroundColor: colorHex(c) }}
-                className={cn(
-                  // The inset ring keeps a white or cream swatch visible on the
-                  // card; the outline is the selected state, and it is an
-                  // outline rather than a second ring so the two cannot fight.
-                  "size-8 rounded-full ring-1 ring-inset ring-black/15 transition-transform hover:scale-110",
-                  active && "outline-2 outline-offset-2 outline-primary",
-                )}
-              />
-            );
-          })}
-        </div>
+        <ul className="mt-3 space-y-1">
+          {picks.map((p) => (
+            <li key={p.id}>
+              <Link
+                to={productHref(p)}
+                className="flex items-center gap-2 rounded-btn p-1 transition-colors hover:bg-fill"
+              >
+                <ProductImage
+                  src={p.images[0]}
+                  alt=""
+                  loading="lazy"
+                  className="size-10 shrink-0 rounded-lg object-cover"
+                />
+                <span className="min-w-0 flex-1">
+                  <span className="block truncate text-xs font-semibold text-ink">{p.name}</span>
+                  <span className="block text-xs font-extrabold text-primary">
+                    {formatKes(minVariantPrice(p))}
+                  </span>
+                </span>
+              </Link>
+            </li>
+          ))}
+        </ul>
       )}
     </section>
+  );
+}
+
+function ViewedSeedLink({ seed }: { seed: ViewedProduct }) {
+  return (
+    <Link
+      to={seed.shopSlug && seed.slug ? `/${seed.shopSlug}/${seed.slug}` : `/product/${seed.id}`}
+      className="mt-3 flex items-center gap-2 rounded-btn p-1 transition-colors hover:bg-fill"
+    >
+      <ProductImage
+        src={seed.image}
+        alt=""
+        loading="lazy"
+        className="size-10 shrink-0 rounded-lg object-cover"
+      />
+      <span className="min-w-0 flex-1">
+        <span className="block truncate text-xs font-semibold text-ink">{seed.name}</span>
+        <span className="block text-xs font-extrabold text-primary">
+          {formatKes(seed.priceKes)}
+        </span>
+      </span>
+    </Link>
   );
 }
 
