@@ -1,11 +1,11 @@
 import { keepPreviousData, useInfiniteQuery, useQuery } from "@tanstack/react-query";
-import { AlertTriangle, ArrowLeft, Check, Heart, LayoutGrid, List, Package, Search, ShoppingBag, SlidersHorizontal, Star, Store, UserRound, Users, X } from "lucide-react";
+import { AlertTriangle, ArrowLeft, Check, LayoutGrid, List, Package, Search, SlidersHorizontal, Star, Store, Users, X } from "lucide-react";
 import { useEffect, useMemo, useState } from "react";
 import { Link, useParams, useSearchParams } from "react-router";
 import { useAuth } from "@/stores/auth";
-import { cartCount, useCart } from "@/stores/cart";
 import { useShop } from "@/stores/shop";
 import { MobileShell } from "@/components/layout/MobileShell";
+import { DesktopQuickNav } from "@/components/layout/DesktopQuickNav";
 import { LogoLink } from "@/components/common/Logo";
 import { ProductCard } from "@/components/product/ProductCard";
 import { PriceRangeFilter } from "@/components/product/PriceRangeFilter";
@@ -190,9 +190,6 @@ export function StorefrontPage() {
     setStorageMin(null);
     setConditions([]);
   };
-
-  const cartItems = useCart((s) => s.items);
-  const cartItemCount = cartCount(cartItems);
 
   const merchantQ = useQuery({
     queryKey: shopSlug ? ["shop", shopSlug] : ["merchant"],
@@ -577,33 +574,11 @@ export function StorefrontPage() {
           <div className="hidden min-w-0 flex-1 lg:block lg:max-w-md">{searchField}</div>
 
           <div className="flex items-center gap-1 lg:gap-2">
-            {/* desktop: quick links that replace the bottom tab bar's job up here */}
-            <Link
-              to="/favorites"
-              aria-label="Favorites"
-              className="hidden size-10 items-center justify-center rounded-full text-ink hover:bg-fill lg:flex"
-            >
-              <Heart className="size-5" />
-            </Link>
-            <Link
-              to="/cart"
-              aria-label="Cart"
-              className="relative hidden size-10 items-center justify-center rounded-full text-ink hover:bg-fill lg:flex"
-            >
-              <ShoppingBag className="size-5" />
-              {cartItemCount > 0 && (
-                <span className="absolute right-0.5 top-0.5 flex size-4 items-center justify-center rounded-full bg-favorite text-[10px] font-bold text-white">
-                  {cartItemCount}
-                </span>
-              )}
-            </Link>
-            <Link
-              to="/account"
-              aria-label="Account"
-              className="hidden size-10 items-center justify-center rounded-full text-ink hover:bg-fill lg:flex"
-            >
-              <UserRound className="size-5" />
-            </Link>
+            {/* The same nav cluster as every other buyer page — this header used
+                to carry its own half of it (Favorites, Cart, Account, but no
+                Home and no Shops), so leaving a storefront meant the logo or
+                the browser's back button. */}
+            <DesktopQuickNav />
             {merchant && (
               <div className="ml-1 hidden items-center gap-1.5 border-l border-line pl-3 lg:flex">
                 <SocialLinks

@@ -1,8 +1,9 @@
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { ArrowLeft, ChevronRight, Heart, Minus, Plus, Search, ShoppingBag, UserRound } from "lucide-react";
+import { ArrowLeft, ChevronRight, Heart, Minus, Plus, Search, ShoppingBag } from "lucide-react";
 import { useEffect, useMemo, useState } from "react";
 import { Link, useNavigate, useParams } from "react-router";
 import { MobileShell } from "@/components/layout/MobileShell";
+import { DesktopQuickNav } from "@/components/layout/DesktopQuickNav";
 import { Gallery } from "@/components/product/Gallery";
 import { ProductCard } from "@/components/product/ProductCard";
 import { ProductSpecs } from "@/components/product/ProductSpecs";
@@ -37,7 +38,6 @@ import type { Product } from "@/types";
 import { useAddToCart } from "@/hooks/useCart";
 import { useFavoriteToggle } from "@/hooks/useFavorites";
 import { useAuth } from "@/stores/auth";
-import { cartCount, useCart } from "@/stores/cart";
 import { useFavorites } from "@/stores/favorites";
 import { useOrderStore } from "@/stores/order";
 import { useShop, useShopHome } from "@/stores/shop";
@@ -108,8 +108,6 @@ export function ProductDetailPage() {
   const isFavorite = useFavorites((s) => s.isFavorite(id));
   const toggle = useFavoriteToggle();
   const addToCart = useAddToCart();
-  const cartItems = useCart((s) => s.items);
-  const cartItemCount = cartCount(cartItems);
   const {
     selectedSize,
     setSelectedSize,
@@ -407,35 +405,10 @@ export function ProductDetailPage() {
           >
             <Search className="size-5" />
           </button>
-          <Link
-            to="/favorites"
-            aria-label="Favorites"
-            className="hidden size-10 items-center justify-center rounded-full text-ink hover:bg-fill lg:flex"
-          >
-            <Heart className="size-5" />
-          </Link>
-          <Link
-            to="/cart"
-            aria-label="Cart"
-            className="relative hidden size-10 items-center justify-center rounded-full text-ink hover:bg-fill lg:flex"
-          >
-            <ShoppingBag className="size-5" />
-            {cartItemCount > 0 && (
-              <span className="absolute right-0.5 top-0.5 flex size-4 items-center justify-center rounded-full bg-favorite text-[10px] font-bold text-white">
-                {cartItemCount}
-              </span>
-            )}
-          </Link>
-          {/* Account stays reachable even here, where the bottom nav is hidden and
-              most shoppers land cold from a shared link. Visible on mobile too —
-              the favorites/cart icons above are desktop-only. */}
-          <Link
-            to="/account"
-            aria-label="Account"
-            className="flex size-10 items-center justify-center rounded-full bg-card text-ink shadow-soft transition-colors hover:bg-fill lg:bg-transparent lg:shadow-none"
-          >
-            <UserRound className="size-5" />
-          </Link>
+          {/* The same nav cluster as every other buyer page. Its account control
+              stays reachable at every width, which matters most here: the bottom
+              nav is hidden and most shoppers land cold from a shared link. */}
+          <DesktopQuickNav />
           {desktopLinks.length > 0 && (
             <div className="ml-1 hidden items-center gap-1.5 border-l border-line pl-3 lg:flex">
               <SocialLinks links={desktopLinks} ariaPrefix="Chat on" size="size-9" iconSize="size-4" />

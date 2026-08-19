@@ -1,7 +1,5 @@
 import { keepPreviousData, useInfiniteQuery, useQuery } from "@tanstack/react-query";
 import {
-  ChevronRight,
-  Home,
   LayoutGrid,
   List,
   Megaphone,
@@ -15,7 +13,7 @@ import { useMemo, useState } from "react";
 import { Link } from "react-router";
 import { MobileShell } from "@/components/layout/MobileShell";
 import { LogoLink } from "@/components/common/Logo";
-import { ProfileMenu } from "@/components/layout/ProfileMenu";
+import { DesktopQuickNav } from "@/components/layout/DesktopQuickNav";
 import { ProductCard } from "@/components/product/ProductCard";
 import { ProductImage } from "@/components/product/ProductImage";
 import { PriceRangeFilter } from "@/components/product/PriceRangeFilter";
@@ -280,29 +278,11 @@ export function MarketplacePage() {
           <div className="hidden min-w-0 flex-1 lg:block lg:max-w-md">
             <SearchField value={search} onChange={setSearch} />
           </div>
-          <div className="flex shrink-0 items-center gap-1 sm:gap-2">
-            <Link
-              to="/shops"
-              className="hidden shrink-0 items-center gap-1 text-sm font-semibold text-muted hover:text-ink lg:flex"
-            >
-              All shops
-              <ChevronRight className="size-4" />
-            </Link>
-            {/* Home is a no-op on this page and still belongs here: it is the
-                same control in the same place on every buyer route, and one
-                that disappears on the page it points at is one people stop
-                looking for. aria-current says it is already the current page
-                rather than hiding it from a screen reader. */}
-            <Link
-              to="/"
-              aria-label="Home"
-              aria-current="page"
-              className="flex size-10 items-center justify-center rounded-full text-ink transition-colors hover:bg-fill focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary"
-            >
-              <Home className="size-5" />
-            </Link>
-            <ProfileMenu />
-          </div>
+          {/* Home is a no-op on this page and still sits in this row: it is the
+              same control in the same place on every buyer route, and one that
+              disappears on the page it points at is one people stop looking
+              for. It renders active here rather than being hidden. */}
+          <DesktopQuickNav />
         </div>
         <div className="mt-2.5 lg:hidden">
           <SearchField value={search} onChange={setSearch} />

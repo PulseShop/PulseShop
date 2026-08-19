@@ -24,18 +24,27 @@ export function useBuyerNavItems() {
 
   const home = "/";
 
-  const items = [
+  /** Home, Shops, Favorites, Cart — the four destinations that appear as plain
+   * icons in every header row. */
+  const quickItems = [
     { to: home, label: "Home", icon: Home },
     { to: "/shops", label: "Shops", icon: Store },
     { to: "/favorites", label: "Favorites", icon: Heart },
     { to: "/cart", label: "Cart", icon: ShoppingBag },
-    // Orders lives inside Account now — the tab a buyer reaches for to sign
-    // out, edit delivery details, or find their history.
-    { to: "/account", label: "Account", icon: UserRound },
   ];
+
+  /**
+   * The tab bar's set: the four above plus Account.
+   *
+   * Account is a plain tab on phones but a dropdown in the header (ProfileMenu),
+   * because the header has room to say whether you are signed in and to offer
+   * orders, the dashboard and sign-out without a navigation. Both lead to the
+   * same place, so the fifth entry lives here rather than in quickItems.
+   */
+  const items = [...quickItems, { to: "/account", label: "Account", icon: UserRound }];
 
   const badgeFor = (label: string) =>
     label === "Favorites" ? favCount : label === "Cart" ? cartQty : 0;
 
-  return { home, items, badgeFor };
+  return { home, items, quickItems, badgeFor };
 }
