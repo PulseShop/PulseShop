@@ -395,7 +395,7 @@ export function ProductModal({
             setText((t) => ({ ...t, [key]: e.target.value.replace(/(?!^-)[^\d]/g, "") }))
           }
           placeholder="0"
-          className="h-9 w-24 rounded-btn border border-stone-200 bg-card px-2 text-right text-sm font-semibold text-ink outline-none focus:border-primary focus:ring-2 focus:ring-primary/20"
+          className="h-9 w-24 rounded-btn border border-line bg-card px-2 text-right text-sm font-semibold text-ink outline-none focus:border-primary focus:ring-2 focus:ring-primary/20"
         />
         <span className="w-24 text-right text-xs font-bold text-primary">
           = {formatKes(pricedAt(adjOf(text, key)))}
@@ -488,7 +488,7 @@ export function ProductModal({
           onClick={() => fileInput.current?.click()}
           className={cn(
             "flex cursor-pointer flex-col items-center justify-center gap-2 rounded-card border-2 border-dashed p-6 text-center transition-colors",
-            dragOver ? "border-primary bg-primary/5" : "border-stone-200 hover:border-primary/50",
+            dragOver ? "border-primary bg-primary/5" : "border-line hover:border-primary/50",
           )}
         >
           {uploading ? (
@@ -535,7 +535,7 @@ export function ProductModal({
               </span>
             </p>
             {images.map((src, i) => (
-              <div key={`${src}-${i}`} className="flex items-center gap-3 rounded-card bg-stone-50 p-2">
+              <div key={`${src}-${i}`} className="flex items-center gap-3 rounded-card bg-fill-soft p-2">
                 <ProductImage
                   src={src}
                   alt=""
@@ -563,7 +563,7 @@ export function ProductModal({
                         ? `e.g. ${nameValue?.trim() || "Black leather tote"} front view`
                         : "Describe what this photo shows"
                     }
-                    className="h-10 w-full rounded-btn border border-stone-200 bg-card px-3 text-sm text-ink outline-none transition-colors focus:border-primary focus:ring-2 focus:ring-primary/20"
+                    className="h-10 w-full rounded-btn border border-line bg-card px-3 text-sm text-ink outline-none transition-colors focus:border-primary focus:ring-2 focus:ring-primary/20"
                   />
                   <p className="mt-1 text-xs text-muted">
                     Photo {i + 1}
@@ -583,7 +583,7 @@ export function ProductModal({
                       Object.fromEntries(Object.entries(m).filter(([, url]) => url !== src)),
                     );
                   }}
-                  className="flex size-8 shrink-0 items-center justify-center rounded-full bg-ink text-white transition-transform active:scale-90"
+                  className="flex size-8 shrink-0 items-center justify-center rounded-full bg-ink text-on-accent transition-transform active:scale-90"
                 >
                   <X className="size-3.5" />
                 </button>
@@ -640,7 +640,7 @@ export function ProductModal({
                 value={productKey}
                 readOnly
                 aria-describedby="product-key-hint"
-                className="h-11 w-full cursor-default rounded-btn border border-stone-200 bg-stone-50 pl-9 pr-3.5 font-mono text-sm font-bold tracking-widest text-ink outline-none focus:border-primary focus:ring-2 focus:ring-primary/20"
+                className="h-11 w-full cursor-default rounded-btn border border-line bg-fill-soft pl-9 pr-3.5 font-mono text-sm font-bold tracking-widest text-ink outline-none focus:border-primary focus:ring-2 focus:ring-primary/20"
               />
             </div>
             <p id="product-key-hint" className="text-xs text-muted">
@@ -653,7 +653,7 @@ export function ProductModal({
             </label>
             <select
               id="category"
-              className="h-11 rounded-btn border border-stone-200 bg-card px-3 text-sm outline-none focus:border-primary focus:ring-2 focus:ring-primary/20"
+              className="h-11 rounded-btn border border-line bg-card px-3 text-sm outline-none focus:border-primary focus:ring-2 focus:ring-primary/20"
               {...register("category")}
             >
               <option value="">Select…</option>
@@ -728,8 +728,8 @@ export function ProductModal({
                       className={cn(
                         "flex h-10 min-w-12 items-center justify-center rounded-btn border-2 px-3 text-sm font-semibold transition-colors",
                         on
-                          ? "border-primary bg-primary text-white"
-                          : "border-stone-200 bg-card text-ink hover:border-primary/50",
+                          ? "border-primary bg-primary text-on-accent"
+                          : "border-line bg-card text-ink hover:border-primary/50",
                       )}
                     >
                       {s}
@@ -747,7 +747,7 @@ export function ProductModal({
                   form grows with the seller's choices instead of showing a
                   wall of fields for options they don't stock. */}
               {sizes.length > 0 && (
-                <div className="mt-2 space-y-1 rounded-card bg-stone-50 p-3">
+                <div className="mt-2 space-y-1 rounded-card bg-fill-soft p-3">
                   <p className="text-xs font-semibold text-ink">
                     Price by size{" "}
                     <span className="font-medium text-muted">
@@ -770,7 +770,7 @@ export function ProductModal({
             <ColorPalettePicker selected={colors} onToggle={toggleColor} />
 
             {colors.length > 0 && (
-              <div className="mt-2 space-y-1 rounded-card bg-stone-50 p-3">
+              <div className="mt-2 space-y-1 rounded-card bg-fill-soft p-3">
                 <p className="text-xs font-semibold text-ink">
                   Price by colour{" "}
                   <span className="font-medium text-muted">
@@ -790,7 +790,7 @@ export function ProductModal({
                 always starting at photo 1 regardless of what they picked.
                 Needs at least one uploaded photo to match against. */}
             {colors.length > 0 && images.length > 0 && (
-              <div className="mt-2 space-y-2 rounded-card bg-stone-50 p-3">
+              <div className="mt-2 space-y-2 rounded-card bg-fill-soft p-3">
                 <p className="text-xs font-semibold text-ink">
                   Match colours to photos{" "}
                   <span className="font-medium text-muted">— optional, tap a photo per colour</span>
@@ -833,7 +833,7 @@ export function ProductModal({
           {/* stock counter + DB sync indicator. The +/- buttons are for nudging a
               number that's nearly right; the field between them is typeable, so
               stocking 240 units doesn't mean 240 clicks. */}
-          <div className="col-span-2 flex items-end justify-between gap-4 rounded-card bg-stone-50 p-4">
+          <div className="col-span-2 flex items-end justify-between gap-4 rounded-card bg-fill-soft p-4">
             <div className="flex flex-col gap-2">
               <label htmlFor="stock-qty" className="text-sm font-semibold text-ink">
                 Stock quantity
@@ -862,7 +862,7 @@ export function ProductModal({
                   // Emptying the field is a legitimate way to retype it; it just
                   // can't be left that way.
                   onBlur={() => setStockQty(String(stockNumber))}
-                  className="h-11 w-24 rounded-btn border border-stone-200 bg-card text-center text-xl font-extrabold text-ink outline-none transition-colors focus:border-primary focus:ring-2 focus:ring-primary/20"
+                  className="h-11 w-24 rounded-btn border border-line bg-card text-center text-xl font-extrabold text-ink outline-none transition-colors focus:border-primary focus:ring-2 focus:ring-primary/20"
                 />
                 <button
                   type="button"
@@ -889,7 +889,7 @@ export function ProductModal({
           — and putting an optional section in front of the required ones is how
           you get sellers abandoning the "add product" flow.
         */}
-        <details className="rounded-btn border border-stone-200 bg-stone-50/60 p-4">
+        <details className="rounded-btn border border-line bg-fill-soft/60 p-4">
           <summary className="cursor-pointer select-none text-sm font-bold text-ink">
             Search &amp; sharing
             <span className="ml-2 font-medium text-muted">optional</span>
@@ -940,7 +940,7 @@ export function ProductModal({
           </div>
         </details>
 
-        <div className="flex justify-end gap-2 border-t border-stone-100 pt-4">
+        <div className="flex justify-end gap-2 border-t border-line-soft pt-4">
           <Button type="button" variant="ghost" onClick={() => onOpenChange(false)}>
             Cancel
           </Button>

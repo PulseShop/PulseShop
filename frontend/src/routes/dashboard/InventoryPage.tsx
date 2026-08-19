@@ -198,7 +198,7 @@ export function InventoryPage() {
         <div className="flex items-center gap-2 sm:gap-3">
           <Link
             to="/dashboard/discounts"
-            className="inline-flex h-11 flex-1 items-center justify-center gap-2 rounded-btn border-2 border-stone-200 bg-card px-4 text-sm font-semibold text-ink transition-all hover:border-primary hover:text-primary sm:flex-none sm:px-5"
+            className="inline-flex h-11 flex-1 items-center justify-center gap-2 rounded-btn border-2 border-line bg-card px-4 text-sm font-semibold text-ink transition-all hover:border-primary hover:text-primary sm:flex-none sm:px-5"
           >
             <Tag className="size-4" /> Discount codes
           </Link>
@@ -230,7 +230,7 @@ export function InventoryPage() {
             value={searchInput}
             onChange={(e) => setSearchInput(e.target.value)}
             placeholder="Search name, SKU, or category…"
-            className="h-10 w-full rounded-btn border border-stone-200 bg-card pl-9 pr-3 text-sm outline-none focus:border-primary focus:ring-2 focus:ring-primary/20"
+            className="h-10 w-full rounded-btn border border-line bg-card pl-9 pr-3 text-sm outline-none focus:border-primary focus:ring-2 focus:ring-primary/20"
           />
         </div>
 
@@ -239,7 +239,7 @@ export function InventoryPage() {
             <button
               type="button"
               className={cn(
-                "flex h-10 items-center gap-2 rounded-btn border border-stone-200 bg-card px-3.5 text-sm font-semibold",
+                "flex h-10 items-center gap-2 rounded-btn border border-line bg-card px-3.5 text-sm font-semibold",
                 statusFilter !== "all" ? "border-primary text-primary" : "text-ink",
               )}
             >
@@ -250,7 +250,7 @@ export function InventoryPage() {
             <Popover.Content
               sideOffset={6}
               align="start"
-              className="z-50 w-44 rounded-card border border-stone-100 bg-card p-1.5 shadow-modal animate-modal-in"
+              className="z-50 w-44 rounded-card border border-line-soft bg-card p-1.5 shadow-modal animate-modal-in"
             >
               {(["all", "available", "low", "out"] as const).map((s) => (
                 <button
@@ -261,7 +261,7 @@ export function InventoryPage() {
                     setPage(1);
                   }}
                   className={cn(
-                    "flex w-full items-center rounded-lg px-3 py-2 text-sm font-medium capitalize hover:bg-stone-50",
+                    "flex w-full items-center rounded-lg px-3 py-2 text-sm font-medium capitalize hover:bg-fill-soft",
                     statusFilter === s ? "text-primary font-bold" : "text-ink",
                   )}
                 >
@@ -279,7 +279,7 @@ export function InventoryPage() {
             setPage(1);
           }}
           aria-label="Filter by category"
-          className="h-10 rounded-btn border border-stone-200 bg-card px-3 text-sm font-semibold outline-none focus:border-primary"
+          className="h-10 rounded-btn border border-line bg-card px-3 text-sm font-semibold outline-none focus:border-primary"
         >
           {categories.map((c) => (
             <option key={c} value={c}>
@@ -323,7 +323,7 @@ export function InventoryPage() {
         ) : (
           <table className="w-full text-left text-sm">
             <thead>
-              <tr className="border-b border-stone-100 text-xs font-bold uppercase tracking-wide text-muted">
+              <tr className="border-b border-line-soft text-xs font-bold uppercase tracking-wide text-muted">
                 <th className="w-10 px-4 py-3">
                   <input
                     type="checkbox"
@@ -336,7 +336,7 @@ export function InventoryPage() {
                           : new Set([...selected, ...pageItems.map((p) => p.id)]),
                       )
                     }
-                    className="size-4 accent-teal-600"
+                    className="size-4 accent-primary"
                   />
                 </th>
                 <th className="px-2 py-3">Product</th>
@@ -358,14 +358,14 @@ export function InventoryPage() {
                 </tr>
               )}
               {pageItems.map((p) => (
-                <tr key={p.id} className="border-b border-stone-50 transition-colors hover:bg-stone-50/60">
+                <tr key={p.id} className="border-b border-line-soft transition-colors hover:bg-fill-soft/60">
                   <td className="px-4 py-3">
                     <input
                       type="checkbox"
                       aria-label={`Select ${p.name}`}
                       checked={selected.has(p.id)}
                       onChange={() => toggleSelect(p.id)}
-                      className="size-4 accent-teal-600"
+                      className="size-4 accent-primary"
                     />
                   </td>
                   <td className="px-2 py-3">
@@ -378,7 +378,7 @@ export function InventoryPage() {
                     </div>
                   </td>
                   <td className="px-2 py-3">
-                    <span className="rounded-md bg-stone-100 px-2 py-1 font-mono text-xs font-semibold text-ink">
+                    <span className="rounded-md bg-fill px-2 py-1 font-mono text-xs font-semibold text-ink">
                       {p.sku}
                     </span>
                   </td>
@@ -444,7 +444,7 @@ export function InventoryPage() {
 
         {!productsQ.isLoading && total > 0 && (
           <Pagination
-            className="border-t border-stone-100 px-4 py-3"
+            className="border-t border-line-soft px-4 py-3"
             pageSafe={pageSafe}
             totalPages={totalPages}
             total={total}
@@ -474,7 +474,7 @@ export function InventoryPage() {
                   aria-label={`Select ${p.name}`}
                   checked={selected.has(p.id)}
                   onChange={() => toggleSelect(p.id)}
-                  className="mt-1 size-4 shrink-0 accent-teal-600"
+                  className="mt-1 size-4 shrink-0 accent-primary"
                 />
                 <ProductImage src={p.images[0]} alt="" className="size-14 shrink-0 rounded-lg object-cover" />
                 <div className="min-w-0 flex-1">
@@ -486,7 +486,7 @@ export function InventoryPage() {
                     <StockBadge status={p.status} />
                   </div>
                   <div className="mt-1.5 flex flex-wrap items-center gap-x-2 gap-y-1 text-xs">
-                    <span className="rounded-md bg-stone-100 px-2 py-0.5 font-mono font-semibold text-ink">
+                    <span className="rounded-md bg-fill px-2 py-0.5 font-mono font-semibold text-ink">
                       {p.sku}
                     </span>
                     <span className="text-muted">{p.category}</span>
@@ -494,7 +494,7 @@ export function InventoryPage() {
                 </div>
               </div>
 
-              <div className="mt-3 flex items-center justify-between border-t border-stone-100 pt-3">
+              <div className="mt-3 flex items-center justify-between border-t border-line-soft pt-3">
                 <div>
                   <span
                     className={cn(
@@ -679,7 +679,7 @@ function Pagination({
           aria-label="Previous page"
           disabled={pageSafe <= 1}
           onClick={() => onPage(pageSafe - 1)}
-          className="flex size-8 items-center justify-center rounded-lg text-muted disabled:opacity-30 hover:bg-stone-100"
+          className="flex size-8 items-center justify-center rounded-lg text-muted disabled:opacity-30 hover:bg-fill"
         >
           <ChevronLeft className="size-4" />
         </button>
@@ -691,7 +691,7 @@ function Pagination({
               onClick={() => onPage(i + 1)}
               className={cn(
                 "size-8 rounded-lg text-sm font-semibold",
-                pageSafe === i + 1 ? "bg-primary text-white" : "text-muted hover:bg-stone-100",
+                pageSafe === i + 1 ? "bg-primary text-on-accent" : "text-muted hover:bg-fill",
               )}
             >
               {i + 1}
@@ -706,7 +706,7 @@ function Pagination({
           aria-label="Next page"
           disabled={pageSafe >= totalPages}
           onClick={() => onPage(pageSafe + 1)}
-          className="flex size-8 items-center justify-center rounded-lg text-muted disabled:opacity-30 hover:bg-stone-100"
+          className="flex size-8 items-center justify-center rounded-lg text-muted disabled:opacity-30 hover:bg-fill"
         >
           <ChevronRight className="size-4" />
         </button>
@@ -738,7 +738,7 @@ function DiscountCell({
           type="button"
           aria-label="Edit discount"
           className={cn(
-            "rounded-md px-2 py-1 text-sm font-bold transition-colors hover:bg-stone-100",
+            "rounded-md px-2 py-1 text-sm font-bold transition-colors hover:bg-fill",
             value ? "text-favorite" : "text-muted",
           )}
         >
@@ -748,7 +748,7 @@ function DiscountCell({
       <Popover.Portal>
         <Popover.Content
           sideOffset={6}
-          className="z-50 w-48 rounded-card border border-stone-100 bg-card p-3 shadow-modal animate-modal-in"
+          className="z-50 w-48 rounded-card border border-line-soft bg-card p-3 shadow-modal animate-modal-in"
         >
           <p className="mb-2 text-xs font-bold text-ink">Discount %</p>
           <div className="flex gap-2">
@@ -766,7 +766,7 @@ function DiscountCell({
                 }
               }}
               placeholder="0"
-              className="h-9 w-full rounded-lg border border-stone-200 px-2 text-sm outline-none focus:border-primary"
+              className="h-9 w-full rounded-lg border border-line px-2 text-sm outline-none focus:border-primary"
             />
             <button
               type="button"
@@ -775,7 +775,7 @@ function DiscountCell({
                 onSave(n > 0 ? Math.min(n, 90) : null);
                 setOpen(false);
               }}
-              className="rounded-lg bg-primary px-3 text-xs font-bold text-white"
+              className="rounded-lg bg-primary px-3 text-xs font-bold text-on-accent"
             >
               Set
             </button>

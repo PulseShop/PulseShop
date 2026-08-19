@@ -71,7 +71,7 @@ export function ProductSpecFields({
   const requiredPlan = PLAN_LABEL[planNeededFor("structuredListings")];
 
   return (
-    <fieldset className="col-span-2 flex flex-col gap-3 rounded-card border border-stone-200 bg-stone-50/60 p-4">
+    <fieldset className="col-span-2 flex flex-col gap-3 rounded-card border border-line bg-fill-soft/60 p-4">
       <legend className="flex items-center gap-2 px-1 text-sm font-semibold text-ink">
         Listing type
         {locked && (
@@ -101,10 +101,10 @@ export function ProductSpecFields({
               className={cn(
                 "relative flex flex-col items-center gap-1 rounded-btn border-2 px-3 py-2.5 text-sm font-semibold transition-colors",
                 gated
-                  ? "cursor-not-allowed border-stone-200 bg-stone-100 text-muted"
+                  ? "cursor-not-allowed border-line bg-fill text-muted"
                   : on
                     ? "border-primary bg-primary/5 text-primary"
-                    : "border-stone-200 bg-card text-ink hover:border-primary/50",
+                    : "border-line bg-card text-ink hover:border-primary/50",
               )}
             >
               {gated ? <Lock className="size-4" aria-hidden /> : <Icon className="size-4" />}
@@ -218,7 +218,7 @@ export function ProductSpecFields({
               type="checkbox"
               checked={phone.imeiClean}
               onChange={(e) => setPhone({ imeiClean: e.target.checked })}
-              className="mt-0.5 size-4 shrink-0 accent-teal-600"
+              className="mt-0.5 size-4 shrink-0 accent-primary"
             />
             <span className="text-sm">
               <span className="font-semibold text-ink">IMEI is clean</span>
@@ -364,7 +364,7 @@ function SpecSelect({
       <select
         value={value}
         onChange={(e) => onChange(e.target.value)}
-        className="h-11 rounded-btn border border-stone-200 bg-card px-3 text-sm text-ink outline-none transition-colors focus:border-primary focus:ring-2 focus:ring-primary/20"
+        className="h-11 rounded-btn border border-line bg-card px-3 text-sm text-ink outline-none transition-colors focus:border-primary focus:ring-2 focus:ring-primary/20"
       >
         {options.map((o) => (
           <option key={o.value} value={o.value}>
@@ -438,8 +438,8 @@ function ChipMulti({
               className={cn(
                 "flex h-10 items-center rounded-btn border-2 px-3 text-sm font-semibold transition-colors",
                 on
-                  ? "border-primary bg-primary text-white"
-                  : "border-stone-200 bg-card text-ink hover:border-primary/50",
+                  ? "border-primary bg-primary text-on-accent"
+                  : "border-line bg-card text-ink hover:border-primary/50",
               )}
             >
               {o.label}

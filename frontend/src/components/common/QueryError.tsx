@@ -57,7 +57,7 @@ export function QueryError({
           type="button"
           onClick={onRetry}
           disabled={retrying}
-          className="rounded-btn bg-primary px-5 py-2.5 text-sm font-bold text-on-accent disabled:opacity-60 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary focus-visible:ring-offset-2"
+          className="rounded-btn bg-primary px-5 py-2.5 text-sm font-bold text-on-accent disabled:opacity-60 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary focus-visible:ring-offset-2 focus-visible:ring-offset-card"
         >
           {retrying ? "Retrying…" : "Try again"}
         </button>

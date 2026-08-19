@@ -111,7 +111,7 @@ export function ReviewsSection({
               type="button"
               disabled={stars === 0 || submitMut.isPending}
               onClick={() => submitMut.mutate()}
-              className="flex items-center gap-2 rounded-btn bg-primary px-4 py-2 text-sm font-bold text-on-accent disabled:opacity-50 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary focus-visible:ring-offset-2"
+              className="flex items-center gap-2 rounded-btn bg-primary px-4 py-2 text-sm font-bold text-on-accent disabled:opacity-50 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary focus-visible:ring-offset-2 focus-visible:ring-offset-card"
             >
               {submitMut.isPending && <Loader2 className="size-4 animate-spin" />}
               {myRating != null ? "Update review" : "Post review"}

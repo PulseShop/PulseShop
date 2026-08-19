@@ -23,8 +23,8 @@ const DURATION_PRESETS = [
 
 function status(code: DiscountCode): { label: string; tone: string } {
   const now = Date.now();
-  if (!code.active) return { label: "Inactive", tone: "bg-stone-100 text-muted" };
-  if (now > new Date(code.expiresAt).getTime()) return { label: "Expired", tone: "bg-stone-100 text-muted" };
+  if (!code.active) return { label: "Inactive", tone: "bg-fill text-muted" };
+  if (now > new Date(code.expiresAt).getTime()) return { label: "Expired", tone: "bg-fill text-muted" };
   if (now < new Date(code.startsAt).getTime()) return { label: "Scheduled", tone: "bg-primary/10 text-primary" };
   if (code.maxRedemptions != null && code.redemptionCount >= code.maxRedemptions) {
     return { label: "Fully redeemed", tone: "bg-warning/10 text-warning" };
@@ -124,7 +124,7 @@ export function DiscountCodesPage() {
                   <div className="flex items-start justify-between gap-3">
                     <div className="min-w-0">
                       <div className="flex flex-wrap items-center gap-2">
-                        <span className="rounded-btn bg-ink px-2.5 py-1 font-mono text-sm font-bold text-white">
+                        <span className="rounded-btn bg-ink px-2.5 py-1 font-mono text-sm font-bold text-on-accent">
                           {code.code}
                         </span>
                         <span className="text-sm font-bold text-primary">{code.percentOff}% off</span>
@@ -158,7 +158,7 @@ export function DiscountCodesPage() {
                         type="button"
                         onClick={() => toggleMut.mutate({ id: code.id, active: !code.active })}
                         disabled={toggleMut.isPending}
-                        className="rounded-btn border-2 border-stone-200 px-3 py-1.5 text-xs font-bold text-ink transition-colors hover:border-primary hover:text-primary disabled:opacity-50"
+                        className="rounded-btn border-2 border-line px-3 py-1.5 text-xs font-bold text-ink transition-colors hover:border-primary hover:text-primary disabled:opacity-50"
                       >
                         {code.active ? "Deactivate" : "Activate"}
                       </button>
@@ -330,14 +330,14 @@ function CreateCodeModal({
                 className={cn(
                   "h-10 min-w-14 rounded-btn border-2 px-3 text-sm font-semibold transition-colors",
                   percentOff === p
-                    ? "border-primary bg-primary text-white"
-                    : "border-stone-200 bg-card text-ink hover:border-primary/50",
+                    ? "border-primary bg-primary text-on-accent"
+                    : "border-line bg-card text-ink hover:border-primary/50",
                 )}
               >
                 {p}%
               </button>
             ))}
-            <div className="flex h-10 items-center gap-1 rounded-btn border-2 border-stone-200 px-3">
+            <div className="flex h-10 items-center gap-1 rounded-btn border-2 border-line px-3">
               <input
                 type="number"
                 min={1}
@@ -364,8 +364,8 @@ function CreateCodeModal({
                 className={cn(
                   "h-10 rounded-btn border-2 px-3 text-sm font-semibold transition-colors",
                   durationDays === d.days
-                    ? "border-primary bg-primary text-white"
-                    : "border-stone-200 bg-card text-ink hover:border-primary/50",
+                    ? "border-primary bg-primary text-on-accent"
+                    : "border-line bg-card text-ink hover:border-primary/50",
                 )}
               >
                 {d.label}
@@ -378,8 +378,8 @@ function CreateCodeModal({
               className={cn(
                 "h-10 rounded-btn border-2 px-3 text-sm font-semibold transition-colors",
                 durationDays === "custom"
-                  ? "border-primary bg-primary text-white"
-                  : "border-stone-200 bg-card text-ink hover:border-primary/50",
+                  ? "border-primary bg-primary text-on-accent"
+                  : "border-line bg-card text-ink hover:border-primary/50",
               )}
             >
               Custom date
@@ -390,7 +390,7 @@ function CreateCodeModal({
                 value={customExpiry}
                 min={new Date().toISOString().slice(0, 10)}
                 onChange={(e) => setCustomExpiry(e.target.value)}
-                className="h-10 rounded-btn border-2 border-stone-200 px-3 text-sm font-semibold text-ink outline-none focus:border-primary"
+                className="h-10 rounded-btn border-2 border-line px-3 text-sm font-semibold text-ink outline-none focus:border-primary"
               />
             )}
           </div>
@@ -414,7 +414,7 @@ function CreateCodeModal({
                   "h-10 rounded-btn border-2 px-3 text-sm font-semibold transition-colors",
                   appliesTo === opt.value
                     ? "border-primary bg-primary/5 text-primary"
-                    : "border-stone-200 text-ink hover:border-primary/50",
+                    : "border-line text-ink hover:border-primary/50",
                 )}
               >
                 {opt.label}
@@ -429,9 +429,9 @@ function CreateCodeModal({
                 onChange={(e) => setProductFilter(e.target.value)}
                 placeholder="Search products…"
                 aria-label="Search products"
-                className="h-9 w-full rounded-btn border border-stone-200 bg-card px-3 text-sm outline-none focus:border-primary"
+                className="h-9 w-full rounded-btn border border-line bg-card px-3 text-sm outline-none focus:border-primary"
               />
-              <div className="max-h-56 space-y-1 overflow-y-auto rounded-card border border-stone-100 p-2">
+              <div className="max-h-56 space-y-1 overflow-y-auto rounded-card border border-line-soft p-2">
                 {productsQ.isLoading ? (
                   <p className="p-2 text-sm text-muted">Loading products…</p>
                 ) : filteredProducts.length === 0 ? (
@@ -442,7 +442,7 @@ function CreateCodeModal({
                     return (
                       <label
                         key={p.id}
-                        className="flex cursor-pointer items-center gap-2.5 rounded-lg px-2 py-1.5 hover:bg-stone-50"
+                        className="flex cursor-pointer items-center gap-2.5 rounded-lg px-2 py-1.5 hover:bg-fill-soft"
                       >
                         <input
                           type="checkbox"

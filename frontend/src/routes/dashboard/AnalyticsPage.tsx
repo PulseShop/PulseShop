@@ -115,7 +115,7 @@ export function AnalyticsPage() {
                           <span className="text-ink">{CHANNEL_LABEL[ch]}</span>
                           <span className="text-muted">{count}</span>
                         </div>
-                        <div className="h-2 w-full overflow-hidden rounded-full bg-stone-100">
+                        <div className="h-2 w-full overflow-hidden rounded-full bg-fill">
                           <div className="h-full rounded-full bg-primary" style={{ width: `${pct}%` }} />
                         </div>
                       </div>
@@ -193,7 +193,7 @@ export function AnalyticsPage() {
                     </span>
                   ))}
                   {a.lowStockCount > a.lowStock.length && (
-                    <span className="rounded-full bg-stone-100 px-3 py-1 text-xs font-bold text-muted">
+                    <span className="rounded-full bg-fill px-3 py-1 text-xs font-bold text-muted">
                       +{a.lowStockCount - a.lowStock.length} more
                     </span>
                   )}

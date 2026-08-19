@@ -70,7 +70,7 @@ export function DashboardOverviewPage() {
         {/* hero: banner + avatar + shop name as the centered title */}
         {merchant ? (
           <section className="overflow-hidden rounded-card bg-card shadow-soft">
-            <div className="group relative h-44 w-full bg-stone-100">
+            <div className="group relative h-44 w-full bg-fill">
               {merchant.bannerUrl && (
                 <img src={merchant.bannerUrl} alt="" className="h-full w-full object-cover" />
               )}
@@ -197,7 +197,7 @@ export function DashboardOverviewPage() {
             rows={4}
             maxLength={280}
             placeholder="Curated fashion for every vibe ✨ Nairobi-based, countrywide delivery."
-            className="w-full rounded-btn border border-stone-200 bg-card p-3 text-sm outline-none focus:border-primary focus:ring-2 focus:ring-primary/20"
+            className="w-full rounded-btn border border-line bg-card p-3 text-sm outline-none focus:border-primary focus:ring-2 focus:ring-primary/20"
           />
           <div className="flex items-center justify-between">
             <span className="text-xs text-muted">{bio.length}/280</span>

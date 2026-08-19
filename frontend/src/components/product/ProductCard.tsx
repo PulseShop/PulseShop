@@ -266,7 +266,7 @@ export function ProductCard({
             />
             {soldOut && (
               <div className="absolute inset-0 flex items-center justify-center">
-                <span className="rounded-full bg-ink/85 px-2 py-1 text-[10px] font-bold uppercase tracking-wide text-white">
+                <span className="rounded-full bg-ink/85 px-2 py-1 text-[10px] font-bold uppercase tracking-wide text-on-accent">
                   Sold Out
                 </span>
               </div>
@@ -350,7 +350,7 @@ export function ProductCard({
           />
           {soldOut && (
             <div className="absolute inset-0 flex items-center justify-center">
-              <span className="rounded-full bg-ink/85 px-3.5 py-1.5 text-xs font-bold uppercase tracking-wide text-white">
+              <span className="rounded-full bg-ink/85 px-3.5 py-1.5 text-xs font-bold uppercase tracking-wide text-on-accent">
                 Sold Out
               </span>
             </div>

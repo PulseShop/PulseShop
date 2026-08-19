@@ -253,7 +253,7 @@ function LoadMore({
         type="button"
         onClick={onClick}
         disabled={loading}
-        className="w-full rounded-btn border border-line bg-card px-4 py-3 text-sm font-bold text-ink shadow-soft disabled:opacity-60 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary focus-visible:ring-offset-2 lg:w-auto lg:px-8"
+        className="w-full rounded-btn border border-line bg-card px-4 py-3 text-sm font-bold text-ink shadow-soft disabled:opacity-60 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary focus-visible:ring-offset-2 focus-visible:ring-offset-card lg:w-auto lg:px-8"
       >
         {loading ? "Loading…" : label}
       </button>

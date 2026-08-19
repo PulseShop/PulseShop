@@ -505,7 +505,7 @@ export function StorefrontPage() {
           <button
             type="button"
             onClick={() => merchantQ.refetch()}
-            className="mt-1 rounded-btn bg-primary px-4 py-2 text-sm font-semibold text-on-accent focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary focus-visible:ring-offset-2"
+            className="mt-1 rounded-btn bg-primary px-4 py-2 text-sm font-semibold text-on-accent focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary focus-visible:ring-offset-2 focus-visible:ring-offset-card"
           >
             Try again
           </button>
@@ -849,7 +849,7 @@ export function StorefrontPage() {
                     type="button"
                     onClick={() => productsQ.fetchNextPage()}
                     disabled={productsQ.isFetchingNextPage}
-                    className="w-full rounded-btn border border-line bg-card px-6 py-3 text-sm font-bold text-ink shadow-soft disabled:opacity-60 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary focus-visible:ring-offset-2 lg:w-auto"
+                    className="w-full rounded-btn border border-line bg-card px-6 py-3 text-sm font-bold text-ink shadow-soft disabled:opacity-60 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary focus-visible:ring-offset-2 focus-visible:ring-offset-card lg:w-auto"
                   >
                     {productsQ.isFetchingNextPage
                       ? "Loading…"

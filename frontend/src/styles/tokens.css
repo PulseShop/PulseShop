@@ -43,6 +43,19 @@
   --color-fill-soft: #fafaf9;
   --color-faint: #d6d3d1;
 
+  /* The chart series colour, and deliberately NOT --color-primary.
+
+     A 2px line is a thin mark, not a filled shape: it is judged on how well it
+     stands OUT from the surface, where a button fill is judged on how well its
+     label stands out from IT. Those pull opposite ways. --color-primary is
+     teal-700 in light precisely because white text has to survive on top of it,
+     and at one line-width teal-700 reads as a dark grey stroke rather than as
+     the brand. So charts take teal-600 in light, one step brighter.
+
+     Dark inverts the same argument: teal-500 is right for a fill you read text
+     off, but a hairline of it on stone-950 is dim, so charts take teal-400. */
+  --color-chart: #0d9488;
+
   /* Foreground for anything sitting ON a filled accent — bg-primary and bg-ink.
      It has to invert with the theme: teal-700 wants white on it, but dark
      mode's lighter teal wants near-black. Tracks --color-card in both themes,
@@ -129,6 +142,8 @@
   --color-fill-soft: #211d1c;
   --color-faint: #57534e;        /* stone-600: dim, still visible */
 
+  --color-chart: #2dd4bf;        /* teal-400 — see the note in @theme */
+
   --color-on-accent: #1c1917;    /* tracks --color-card, as in light */
   --color-edge: rgba(255, 255, 255, 0.1);
 
@@ -163,51 +178,6 @@
 /* The sticky header's bottom hairline is a literal white in the light theme. */
 :root[data-theme="dark"] .glass-header {
   border-bottom-color: rgba(255, 255, 255, 0.08);
-}
-
-/* ---------------------------------------------------------------------------
-   Opting a subtree back into light.
-
-   The dark rule above is `:root[data-theme="dark"]`, so it sets the variables
-   on the document element and every descendant inherits them. A nested element
-   cannot escape that by carrying data-theme="light" unless the light values are
-   declared somewhere that matches it — inheritance has no "revert to the other
-   branch". Hence the repetition below: it is the same palette the @theme block
-   puts on :root, restated at a selector a subtree can carry.
-
-   Used by DashboardShell, whose pages are not converted yet. When they are,
-   this block and that attribute both go.
-   --------------------------------------------------------------------------- */
-[data-theme="light"] {
-  color-scheme: light;
-
-  --color-primary: #0f766e;
-  --color-primary-deep: #115e59;
-  --color-success: #16a34a;
-  --color-success-deep: #15803d;
-  --color-warning: #d97706;
-  --color-danger: #dc2626;
-  --color-favorite: #e11d48;
-
-  --color-surface: #fafaf9;
-  --color-card: #ffffff;
-  --color-ink: #1c1917;
-  --color-muted: #78716c;
-
-  --color-line: #e7e5e4;
-  --color-line-soft: #f5f5f4;
-  --color-fill: #f5f5f4;
-  --color-fill-soft: #fafaf9;
-  --color-faint: #d6d3d1;
-
-  --color-on-accent: #ffffff;
-  --color-edge: rgba(255, 255, 255, 0.7);
-
-  --glass-bg: rgba(255, 255, 255, 0.6);
-  --glass-bg-strong: rgba(255, 255, 255, 0.78);
-  --glass-border: rgba(255, 255, 255, 0.7);
-  --shadow-glass: 0 8px 30px rgba(28, 25, 23, 0.1);
-  --glass-highlight: inset 0 1px 0 rgba(255, 255, 255, 0.75);
 }
 
 /* Ambient atmosphere — the thing the glass actually refracts. Faint brand-hue

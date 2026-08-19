@@ -34,7 +34,7 @@ const STATUS_TONE: Record<PaymentStatus, string> = {
   paid: "bg-success/10 text-success",
   pending: "bg-warning/15 text-warning",
   failed: "bg-danger/10 text-danger",
-  idle: "bg-stone-100 text-muted",
+  idle: "bg-fill text-muted",
 };
 
 function timeAgo(iso: string) {
@@ -192,7 +192,7 @@ export function OrdersDashboardPage() {
                 </div>
 
                 {/* items */}
-                <div className="mt-4 space-y-2 border-y border-stone-100 py-3">
+                <div className="mt-4 space-y-2 border-y border-line-soft py-3">
                   {o.items.map((it, i) => (
                     <div key={i} className="flex items-center gap-3">
                       <ProductImage src={it.image} alt="" className="size-10 rounded-lg object-cover" />

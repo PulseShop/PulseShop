@@ -120,7 +120,7 @@ export function InventoryTransfer({ onImported }: { onImported: () => void }) {
         <button
           type="button"
           onClick={() => setImportOpen(true)}
-          className="flex h-10 items-center gap-2 rounded-btn border border-stone-200 bg-card px-3.5 text-sm font-semibold text-ink transition-colors hover:border-primary hover:text-primary"
+          className="flex h-10 items-center gap-2 rounded-btn border border-line bg-card px-3.5 text-sm font-semibold text-ink transition-colors hover:border-primary hover:text-primary"
         >
           <Upload className="size-4" /> Import
         </button>
@@ -128,7 +128,7 @@ export function InventoryTransfer({ onImported }: { onImported: () => void }) {
           type="button"
           onClick={() => exportMut.mutate()}
           disabled={exportMut.isPending}
-          className="flex h-10 items-center gap-2 rounded-btn border border-stone-200 bg-card px-3.5 text-sm font-semibold text-ink transition-colors hover:border-primary hover:text-primary disabled:opacity-50"
+          className="flex h-10 items-center gap-2 rounded-btn border border-line bg-card px-3.5 text-sm font-semibold text-ink transition-colors hover:border-primary hover:text-primary disabled:opacity-50"
         >
           <Download className="size-4" />
           {exportMut.isPending ? "Preparing…" : "Export all"}
@@ -184,7 +184,7 @@ export function InventoryTransfer({ onImported }: { onImported: () => void }) {
             <button
               type="button"
               onClick={() => fileRef.current?.click()}
-              className="flex w-full flex-col items-center gap-2 rounded-card border-2 border-dashed border-stone-200 bg-stone-50/60 px-6 py-10 transition-colors hover:border-primary hover:bg-primary/5"
+              className="flex w-full flex-col items-center gap-2 rounded-card border-2 border-dashed border-line bg-fill-soft/60 px-6 py-10 transition-colors hover:border-primary hover:bg-primary/5"
             >
               <Upload className="size-7 text-muted" />
               <span className="text-sm font-bold text-ink">Choose a CSV file</span>
@@ -213,7 +213,7 @@ export function InventoryTransfer({ onImported }: { onImported: () => void }) {
           </>
         ) : (
           <>
-            <div className="flex items-center gap-4 rounded-card bg-stone-50 px-4 py-3">
+            <div className="flex items-center gap-4 rounded-card bg-fill-soft px-4 py-3">
               <p className="truncate text-sm font-semibold text-ink">{fileName}</p>
               <div className="ml-auto flex shrink-0 items-center gap-4 text-sm font-semibold">
                 <span className="flex items-center gap-1.5 text-success">
@@ -234,7 +234,7 @@ export function InventoryTransfer({ onImported }: { onImported: () => void }) {
                 </p>
                 {/* Every problem on a row is listed at once so the seller fixes
                     the sheet in one pass instead of re-uploading per error. */}
-                <ul className="max-h-48 space-y-1.5 overflow-y-auto rounded-card border border-stone-100 p-3">
+                <ul className="max-h-48 space-y-1.5 overflow-y-auto rounded-card border border-line-soft p-3">
                   {parsed.errors.map((e) => (
                     <li key={e.row} className="text-xs leading-relaxed text-muted">
                       <span className="font-bold text-ink">
@@ -274,7 +274,7 @@ export function InventoryTransfer({ onImported }: { onImported: () => void }) {
  * what they download here always matches what the parser expects. */
 function FormatGuide() {
   return (
-    <div className="mt-5 rounded-card border border-stone-100 p-4">
+    <div className="mt-5 rounded-card border border-line-soft p-4">
       <div className="mb-3 flex items-center justify-between gap-3">
         <p className="text-xs font-bold uppercase tracking-wide text-muted">Expected columns</p>
         <button
@@ -296,8 +296,8 @@ function FormatGuide() {
         <li>
           <strong className="text-ink">sizes</strong>, <strong className="text-ink">colors</strong>{" "}
           and <strong className="text-ink">images</strong> hold several values separated by{" "}
-          <code className="rounded bg-stone-100 px-1 font-mono">{LIST_SEPARATOR}</code>, for
-          example <code className="rounded bg-stone-100 px-1 font-mono">SM;M;LG</code>.
+          <code className="rounded bg-fill px-1 font-mono">{LIST_SEPARATOR}</code>, for
+          example <code className="rounded bg-fill px-1 font-mono">SM;M;LG</code>.
         </li>
         <li>
           <strong className="text-ink">category</strong>, sizes and colours must match the options

@@ -50,7 +50,7 @@ export function CharCount({
       className={cn(
         "text-xs font-semibold tabular-nums",
         state === "good" && "text-primary",
-        state === "over" && "text-amber-600",
+        state === "over" && "text-warning",
         (state === "short" || state === "empty") && "text-muted",
       )}
     >
@@ -83,7 +83,12 @@ function SearchResultPreview({ seo }: { seo: PageSeo }) {
         <Globe className="size-3.5" aria-hidden />
         <span className="truncate">{display}</span>
       </div>
-      <p className="text-base font-medium leading-snug text-[#1a0dab]">
+      {/* Google's own link blue, and the one colour here that is copied from
+          THEM rather than taken from our palette — the point of this block is
+          to look like a real search result, not like PulseShop. It still needs
+          both values: #1a0dab on the dark card is about 1.6:1 and vanishes, so
+          dark takes the blue Google itself switches to on its dark results. */}
+      <p className="text-base font-medium leading-snug text-[#1a0dab] dark:text-[#8ab4f8]">
         {clip(seo.title, 60)}
       </p>
       <p className="mt-0.5 text-sm leading-snug text-muted">

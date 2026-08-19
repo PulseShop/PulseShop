@@ -6,18 +6,13 @@ import {
   KeyRound,
   LayoutDashboard,
   LogOut,
-  MonitorSmartphone,
-  Moon,
   Package,
-  Sun,
   UserRound,
 } from "lucide-react";
 import { useEffect, useState } from "react";
 import { useForm } from "react-hook-form";
 import { Link, useNavigate } from "react-router";
 import { z } from "zod";
-import { cn } from "@/lib/utils";
-import { useTheme } from "@/stores/theme";
 import { MobileShell } from "@/components/layout/MobileShell";
 import { DesktopQuickNav } from "@/components/layout/DesktopQuickNav";
 import { PasswordRequirements } from "@/components/auth/PasswordRequirements";
@@ -27,6 +22,7 @@ import { Input, Textarea } from "@/components/ui/Input";
 import { PasswordInput } from "@/components/ui/PasswordInput";
 import { Sheet } from "@/components/ui/Modal";
 import { Skeleton } from "@/components/ui/Skeleton";
+import { AppearancePicker } from "@/components/ui/AppearancePicker";
 import { authErrorMessage } from "@/lib/authErrors";
 import { isValidPhone } from "@/lib/phone";
 import { isPasswordValid } from "@/lib/password";
@@ -90,50 +86,14 @@ export function AccountPage() {
  * Instagram bio and never made an account still reads the app at night, and the
  * choice is stored per device rather than per account (stores/theme.ts).
  *
- * Segmented rather than a switch because there are three states, and the third
- * is the default. A two-position switch cannot express "follow my phone", which
- * is the setting most people actually want.
+ * The control itself is shared with the seller's Settings page — see
+ * components/ui/AppearancePicker.
  */
 function Appearance() {
-  const mode = useTheme((s) => s.mode);
-  const setMode = useTheme((s) => s.setMode);
-
-  const options = [
-    { value: "light" as const, label: "Light", icon: Sun },
-    { value: "dark" as const, label: "Dark", icon: Moon },
-    { value: "system" as const, label: "System", icon: MonitorSmartphone },
-  ];
-
   return (
     <section className="rounded-card bg-card p-4 shadow-soft">
       <h2 className="text-sm font-bold text-ink">Appearance</h2>
-      <div
-        role="radiogroup"
-        aria-label="Appearance"
-        className="mt-3 grid grid-cols-3 gap-1 rounded-btn bg-fill p-1"
-      >
-        {options.map(({ value, label, icon: Icon }) => (
-          <button
-            key={value}
-            type="button"
-            role="radio"
-            aria-checked={mode === value}
-            onClick={() => setMode(value)}
-            className={cn(
-              "flex min-h-11 items-center justify-center gap-1.5 rounded-[10px] text-xs font-bold transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary",
-              mode === value ? "bg-card text-ink shadow-soft" : "text-muted hover:text-ink",
-            )}
-          >
-            <Icon className="size-4 shrink-0" aria-hidden />
-            {label}
-          </button>
-        ))}
-      </div>
-      <p className="mt-2 text-xs text-muted">
-        {mode === "system"
-          ? "Follows your phone's setting."
-          : `Always ${mode}, whatever your phone is set to.`}
-      </p>
+      <AppearancePicker className="mt-3" />
     </section>
   );
 }

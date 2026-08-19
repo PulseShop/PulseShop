@@ -21,7 +21,7 @@ function StarRow({ stars, size = "size-3.5" }: { stars: number; size?: string })
       {[1, 2, 3, 4, 5].map((s) => (
         <Star
           key={s}
-          className={cn(size, s <= stars ? "fill-amber-400 text-amber-400" : "text-stone-300")}
+          className={cn(size, s <= stars ? "fill-amber-400 text-amber-400" : "text-faint")}
         />
       ))}
     </div>
@@ -68,7 +68,7 @@ function ReplyBox({ review }: { review: MerchantReviewItem }) {
     return (
       <div className="mt-3">
         {existing ? (
-          <div className="rounded-btn border-l-2 border-primary/40 bg-stone-50 py-2.5 pl-3 pr-3">
+          <div className="rounded-btn border-l-2 border-primary/40 bg-fill-soft py-2.5 pl-3 pr-3">
             <div className="flex items-center gap-1.5">
               <Store className="size-3.5 shrink-0 text-primary" aria-hidden />
               <span className="text-xs font-bold text-ink">Your reply</span>
@@ -103,7 +103,7 @@ function ReplyBox({ review }: { review: MerchantReviewItem }) {
   }
 
   return (
-    <div className="mt-3 space-y-2 rounded-btn border border-stone-200 bg-stone-50 p-3">
+    <div className="mt-3 space-y-2 rounded-btn border border-line bg-fill-soft p-3">
       <label className="block text-xs font-bold text-ink" htmlFor={`reply-${review.reviewId}`}>
         Your reply <span className="font-medium text-muted">— shown publicly under this review</span>
       </label>
@@ -113,7 +113,7 @@ function ReplyBox({ review }: { review: MerchantReviewItem }) {
         onChange={(e) => setDraft(e.target.value.slice(0, MAX_REPLY))}
         rows={3}
         placeholder="Thanks for the feedback — we've switched couriers since, so delivery is now next-day."
-        className="w-full resize-none rounded-btn border border-stone-200 bg-card px-3 py-2 text-sm outline-none focus:border-primary focus:ring-2 focus:ring-primary/20"
+        className="w-full resize-none rounded-btn border border-line bg-card px-3 py-2 text-sm outline-none focus:border-primary focus:ring-2 focus:ring-primary/20"
       />
       <div className="flex items-center justify-between gap-2">
         <span className="text-xs text-muted">
@@ -133,7 +133,7 @@ function ReplyBox({ review }: { review: MerchantReviewItem }) {
             type="button"
             onClick={() => mutation.mutate()}
             disabled={mutation.isPending || draft.trim() === existing.trim()}
-            className="flex items-center gap-1.5 rounded-btn bg-primary px-3 py-1.5 text-xs font-bold text-white disabled:opacity-40"
+            className="flex items-center gap-1.5 rounded-btn bg-primary px-3 py-1.5 text-xs font-bold text-on-accent disabled:opacity-40"
           >
             {mutation.isPending && <Loader2 className="size-3.5 animate-spin" />}
             {!draft.trim() && existing ? "Remove reply" : "Post reply"}
@@ -201,7 +201,7 @@ export function ReviewsDashboardPage() {
           <div className="space-y-6">
             {/* summary */}
             <section className="grid grid-cols-1 gap-6 rounded-card bg-card p-6 shadow-soft sm:grid-cols-[auto_1fr]">
-              <div className="flex flex-col items-center justify-center gap-1 sm:pr-6 sm:border-r sm:border-stone-100">
+              <div className="flex flex-col items-center justify-center gap-1 sm:pr-6 sm:border-r sm:border-line-soft">
                 <p className="text-4xl font-extrabold text-ink">{data.avgRating.toFixed(1)}</p>
                 <StarRow stars={Math.round(data.avgRating)} size="size-4" />
                 <p className="text-xs text-muted">
@@ -216,7 +216,7 @@ export function ReviewsDashboardPage() {
                     <div key={s} className="flex items-center gap-2">
                       <span className="w-3 text-xs font-semibold text-muted">{s}</span>
                       <Star className="size-3 shrink-0 fill-amber-400 text-amber-400" />
-                      <div className="h-2 flex-1 overflow-hidden rounded-full bg-stone-100">
+                      <div className="h-2 flex-1 overflow-hidden rounded-full bg-fill">
                         <div className="h-full rounded-full bg-primary" style={{ width: `${pct}%` }} />
                       </div>
                       <span className="w-6 text-right text-xs text-muted">{count}</span>
@@ -235,7 +235,7 @@ export function ReviewsDashboardPage() {
                   setPage(1);
                 }}
                 aria-label="Filter by product"
-                className="h-10 rounded-btn border border-stone-200 bg-card px-3 text-sm font-semibold outline-none focus:border-primary"
+                className="h-10 rounded-btn border border-line bg-card px-3 text-sm font-semibold outline-none focus:border-primary"
               >
                 <option value="">All products</option>
                 {(productsQ.data?.items ?? []).map((p) => (
@@ -308,7 +308,7 @@ export function ReviewsDashboardPage() {
                     aria-label="Previous page"
                     disabled={pageSafe <= 1}
                     onClick={() => setPage(pageSafe - 1)}
-                    className="flex size-8 items-center justify-center rounded-lg text-muted disabled:opacity-30 hover:bg-stone-100"
+                    className="flex size-8 items-center justify-center rounded-lg text-muted disabled:opacity-30 hover:bg-fill"
                   >
                     <ChevronLeft className="size-4" />
                   </button>
@@ -317,7 +317,7 @@ export function ReviewsDashboardPage() {
                     aria-label="Next page"
                     disabled={pageSafe >= totalPages}
                     onClick={() => setPage(pageSafe + 1)}
-                    className="flex size-8 items-center justify-center rounded-lg text-muted disabled:opacity-30 hover:bg-stone-100"
+                    className="flex size-8 items-center justify-center rounded-lg text-muted disabled:opacity-30 hover:bg-fill"
                   >
                     <ChevronRight className="size-4" />
                   </button>

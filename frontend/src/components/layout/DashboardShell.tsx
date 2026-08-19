@@ -49,15 +49,16 @@ export function DashboardShell({ children }: { children: ReactNode }) {
   const merchant = merchantQ.data;
 
   return (
-    // Dark mode covers the shopper-facing app only for now. The dashboard's
-    // pages still carry literal light-palette classes, so letting the theme
-    // through here would render half of them dark and half light. Pinning the
-    // subtree to light keeps it coherent until it is converted too; removing
-    // this line is the last step of that work.
-    <div
-      data-theme="light"
-      className="flex h-dvh flex-col overflow-hidden bg-surface lg:block lg:h-auto lg:min-h-dvh lg:overflow-visible"
-    >
+    // No data-theme pin here any more. This subtree used to be nailed to light
+    // because the dashboard pages carried literal stone/white classes that could
+    // not flip; they are roles now, so the shell inherits whatever the shopper —
+    // who is the same person as the seller — picked on their device.
+    //
+    // Unpinning also fixes a split that was visible before any page converted:
+    // Radix portals its dialogs into document.body, OUTSIDE this div, so every
+    // modal the seller opened rendered in the real theme while the dashboard
+    // behind it stayed light.
+    <div className="flex h-dvh flex-col overflow-hidden bg-surface lg:block lg:h-auto lg:min-h-dvh lg:overflow-visible">
       {/* desktop sidebar */}
       <aside className="fixed inset-y-0 left-0 z-30 hidden w-[230px] flex-col border-r border-line bg-card lg:flex">
         <div className="flex items-center gap-2.5 px-5 py-5">
@@ -88,7 +89,7 @@ export function DashboardShell({ children }: { children: ReactNode }) {
                 cn(
                   "flex items-center gap-3 rounded-btn px-3 py-2.5 text-sm font-semibold transition-colors",
                   isActive
-                    ? "bg-primary-deep text-white"
+                    ? "bg-primary-deep text-on-accent"
                     : "text-muted hover:bg-fill hover:text-ink",
                 )
               }
@@ -96,7 +97,7 @@ export function DashboardShell({ children }: { children: ReactNode }) {
               <Icon className="size-[18px]" />
               <span className="flex-1">{label}</span>
               {label === "Orders" && orderCount > 0 && (
-                <span className="flex h-5 min-w-5 items-center justify-center rounded-full bg-favorite px-1.5 text-[11px] font-bold text-white">
+                <span className="flex h-5 min-w-5 items-center justify-center rounded-full bg-favorite px-1.5 text-[11px] font-bold text-on-accent">
                   {orderCount}
                 </span>
               )}
@@ -194,7 +195,7 @@ export function DashboardShell({ children }: { children: ReactNode }) {
                   >
                     <Icon className="size-[21px]" />
                     {label === "Orders" && orderCount > 0 && (
-                      <span className="absolute -right-1 -top-1 flex h-4 min-w-4 items-center justify-center rounded-full bg-favorite px-1 text-[10px] font-bold text-white ring-2 ring-white/70">
+                      <span className="absolute -right-1 -top-1 flex h-4 min-w-4 items-center justify-center rounded-full bg-favorite px-1 text-[10px] font-bold text-on-accent ring-2 ring-card/70">
                         {orderCount}
                       </span>
                     )}

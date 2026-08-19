@@ -148,7 +148,7 @@ export function ResetPasswordPage() {
           </p>
           <Link
             to="/login"
-            className="rounded-btn bg-primary px-5 py-2.5 text-sm font-bold text-on-accent focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary focus-visible:ring-offset-2"
+            className="rounded-btn bg-primary px-5 py-2.5 text-sm font-bold text-on-accent focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary focus-visible:ring-offset-2 focus-visible:ring-offset-card"
           >
             Request a new link
           </Link>

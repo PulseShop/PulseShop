@@ -11,6 +11,7 @@ import { CharCount, SeoPreviews } from "@/components/seo/SeoPanel";
 import { shopSeo } from "@/lib/seo";
 import { seoShopFrom } from "@/lib/seoFrom";
 import { Skeleton } from "@/components/ui/Skeleton";
+import { AppearancePicker } from "@/components/ui/AppearancePicker";
 import { services } from "@/services";
 import type { MerchantUpdate } from "@/services";
 import type { Fulfillment, ShopStatus } from "@/types";
@@ -190,7 +191,7 @@ export function SettingsPage() {
                 <img
                   src={merchant.avatarUrl}
                   alt={merchant.name}
-                  className="size-16 rounded-full object-cover ring-2 ring-stone-100"
+                  className="size-16 rounded-full object-cover ring-2 ring-line-soft"
                 />
                 <div>
                   <Button
@@ -253,7 +254,7 @@ export function SettingsPage() {
                         "rounded-btn border-2 px-3 py-2.5 text-sm font-semibold transition-colors",
                         fulfillment === opt.value
                           ? "border-primary bg-primary/5 text-primary"
-                          : "border-stone-200 text-ink hover:border-primary/50",
+                          : "border-line text-ink hover:border-primary/50",
                       )}
                     >
                       {opt.label}
@@ -282,7 +283,7 @@ export function SettingsPage() {
                         "flex items-center justify-center gap-2 rounded-btn border-2 px-3 py-2.5 text-sm font-semibold transition-colors",
                         shopStatus === opt.value
                           ? opt.active
-                          : "border-stone-200 text-ink hover:border-primary/50",
+                          : "border-line text-ink hover:border-primary/50",
                       )}
                     >
                       <span className={cn("size-2 shrink-0 rounded-full", opt.dot)} />
@@ -383,6 +384,14 @@ export function SettingsPage() {
                   Update
                 </Button>
               </div>
+            </section>
+
+            {/* appearance — the same per-device preference the shopper side
+                exposes on the Account page, surfaced here so a seller who lives
+                in the dashboard never has to leave it to turn the lights off. */}
+            <section className="rounded-card bg-card p-6 shadow-soft">
+              <h2 className="text-lg font-extrabold text-ink">Appearance</h2>
+              <AppearancePicker className="mt-4" />
             </section>
 
             {/* sign out */}

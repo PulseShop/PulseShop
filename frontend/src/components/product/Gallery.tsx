@@ -108,7 +108,7 @@ export function Gallery({
               aria-label={`Show ${altFor(i)}`}
               onClick={() => scrollTo(i)}
               className={cn(
-                "size-14 shrink-0 overflow-hidden rounded-xl ring-2 ring-offset-2 transition-all",
+                "size-14 shrink-0 overflow-hidden rounded-xl ring-2 ring-offset-2 ring-offset-card transition-all",
                 i === active ? "ring-primary" : "ring-transparent",
               )}
             >
