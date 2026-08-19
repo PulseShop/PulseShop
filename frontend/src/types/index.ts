@@ -643,3 +643,138 @@ export interface PaymentResult {
   status: "paid" | "failed";
   reference: string;
 }
+
+/* --------------------------------------------------------------------------
+   The control room's billing ledger (migration 0051).
+
+   Sellers pay us for their tier. There is still no payment gateway, so the
+   owner records both halves by hand: what was billed (an invoice) and what
+   arrived (payments against it). The balance is always derived, never stored —
+   see the note in the migration for why.
+   -------------------------------------------------------------------------- */
+
+/** What an invoice IS, once the stored status and the arithmetic are combined. */
+export type InvoiceState = "draft" | "sent" | "paid" | "overdue" | "void";
+
+export interface AdminInvoice {
+  id: string;
+  merchantId: string;
+  shopName: string;
+  shopHandle: string;
+  plan: Plan;
+  /** ISO dates (yyyy-mm-dd) — the window this invoice covers. */
+  periodStart: string;
+  periodEnd: string;
+  amountKes: number;
+  /** Sum of the payments recorded against it. */
+  paidKes: number;
+  /** amount - paid. Negative means overpaid, which is worth seeing. */
+  balanceKes: number;
+  /** What is stored: draft | sent | void. */
+  status: "draft" | "sent" | "void";
+  /** What it means: adds paid/overdue, which no stored column knows alone. */
+  state: InvoiceState;
+  issuedAt: string | null;
+  dueOn: string | null;
+  note: string | null;
+  createdAt: string;
+}
+
+export interface InvoiceInput {
+  id?: string | null;
+  merchantId: string;
+  plan: Plan;
+  periodStart: string;
+  periodEnd: string;
+  amountKes: number;
+  status?: "draft" | "sent" | "void";
+  dueOn?: string | null;
+  note?: string | null;
+}
+
+/**
+ * How a seller paid US for their tier.
+ *
+ * Deliberately NOT the buyer-facing `PaymentMethod` above, which is how a
+ * shopper pays a seller ("mpesa" | "paypal"). The two lists only look alike:
+ * this one has to carry 'waiver', because writing a month off is a real thing
+ * that happens and recording it as a payment keeps the invoice balanced while
+ * leaving a trace.
+ */
+export type SubscriptionPaymentMethod = "mpesa" | "bank" | "cash" | "waiver" | "other";
+
+/** One payment received — the row behind the Transactions screen. */
+export interface AdminPayment {
+  id: string;
+  invoiceId: string;
+  merchantId: string;
+  shopName: string;
+  shopHandle: string;
+  plan: Plan;
+  amountKes: number;
+  method: SubscriptionPaymentMethod;
+  reference: string | null;
+  paidAt: string;
+  note: string | null;
+  periodStart: string;
+  periodEnd: string;
+}
+
+export interface PaymentInput {
+  invoiceId: string;
+  amountKes: number;
+  method?: SubscriptionPaymentMethod;
+  reference?: string | null;
+  paidAt?: string | null;
+  note?: string | null;
+}
+
+export interface BillingSummary {
+  outstandingKes: number;
+  overdueCount: number;
+  collected30dKes: number;
+  collectedAllKes: number;
+  /** What SHOULD arrive next month, from current tiers — not a sum of invoices. */
+  mrrKes: number;
+  invoiceCount: number;
+  generatedAt: string;
+}
+
+/** A best seller, platform-wide. Figures come from order_items, so they are
+ *  what was actually charged rather than today's price. */
+export interface AdminTopProduct {
+  productId: string;
+  name: string;
+  image: string | null;
+  shopName: string;
+  units: number;
+  revenueKes: number;
+  rating: number;
+  reviewCount: number;
+}
+
+/** One day of gross order value. Gap-filled, so a quiet day is a zero. */
+export interface RevenuePoint {
+  day: string;
+  grossKes: number;
+  orders: number;
+}
+
+export interface RepeatCustomerRate {
+  /** Signed-in buyers with an order in the window — the denominator. */
+  trackedBuyers: number;
+  repeatBuyers: number;
+  ratePct: number;
+  days: number;
+}
+
+/** The platform's own social handles, edited in the control room and printed
+ *  in the marketplace footer. Empty string = not set yet. */
+export interface SocialLinks {
+  facebook: string;
+  x: string;
+  tiktok: string;
+  instagram: string;
+  linkedin: string;
+  youtube: string;
+}

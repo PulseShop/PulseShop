@@ -503,6 +503,64 @@ input[type="radio"] {
   }
 }
 
+/* ---------------------------------------------------------------------------
+   Printing a report.
+
+   The control room's Reports panel calls window.print(), and what should come
+   out is the report sheet alone — not the sidebar, not the range buttons, not
+   the app around it. Rather than maintain a second render path for print, this
+   hides everything and then un-hides the one subtree that matters.
+
+   `visibility` rather than `display: none` on the ancestors: display:none on a
+   parent removes the child from the box tree entirely, so the sheet would
+   vanish with everything else. Visibility is inherited and can be turned back
+   on further down, which is exactly the behaviour needed here.
+
+   Colours are forced to plain black on white. The app's palette is tuned for a
+   screen — a near-black card with pale text costs a cartridge and reads worse
+   on paper, and a shopper's dark-mode preference should not decide what a
+   printed document looks like.
+   --------------------------------------------------------------------------- */
+@media print {
+  body * {
+    visibility: hidden;
+  }
+
+  .report-sheet,
+  .report-sheet * {
+    visibility: visible;
+  }
+
+  .report-sheet {
+    position: absolute;
+    inset: 0 auto auto 0;
+    width: 100%;
+    margin: 0;
+    padding: 0;
+    border: 0;
+    border-radius: 0;
+    box-shadow: none;
+    background: #fff;
+    color: #000;
+  }
+
+  /* Controls that would print as dead furniture. */
+  .print-hide {
+    display: none !important;
+  }
+
+  /* Tables are the part that actually spans pages, and a row split across the
+     break is unreadable. */
+  .report-sheet tr,
+  .report-sheet section {
+    break-inside: avoid;
+  }
+
+  @page {
+    margin: 16mm;
+  }
+}
+
 /* subtle pulse for the online indicator */
 @keyframes ping-slow {
   0% {

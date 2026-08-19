@@ -1,6 +1,6 @@
 import { useQuery } from "@tanstack/react-query";
 import { useMemo, useState } from "react";
-import { Link } from "react-router";
+import { Link, useSearchParams } from "react-router";
 import { Lock, RefreshCw, ShieldAlert } from "lucide-react";
 import { LogoLink } from "@/components/common/Logo";
 import { QueryError } from "@/components/common/QueryError";
@@ -10,7 +10,14 @@ import { cn } from "@/lib/utils";
 import { services } from "@/services";
 import { useAuth } from "@/stores/auth";
 import { BannerPanel } from "./BannerPanel";
+import { ControlSidebar, isSectionId } from "./ControlSidebar";
+import type { SectionId } from "./ControlSidebar";
+import { RepeatRateCard, RevenueCard, TopProductsCard } from "./DashboardExtras";
+import { InvoicesPanel } from "./InvoicesPanel";
+import { ReportsPanel } from "./ReportsPanel";
+import { SettingsPanel } from "./SettingsPanel";
 import { ShopsPanel } from "./ShopsPanel";
+import { TransactionsPanel } from "./TransactionsPanel";
 import type { GrowthPoint } from "@/types";
 
 /**
@@ -38,8 +45,27 @@ export function AdminPage() {
   const session = useAuth((s) => s.session);
   const [days, setDays] = useState(30);
 
+  // The section lives in `?tab=`, so a link to Invoices is a link to Invoices
+  // and a refresh does not dump the owner back on the dashboard.
+  const [params, setParams] = useSearchParams();
+  const raw = params.get("tab");
+  const section: SectionId = isSectionId(raw) ? raw : "dashboard";
+  const setSection = (next: SectionId) => {
+    const p = new URLSearchParams(params);
+    if (next === "dashboard") p.delete("tab");
+    else p.set("tab", next);
+    setParams(p, { replace: true });
+  };
+
   const adminQ = useQuery({ queryKey: ["is-admin"], queryFn: () => services.admin.isAdmin() });
   const isAdmin = adminQ.data === true;
+
+  // The one number that should chase the owner rather than wait to be found.
+  const billingQ = useQuery({
+    queryKey: ["admin-billing-summary"],
+    queryFn: () => services.admin.billingSummary(),
+    enabled: isAdmin,
+  });
 
   const statsQ = useQuery({
     queryKey: ["platform-stats"],
@@ -119,7 +145,23 @@ export function AdminPage() {
         </button>
       </header>
 
-      <div className="mx-auto mt-6 max-w-6xl space-y-6">
+      <div className="mx-auto mt-5 max-w-7xl lg:flex lg:gap-6">
+        <ControlSidebar
+          active={section}
+          onSelect={setSection}
+          counts={{ invoices: billingQ.data?.overdueCount }}
+        />
+
+        <div className="mt-4 min-w-0 flex-1 space-y-6 lg:mt-0">
+          {section === "promotions" && <BannerPanel />}
+          {section === "shops" && <ShopsPanel />}
+          {section === "invoices" && <InvoicesPanel />}
+          {section === "transactions" && <TransactionsPanel />}
+          {section === "reports" && <ReportsPanel />}
+          {section === "settings" && <SettingsPanel />}
+
+          {section === "dashboard" && (
+            <>
         {statsQ.isError ? (
           <QueryError
             title="Couldn't load platform statistics"
@@ -180,7 +222,7 @@ export function AdminPage() {
             <div className="grid gap-4 lg:grid-cols-2">
               <Breakdown
                 title="Plans"
-                caption="Set by hand in the shop register below; billing does not exist yet."
+                caption="Moved by hand under Shops. What each tier is worth is on Invoices."
                 rows={[
                   { label: "Explorer", value: stats.plans.explorer },
                   { label: "Boutique", value: stats.plans.boutique },
@@ -200,20 +242,29 @@ export function AdminPage() {
           </>
         )}
 
-        <GrowthCard
-          points={growthQ.data ?? []}
-          loading={growthQ.isLoading}
-          error={growthQ.isError}
-          onRetry={() => growthQ.refetch()}
-          days={days}
-          onDaysChange={setDays}
-        />
+              <div className="grid gap-4 lg:grid-cols-2">
+                <RevenueCard />
+                <RepeatRateCard />
+              </div>
 
-        {/* Ads before shops: the banner is the thing with money attached and a
-            clock running on it, so it is the panel worth seeing without
-            scrolling past a seven-hundred-row register to reach. */}
-        <BannerPanel />
-        <ShopsPanel />
+              <TopProductsCard />
+
+              <GrowthCard
+                points={growthQ.data ?? []}
+                loading={growthQ.isLoading}
+                error={growthQ.isError}
+                onRetry={() => growthQ.refetch()}
+                days={days}
+                onDaysChange={setDays}
+              />
+
+              {/* The banner is the thing with money attached and a clock running
+                  on it, so a copy of it sits on the dashboard as well as behind
+                  its own tab — it is what the owner opens this page to check. */}
+              <BannerPanel />
+            </>
+          )}
+        </div>
       </div>
     </main>
   );

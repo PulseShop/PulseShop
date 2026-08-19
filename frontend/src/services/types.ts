@@ -1,8 +1,17 @@
 import type { ProductCsvInput } from "@/lib/productCsv";
 import type {
+  AdminInvoice,
+  AdminPayment,
   AdminPlacement,
   AdminProductHit,
   AdminShop,
+  AdminTopProduct,
+  BillingSummary,
+  InvoiceInput,
+  PaymentInput,
+  RepeatCustomerRate,
+  RevenuePoint,
+  SocialLinks,
   Analytics,
   AuthUser,
   BannerProduct,
@@ -547,8 +556,39 @@ export interface AdminService {
    */
   reorderPlacements(ids: string[]): Promise<void>;
   /** Product lookup for the placement picker — every shop, including closing
-   * ones, which the shopper-facing search deliberately hides. */
+   * ones, which the shopper-facing search deliberately hides. An empty search
+   * browses the whole catalogue rather than returning nothing, which is what
+   * makes "put any product on the banner" a browse and not a guess. */
   searchProducts(search: string, limit?: number): Promise<AdminProductHit[]>;
+
+  /* --- Subscription billing (migration 0051) ---------------------------- */
+
+  /** Invoices, newest period first. `status` accepts the derived states too:
+   *  'unpaid', 'paid' and 'overdue' are computed, not stored. */
+  listInvoices(query?: {
+    status?: string;
+    search?: string;
+    page?: number;
+    pageSize?: number;
+  }): Promise<Paged<AdminInvoice>>;
+  saveInvoice(input: InvoiceInput): Promise<string>;
+  deleteInvoice(id: string): Promise<void>;
+  /** The transactions feed: every payment received, newest first. */
+  listPayments(query?: { page?: number; pageSize?: number }): Promise<Paged<AdminPayment>>;
+  recordPayment(input: PaymentInput): Promise<string>;
+  deletePayment(id: string): Promise<void>;
+  billingSummary(): Promise<BillingSummary>;
+
+  /* --- Dashboard reads --------------------------------------------------- */
+
+  topProducts(days?: number, limit?: number): Promise<AdminTopProduct[]>;
+  revenueSeries(days?: number): Promise<RevenuePoint[]>;
+  repeatCustomerRate(days?: number): Promise<RepeatCustomerRate>;
+
+  /* --- Platform settings ------------------------------------------------- */
+
+  getSocialLinks(): Promise<SocialLinks>;
+  setSocialLinks(links: SocialLinks): Promise<void>;
 }
 
 export interface Services {

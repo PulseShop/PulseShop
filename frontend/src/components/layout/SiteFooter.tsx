@@ -1,7 +1,10 @@
+import { useQuery } from "@tanstack/react-query";
 import { Link } from "react-router";
-import { Facebook, Instagram, Linkedin, Music2, Twitter } from "lucide-react";
+import { Facebook, Instagram, Linkedin, Music2, Twitter, Youtube } from "lucide-react";
 import { cn } from "@/lib/utils";
+import { services } from "@/services";
 import { APP_VERSION_LABEL } from "@/lib/version";
+import type { SocialLinks } from "@/types";
 
 /**
  * The marketplace footer.
@@ -17,10 +20,11 @@ import { APP_VERSION_LABEL } from "@/lib/version";
  * non-interactive text carrying an explicit "coming soon" title. Wiring one up
  * later is a one-line change in the list below and nothing else.
  *
- * THE SOCIAL BUTTONS ARE DELIBERATELY INERT. The handles are not decided yet,
- * so they are buttons with no destination rather than links to a guessed URL.
- * They are disabled rather than silently dead, so the control tells the truth
- * about its own state to a screen reader as well as to a mouse.
+ * THE SOCIAL BUTTONS COME FROM THE DATABASE. Whatever is set in the control
+ * room's Settings panel (platform_settings, migration 0051) renders as a real
+ * link; a network with no URL yet renders as a disabled button rather than as a
+ * link to a guessed handle. Disabled rather than silently dead, so the control
+ * tells the truth about its own state to a screen reader as well as to a mouse.
  */
 
 interface FooterLink {
@@ -62,16 +66,28 @@ const COLUMNS: { heading: string; links: FooterLink[] }[] = [
   },
 ];
 
-/** Blank for now — the handles are not decided. See the note above. */
-const SOCIALS = [
-  { label: "Facebook", Icon: Facebook },
-  { label: "X", Icon: Twitter },
-  { label: "TikTok", Icon: Music2 },
-  { label: "Instagram", Icon: Instagram },
-  { label: "LinkedIn", Icon: Linkedin },
+const SOCIALS: { key: keyof SocialLinks; label: string; Icon: typeof Facebook }[] = [
+  { key: "facebook", label: "Facebook", Icon: Facebook },
+  { key: "x", label: "X", Icon: Twitter },
+  { key: "tiktok", label: "TikTok", Icon: Music2 },
+  { key: "instagram", label: "Instagram", Icon: Instagram },
+  { key: "linkedin", label: "LinkedIn", Icon: Linkedin },
+  { key: "youtube", label: "YouTube", Icon: Youtube },
 ];
 
 export function SiteFooter({ className }: { className?: string }) {
+  // A plain public read, cached for the session: platform_settings carries a
+  // public SELECT policy precisely so the footer does not need a signed-in
+  // user to know where the shop's Instagram is. A failure leaves every icon in
+  // its disabled state, which is the same thing an unset link does.
+  const linksQ = useQuery({
+    queryKey: ["social-links"],
+    queryFn: () => services.admin.getSocialLinks(),
+    staleTime: 5 * 60_000,
+    retry: false,
+  });
+  const links = linksQ.data;
+
   return (
     <footer className={cn("border-t border-line bg-card", className)}>
       <div className="mx-auto max-w-[1180px] px-4 py-8 lg:px-6 lg:py-10">
@@ -106,19 +122,36 @@ export function SiteFooter({ className }: { className?: string }) {
           <div>
             <h2 className="text-sm font-bold text-ink">Follow us on:</h2>
             <ul className="mt-3 flex flex-wrap gap-2">
-              {SOCIALS.map(({ label, Icon }) => (
-                <li key={label}>
-                  <button
-                    type="button"
-                    disabled
-                    aria-label={`${label} — coming soon`}
-                    title="Coming soon"
-                    className="flex size-10 items-center justify-center rounded-full border border-line text-muted transition-colors disabled:cursor-default disabled:opacity-60"
-                  >
-                    <Icon className="size-4" aria-hidden />
-                  </button>
-                </li>
-              ))}
+              {SOCIALS.map(({ key, label, Icon }) => {
+                const href = links?.[key]?.trim();
+                return (
+                  <li key={key}>
+                    {href ? (
+                      <a
+                        href={href}
+                        target="_blank"
+                        // noreferrer as well as noopener: the target page has no
+                        // business knowing which of our pages sent the visitor.
+                        rel="noopener noreferrer"
+                        aria-label={`PulseShop on ${label}`}
+                        className="flex size-10 items-center justify-center rounded-full border border-line text-muted transition-colors hover:border-primary/50 hover:text-primary"
+                      >
+                        <Icon className="size-4" aria-hidden />
+                      </a>
+                    ) : (
+                      <button
+                        type="button"
+                        disabled
+                        aria-label={`${label} — coming soon`}
+                        title="Coming soon"
+                        className="flex size-10 items-center justify-center rounded-full border border-line text-muted transition-colors disabled:cursor-default disabled:opacity-60"
+                      >
+                        <Icon className="size-4" aria-hidden />
+                      </button>
+                    )}
+                  </li>
+                );
+              })}
             </ul>
           </div>
         </div>

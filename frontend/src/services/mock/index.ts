@@ -1,7 +1,16 @@
 import type {
+  AdminInvoice,
+  AdminPayment,
   AdminPlacement,
   AdminProductHit,
   AdminShop,
+  AdminTopProduct,
+  BillingSummary,
+  InvoiceInput,
+  PaymentInput,
+  RepeatCustomerRate,
+  RevenuePoint,
+  SocialLinks,
   Analytics,
   AuthUser,
   BannerProduct,
@@ -578,6 +587,85 @@ interface MockPlacement {
   sortOrder: number;
 }
 
+/**
+ * Subscription billing, in memory (migration 0051).
+ *
+ * Two arrays rather than one, mirroring the two tables: an invoice is what was
+ * billed and a payment is what arrived, and the balance is derived from both.
+ * Collapsing them into a "paid" flag here would let the mock express states the
+ * real backend cannot.
+ */
+interface MockInvoice {
+  id: string;
+  merchantId: string;
+  plan: Plan;
+  periodStart: string;
+  periodEnd: string;
+  amountKes: number;
+  status: AdminInvoice["status"];
+  issuedAt: string | null;
+  dueOn: string | null;
+  note: string | null;
+  createdAt: string;
+}
+
+interface MockPayment {
+  id: string;
+  invoiceId: string;
+  amountKes: number;
+  method: AdminPayment["method"];
+  reference: string | null;
+  paidAt: string;
+  note: string | null;
+}
+
+const mockInvoices: MockInvoice[] = [];
+const mockPayments: MockPayment[] = [];
+
+const mockSocialLinks: SocialLinks = {
+  facebook: "",
+  x: "",
+  tiktok: "",
+  instagram: "",
+  linkedin: "",
+  youtube: "",
+};
+
+/** An invoice joined to its payments, carrying the same derived `state` the RPC
+ *  computes — paid and overdue are arithmetic, not stored columns. */
+function toAdminInvoice(inv: MockInvoice): AdminInvoice {
+  const paid = mockPayments
+    .filter((p) => p.invoiceId === inv.id)
+    .reduce((n, p) => n + p.amountKes, 0);
+  const balance = inv.amountKes - paid;
+  const overdue = inv.dueOn !== null && new Date(inv.dueOn) < new Date();
+  return {
+    id: inv.id,
+    merchantId: inv.merchantId,
+    shopName: merchant.name,
+    shopHandle: merchant.handle,
+    plan: inv.plan,
+    periodStart: inv.periodStart,
+    periodEnd: inv.periodEnd,
+    amountKes: inv.amountKes,
+    paidKes: paid,
+    balanceKes: balance,
+    status: inv.status,
+    state:
+      inv.status === "void"
+        ? "void"
+        : paid >= inv.amountKes
+          ? "paid"
+          : overdue
+            ? "overdue"
+            : inv.status,
+    issuedAt: inv.issuedAt,
+    dueOn: inv.dueOn,
+    note: inv.note,
+    createdAt: inv.createdAt,
+  };
+}
+
 const mockPlacements: MockPlacement[] = [];
 
 /** Rotation order, the way both RPCs in 0049 sort. */
@@ -790,6 +878,208 @@ const mockAdmin: AdminService = {
         shopPlan: mockShops[0].plan,
         alreadyPlaced: mockPlacements.some((pl) => pl.productId === p.id),
       }));
+  },
+
+  /* --- Subscription billing, in memory (migration 0051) ------------------ */
+
+  async listInvoices(query = {}): Promise<Paged<AdminInvoice>> {
+    await delay();
+    const term = query.search?.trim().toLowerCase() ?? "";
+    const want = !query.status || query.status === "all" ? null : query.status;
+    const rows = mockInvoices
+      .map(toAdminInvoice)
+      .filter((inv) => {
+        if (term && !`${inv.shopName} ${inv.shopHandle}`.toLowerCase().includes(term)) return false;
+        if (!want) return true;
+        // 'unpaid' is a bucket, not a state — same rule as admin_list_invoices.
+        if (want === "unpaid") return ["draft", "sent", "overdue"].includes(inv.state);
+        return inv.state === want;
+      })
+      .sort((a, b) => b.periodStart.localeCompare(a.periodStart));
+    return paginate(rows, query.page, query.pageSize ?? DEFAULT_LIST_PAGE);
+  },
+
+  async saveInvoice(input: InvoiceInput): Promise<string> {
+    await delay();
+    // Mirrors the unique constraint on (merchant_id, period_start, period_end).
+    const clash = mockInvoices.find(
+      (i) =>
+        i.merchantId === input.merchantId &&
+        i.periodStart === input.periodStart &&
+        i.periodEnd === input.periodEnd &&
+        i.id !== input.id,
+    );
+    if (clash) throw new Error("that shop already has an invoice for this period");
+
+    const existing = input.id ? mockInvoices.find((i) => i.id === input.id) : undefined;
+    if (existing) {
+      existing.merchantId = input.merchantId;
+      existing.plan = input.plan;
+      existing.periodStart = input.periodStart;
+      existing.periodEnd = input.periodEnd;
+      existing.amountKes = input.amountKes;
+      existing.status = input.status ?? existing.status;
+      existing.dueOn = input.dueOn ?? null;
+      existing.note = input.note?.trim() || null;
+      if (existing.status === "sent" && !existing.issuedAt) {
+        existing.issuedAt = new Date().toISOString();
+      }
+      return existing.id;
+    }
+
+    const id = `invoice-${mockInvoices.length + 1}`;
+    mockInvoices.unshift({
+      id,
+      merchantId: input.merchantId,
+      plan: input.plan,
+      periodStart: input.periodStart,
+      periodEnd: input.periodEnd,
+      amountKes: input.amountKes,
+      status: input.status ?? "draft",
+      issuedAt: (input.status ?? "draft") === "sent" ? new Date().toISOString() : null,
+      dueOn: input.dueOn ?? null,
+      note: input.note?.trim() || null,
+      createdAt: new Date().toISOString(),
+    });
+    return id;
+  },
+
+  async deleteInvoice(id: string) {
+    await delay();
+    const i = mockInvoices.findIndex((inv) => inv.id === id);
+    if (i >= 0) mockInvoices.splice(i, 1);
+    // Cascade, the way the foreign key does.
+    for (let j = mockPayments.length - 1; j >= 0; j--) {
+      if (mockPayments[j].invoiceId === id) mockPayments.splice(j, 1);
+    }
+  },
+
+  async listPayments(query = {}): Promise<Paged<AdminPayment>> {
+    await delay();
+    const rows = [...mockPayments]
+      .sort((a, b) => b.paidAt.localeCompare(a.paidAt))
+      .flatMap((p) => {
+        const inv = mockInvoices.find((i) => i.id === p.invoiceId);
+        if (!inv) return [];
+        return [
+          {
+            id: p.id,
+            invoiceId: p.invoiceId,
+            merchantId: inv.merchantId,
+            shopName: merchant.name,
+            shopHandle: merchant.handle,
+            plan: inv.plan,
+            amountKes: p.amountKes,
+            method: p.method,
+            reference: p.reference,
+            paidAt: p.paidAt,
+            note: p.note,
+            periodStart: inv.periodStart,
+            periodEnd: inv.periodEnd,
+          },
+        ];
+      });
+    return paginate(rows, query.page, query.pageSize ?? 50);
+  },
+
+  async recordPayment(input: PaymentInput): Promise<string> {
+    await delay();
+    if (!mockInvoices.some((i) => i.id === input.invoiceId)) throw new Error("no such invoice");
+    if (input.amountKes <= 0) throw new Error("a payment needs an amount");
+    const id = `payment-${mockPayments.length + 1}`;
+    mockPayments.unshift({
+      id,
+      invoiceId: input.invoiceId,
+      amountKes: input.amountKes,
+      method: input.method ?? "mpesa",
+      reference: input.reference?.trim() || null,
+      paidAt: input.paidAt ?? new Date().toISOString(),
+      note: input.note?.trim() || null,
+    });
+    return id;
+  },
+
+  async deletePayment(id: string) {
+    await delay();
+    const i = mockPayments.findIndex((p) => p.id === id);
+    if (i >= 0) mockPayments.splice(i, 1);
+  },
+
+  async billingSummary(): Promise<BillingSummary> {
+    await delay();
+    const invoices = mockInvoices.map(toAdminInvoice);
+    const now = Date.now();
+    return {
+      outstandingKes: invoices
+        .filter((i) => i.status !== "void" && i.balanceKes > 0)
+        .reduce((n, i) => n + i.balanceKes, 0),
+      overdueCount: invoices.filter((i) => i.state === "overdue").length,
+      collected30dKes: mockPayments
+        .filter((p) => now - new Date(p.paidAt).getTime() <= 30 * 86_400_000)
+        .reduce((n, p) => n + p.amountKes, 0),
+      collectedAllKes: mockPayments.reduce((n, p) => n + p.amountKes, 0),
+      mrrKes: mockShops.reduce(
+        (n, s) => n + (s.plan === "boutique" ? 1950 : s.plan === "influencer" ? 6500 : 0),
+        0,
+      ),
+      invoiceCount: mockInvoices.length,
+      generatedAt: new Date().toISOString(),
+    };
+  },
+
+  /* --- Dashboard reads --------------------------------------------------- */
+
+  async topProducts(_days = 30, limit = 8): Promise<AdminTopProduct[]> {
+    await delay();
+    // The mock has no order_items, so this ranks by the sold-in-30-days figure
+    // the seeded products already carry. Same shape and same ordering rule.
+    return [...products]
+      .filter((p) => (p.soldLast30d ?? 0) > 0)
+      .sort((a, b) => (b.soldLast30d ?? 0) - (a.soldLast30d ?? 0))
+      .slice(0, limit)
+      .map((p) => ({
+        productId: p.id,
+        name: p.name,
+        image: p.images[0] ?? null,
+        shopName: merchant.name,
+        units: p.soldLast30d ?? 0,
+        revenueKes: (p.soldLast30d ?? 0) * minVariantPrice(p),
+        rating: p.rating,
+        reviewCount: p.reviewCount,
+      }));
+  },
+
+  async revenueSeries(days = 30): Promise<RevenuePoint[]> {
+    await delay();
+    // Gap-filled exactly as the RPC is: a quiet day is a zero, not a missing
+    // point, or the line draws a flat week as a climb.
+    return Array.from({ length: days }, (_, i) => {
+      const d = new Date();
+      d.setDate(d.getDate() - (days - 1 - i));
+      const orders = i % 5 === 0 ? 0 : ((i * 7) % 4) + 1;
+      return {
+        day: d.toISOString().slice(0, 10),
+        grossKes: orders * (4000 + ((i * 311) % 9000)),
+        orders,
+      };
+    });
+  },
+
+  async repeatCustomerRate(days = 90): Promise<RepeatCustomerRate> {
+    await delay();
+    return { trackedBuyers: 24, repeatBuyers: 9, ratePct: 38, days };
+  },
+
+  /* --- Platform settings ------------------------------------------------- */
+
+  async getSocialLinks(): Promise<SocialLinks> {
+    await delay();
+    return { ...mockSocialLinks };
+  },
+
+  async setSocialLinks(links: SocialLinks) {
+    await delay();
+    Object.assign(mockSocialLinks, links);
   },
 };
 
