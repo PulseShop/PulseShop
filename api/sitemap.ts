@@ -165,6 +165,11 @@ async function handler(request: Request): Promise<Response> {
         [
           urlEntry(`${origin}/`, today),
           urlEntry(`${origin}/shops`, today),
+          // The seller pitch. welcomeSeo() has marked it indexable since it
+          // moved off "/", but it was never listed here — so the one page on
+          // the site aimed at the people who sign up was the one page with no
+          // discovery path other than the nav.
+          urlEntry(`${origin}/welcome`, today),
           urlEntry(`${origin}/prices`, today),
           urlEntry(`${origin}/about`, today),
           urlEntry(`${origin}/faq`, today),

@@ -26,6 +26,17 @@ const seoOut = path.join(apiDir, "_seo.ts");
 
 export const MARKER = "<!--PULSESHOP_SEO-->";
 
+/**
+ * Where api/render.ts injects prerendered page content.
+ *
+ * Inside #root, not beside it. main.tsx mounts with createRoot().render(),
+ * which clears the container's children on its first commit — so anything put
+ * here is shown to a crawler and to a human waiting on the bundle, and is then
+ * removed by React itself with no cleanup code and no chance of it lingering
+ * behind the real UI.
+ */
+export const BODY_MARKER = "<!--PULSESHOP_BODY-->";
+
 let html = readFileSync(distIndex, "utf8");
 
 const before = html;
@@ -54,6 +65,19 @@ if (!/<script[^>]+src="\/assets\/[^"]+\.js"/.test(html)) {
   throw new Error("emit-shell: dist/index.html has no hashed /assets entry script.");
 }
 
+// The prerender insertion point. Asserted rather than pattern-matched for the
+// same reason as MARKER: one exact literal that either survives Vite's
+// transform or fails the build here, instead of a regex discovering at runtime
+// that the container is now <div id="root" class="...">.
+const ROOT = '<div id="root"></div>';
+if (!html.includes(ROOT)) {
+  throw new Error(
+    `emit-shell: dist/index.html has no exact \`${ROOT}\` — the mount point changed, ` +
+      "and api/render.ts would ship pages with no crawlable content.",
+  );
+}
+html = html.replace(ROOT, `<div id="root">${BODY_MARKER}</div>`);
+
 mkdirSync(path.dirname(outFile), { recursive: true });
 writeFileSync(
   outFile,
@@ -62,6 +86,7 @@ writeFileSync(
 // match the deployed bundle.
 /* eslint-disable */
 export const SHELL_MARKER = ${JSON.stringify(MARKER)};
+export const SHELL_BODY_MARKER = ${JSON.stringify(BODY_MARKER)};
 export const SHELL_BUILT_AT = ${JSON.stringify(new Date().toISOString())};
 export const SHELL = ${JSON.stringify(html)};
 `,

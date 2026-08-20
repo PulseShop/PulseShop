@@ -105,7 +105,9 @@ export function truncate(text: string, max: number): string {
   return `${(lastSpace > max * 0.6 ? cut.slice(0, lastSpace) : cut).trimEnd()}…`;
 }
 
-const formatKes = (amount: number) => `${CURRENCY} ${Math.round(amount).toLocaleString("en-KE")}`;
+/** Exported so the prerenderer prices its grid identically to the title text. */
+export const formatKes = (amount: number) =>
+  `${CURRENCY} ${Math.round(amount).toLocaleString("en-KE")}`;
 
 /**
  * `<lead> | <detail> | PulseShop`, with the detail sacrificed before the lead.
@@ -134,6 +136,23 @@ function composeTitle(lead: string, detail: string): string {
 // Shapes — mirror the seo_shop() / seo_product() RPC payloads (migration 0028)
 // ---------------------------------------------------------------------------
 
+/**
+ * One row of a storefront's product list, as `seo_shop` returns it (migration
+ * 0055).
+ *
+ * Deliberately thinner than SeoProduct: this shape exists to build a linked
+ * grid and an ItemList, not a product page, so it carries only what a card
+ * shows. Anything more would be paid for on every crawler request to the shop.
+ */
+export interface SeoShopProduct {
+  name: string;
+  slug: string;
+  price: number;
+  image: string;
+  imageAlt: string;
+  inStock: boolean;
+}
+
 export interface SeoShop {
   name: string;
   handle: string;
@@ -145,6 +164,13 @@ export interface SeoShop {
   bannerUrl: string;
   productCount: number;
   categories: string[];
+  /**
+   * Up to 24 of the shop's products, newest first (migration 0055). Optional
+   * because a deployment can outlive the migration by a few minutes and a
+   * missing key must degrade to "no product list", not to a crash on a page
+   * every crawler is fetching.
+   */
+  products?: SeoShopProduct[];
   updatedAt?: string;
 }
 
@@ -166,6 +192,16 @@ export interface SeoProduct {
   minPrice: number;
   maxPrice: number;
   inStock: boolean;
+  /**
+   * Verified-buyer rating and its sample size (migration 0055). Both optional
+   * for the same deploy-ordering reason as SeoShop.products, and `rating` is
+   * meaningless unless `reviewCount` is above zero — productSeo() gates on the
+   * count, never on the rating.
+   */
+  rating?: number;
+  reviewCount?: number;
+  /** Phone listings only (0037 specs). Blank on everything else. */
+  condition?: string;
   shopName: string;
   shopHandle: string;
   shopLocation: string;
@@ -187,6 +223,17 @@ export interface PageSeo {
   robots: boolean;
   /** OG type — "website" for listings, "product" for a product page. */
   ogType: string;
+  /**
+   * The image this page's LCP is almost certainly going to be, preloaded in
+   * <head> so the browser starts fetching it during HTML parse instead of after
+   * the prerendered markup below has been laid out.
+   *
+   * Server-only, and renderHead() is the only thing that emits it. applySeo()
+   * ignores it on purpose: after a client-side navigation the image request is
+   * already in flight by the time React commits, so a preload link would be a
+   * duplicate fetch hint arriving too late to move anything.
+   */
+  preloadImage?: string;
   jsonLd: unknown[];
 }
 
@@ -227,6 +274,29 @@ export const isValidSlug = (s: string | undefined | null): s is string =>
 
 const DEFAULT_IMAGE = "/icons/icon-512.png";
 
+/**
+ * PulseShop's phone conditions (lib/productSpecs.ts) mapped onto the four
+ * schema.org OfferItemCondition values.
+ *
+ * The mapping is lossy in one direction on purpose. "mint", "good" and "fair"
+ * all collapse to UsedCondition because schema.org has no grades between used
+ * and refurbished, and picking RefurbishedCondition for "mint" would assert
+ * that someone professionally reconditioned the handset. "salvage" is a phone
+ * that needs service, which is what DamagedCondition means.
+ *
+ * Anything not in this table — every non-phone listing, since only phones carry
+ * a condition — yields no itemCondition at all rather than a guessed
+ * NewCondition. An unstated condition is honest; a wrong one is a misdescribed
+ * good in a shopping result.
+ */
+const CONDITION_SCHEMA: Record<string, string> = {
+  new: "https://schema.org/NewCondition",
+  mint: "https://schema.org/UsedCondition",
+  good: "https://schema.org/UsedCondition",
+  fair: "https://schema.org/UsedCondition",
+  salvage: "https://schema.org/DamagedCondition",
+};
+
 export function homeSeo(origin: string): PageSeo {
   return {
     title: `${SITE_NAME} | Buy from local shops on WhatsApp`,
@@ -242,6 +312,38 @@ export function homeSeo(origin: string): PageSeo {
         "@type": "WebSite",
         name: SITE_NAME,
         url: `${origin}/`,
+        // The sitelinks search box. Google only ever renders one for a site it
+        // already ranks for its own brand, so this is not a shortcut to that —
+        // it is what makes the box point at PulseShop's own search rather than
+        // Google's when the day comes.
+        potentialAction: {
+          "@type": "SearchAction",
+          target: {
+            "@type": "EntryPoint",
+            urlTemplate: `${origin}/?search={search_term_string}`,
+          },
+          "query-input": "required name=search_term_string",
+        },
+      },
+      /**
+       * The entity behind the domain, as distinct from the WebSite above.
+       *
+       * This is what a brand SERP and a knowledge panel are assembled from, and
+       * it is the one place a marketplace can state who it is rather than
+       * leaving Google to infer it from a .space TLD with no history. `sameAs`
+       * is the corroboration: profiles Google can independently check against
+       * each other. Only add a URL here that PulseShop actually controls — an
+       * unreachable or wrong one weakens the whole block rather than padding it.
+       */
+      {
+        "@context": "https://schema.org",
+        "@type": "Organization",
+        name: SITE_NAME,
+        url: `${origin}/`,
+        logo: `${origin}/icons/icon-512.png`,
+        description:
+          "A hosted storefront for independent Kenyan sellers, linked from the social posts they already make.",
+        areaServed: { "@type": "Country", name: "Kenya" },
       },
     ],
   };
@@ -422,6 +524,7 @@ export function privateSeo(): PageSeo {
 
 export function shopSeo(shop: SeoShop, origin: string): PageSeo {
   const url = origin + shopPath(shop.handle);
+  const products = shopProducts(shop);
 
   // What the shop is, in the seller's words if they gave us any, else derived
   // from what they actually stock.
@@ -447,6 +550,10 @@ export function shopSeo(shop: SeoShop, origin: string): PageSeo {
     image: absolute(origin, shop.bannerUrl || shop.avatarUrl || DEFAULT_IMAGE),
     robots: true,
     ogType: "website",
+    // The banner if there is one, else the avatar — the same order the
+    // storefront paints them in, and the same order that decides which of the
+    // two is the LCP element.
+    preloadImage: absolute(origin, shop.bannerUrl || shop.avatarUrl || ""),
     jsonLd: [
       {
         "@context": "https://schema.org",
@@ -472,8 +579,42 @@ export function shopSeo(shop: SeoShop, origin: string): PageSeo {
         { name: "Shops", path: "/shops" },
         { name: shop.name, path: shopPath(shop.handle) },
       ]),
+      // No aggregateRating on the Store, even though merchants carry one.
+      // Google has ignored self-serving reviews on Organization and
+      // LocalBusiness since 2019 — a business rating itself is not a signal —
+      // so it would buy nothing and put an unverifiable claim in the markup.
+      // Product ratings, which come from verified buyers, are the ones that
+      // count and they live on the product pages.
+      ...(products.length
+        ? [
+            {
+              "@context": "https://schema.org",
+              "@type": "ItemList",
+              name: `Products from ${shop.name}`,
+              numberOfItems: products.length,
+              itemListElement: products.map((p, i) => ({
+                "@type": "ListItem",
+                position: i + 1,
+                url: origin + productPath(shop.handle, p.slug),
+                name: plain(p.name),
+              })),
+            },
+          ]
+        : []),
     ],
   };
+}
+
+/**
+ * The shop's products, filtered to the ones that can actually be linked.
+ *
+ * A row whose slug does not match SEO_SLUG_RE cannot appear in a URL this
+ * module is willing to emit, and a broken href in an ItemList is worse than a
+ * shorter list. Shared by shopSeo() and the prerenderer so the JSON-LD and the
+ * visible grid can never list different products.
+ */
+export function shopProducts(shop: SeoShop): SeoShopProduct[] {
+  return (shop.products ?? []).filter((p) => p && isValidSlug(p.slug) && plain(p.name));
 }
 
 export function productSeo(product: SeoProduct, origin: string): PageSeo {
@@ -495,6 +636,15 @@ export function productSeo(product: SeoProduct, origin: string): PageSeo {
     );
 
   const images = product.images.map((i) => absolute(origin, i)).filter(Boolean);
+
+  // Clamped rather than trusted. `rating` is a numeric(2,1) with a 0..5 CHECK
+  // and `review_count` a non-negative integer, so these can only fire if a
+  // future migration relaxes one of those — but an out-of-range ratingValue
+  // invalidates the whole Product block, taking the price and availability down
+  // with the stars, so it is not a failure worth inheriting.
+  const reviewCount = Math.max(0, Math.trunc(Number(product.reviewCount) || 0));
+  const rating = Math.min(5, Math.max(1, Number(product.rating) || 0));
+  const condition = CONDITION_SCHEMA[plain(product.condition).toLowerCase()] ?? "";
   // The share card shows images[0], so its alt is the one that matters here.
   // Falls back to the product name rather than going blank: a card whose image
   // announces nothing is worse for a screen reader than a slightly generic one.
@@ -526,6 +676,11 @@ export function productSeo(product: SeoProduct, origin: string): PageSeo {
     imageAlt,
     robots: true,
     ogType: "product",
+    // The gallery's first photo is the product page's LCP element in every
+    // layout, so it is worth the head start. Not the DEFAULT_IMAGE fallback:
+    // preloading the app icon would spend the hint on something that never
+    // becomes the LCP.
+    preloadImage: images[0] || "",
     jsonLd: [
       {
         "@context": "https://schema.org",
@@ -536,14 +691,36 @@ export function productSeo(product: SeoProduct, origin: string): PageSeo {
         ...(product.sku ? { sku: product.sku } : {}),
         ...(product.category ? { category: product.category } : {}),
         brand: { "@type": "Brand", name: product.shopName },
+        ...(condition ? { itemCondition: condition } : {}),
         offers: {
           ...offer,
           seller: { "@type": "Organization", name: product.shopName },
         },
-        // No aggregateRating. The reviews table exists but nothing writes to
-        // it, so every product would advertise 0 reviews — and inventing the
-        // field to win a star rating in the results is exactly what earns a
-        // manual action. It goes in when reviews are real.
+        // Present only when there is something real to report. 0028 left this
+        // out because nothing wrote to the reviews table; services/api/reviews.ts
+        // does now, and only a verified buyer can write a row, so these are
+        // genuine. The `reviewCount > 0` gate is the load-bearing part —
+        // emitting a 0-review rating to win a star in the results is exactly
+        // what earns a manual action, and a product nobody has reviewed yet
+        // must advertise nothing at all.
+        ...(reviewCount > 0
+          ? {
+              aggregateRating: {
+                "@type": "AggregateRating",
+                ratingValue: Number(rating.toFixed(1)),
+                reviewCount,
+                bestRating: 5,
+                worstRating: 1,
+              },
+            }
+          : {}),
+        // NOT emitted, deliberately: priceValidUntil, shippingDetails and
+        // hasMerchantReturnPolicy. Google flags all three as missing, but each
+        // is a promise made to a buyer on the seller's behalf — a delivery cost,
+        // a returns window, a date this price stops applying — and PulseShop
+        // stores none of them. Filling them with plausible defaults would be
+        // publishing terms no seller agreed to. They go in when the seller
+        // settings that hold them exist.
       },
       breadcrumbs(origin, [
         { name: "Shops", path: "/shops" },
@@ -595,6 +772,12 @@ export function renderHead(seo: PageSeo): string {
     }
   } else {
     tags.push(`<meta name="robots" content="noindex, nofollow" ${SEO_MANAGED} />`);
+  }
+
+  if (seo.preloadImage) {
+    tags.push(
+      `<link rel="preload" as="image" href="${escapeHtml(seo.preloadImage)}" fetchpriority="high" ${SEO_MANAGED} />`,
+    );
   }
 
   tags.push(meta("property", "og:site_name", SITE_NAME));
