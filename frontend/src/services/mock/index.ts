@@ -16,6 +16,7 @@ import type {
   BannerProduct,
   CartItem,
   CartOrderDraft,
+  CategoryShowcase,
   DiscountCode,
   DiscountPreview,
   FollowerSeries,
@@ -1511,6 +1512,37 @@ export const mockServices: Services = {
         low: products.filter((p) => p.status === "low").length,
         out: products.filter((p) => p.status === "out").length,
       };
+    },
+
+    /**
+     * The category wall's tiles, in memory (migration 0057).
+     *
+     * The real RPC rotates the cover hourly so no single shop owns a category's
+     * picture; the mock has one shop, so there is nothing to be fair between
+     * and it simply takes the first sellable product in each category. The
+     * shape and the ordering contract — busiest category first — are the same,
+     * which is all the page depends on.
+     */
+    async listCategoryShowcase(limit = 60): Promise<CategoryShowcase[]> {
+      await delay();
+      const byCategory = new Map<string, Product[]>();
+      for (const p of products) {
+        if (p.status === "out" || p.images.length === 0) continue;
+        const key = p.category.trim();
+        if (!key) continue;
+        const bucket = byCategory.get(key);
+        if (bucket) bucket.push(p);
+        else byCategory.set(key, [p]);
+      }
+      return [...byCategory.entries()]
+        .map(([category, items]) => ({
+          category,
+          productCount: items.length,
+          image: items[0].images[0],
+          imageAlt: items[0].imageAlts?.[0]?.trim() || undefined,
+        }))
+        .sort((a, b) => b.productCount - a.productCount || a.category.localeCompare(b.category))
+        .slice(0, limit);
     },
 
     /** Mirrors the real upsert: SKU is identity, and a rename keeps the

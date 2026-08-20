@@ -429,6 +429,28 @@ export interface ShopFacets {
   out: number;
 }
 
+/**
+ * One leaf category, as the front page's category wall draws it (migration
+ * 0057): a picture, a name and how many products are behind it.
+ *
+ * `productCount` is an aggregate over the WHOLE catalogue, not over a fetched
+ * page, which is the entire reason this comes from its own RPC rather than
+ * being grouped out of a product list on the client. It counts the same
+ * eligible set the cover was drawn from — in-stock, photographed, from a shop
+ * that is not closing — so the number under a tile and the shelf it leads to
+ * agree.
+ */
+export interface CategoryShowcase {
+  /** The leaf category name, matching the taxonomy in lib/constants.ts. */
+  category: string;
+  productCount: number;
+  /** First image of the product currently representing the category. Rotates
+   * hourly server-side so one seller's photo cannot own a category tile. */
+  image: string;
+  /** The cover product's alt text, when its seller wrote one. */
+  imageAlt?: string;
+}
+
 /** The merchant analytics dashboard, computed server-side by merchant_analytics(). */
 export interface Analytics {
   revenue: number;

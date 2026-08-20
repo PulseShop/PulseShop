@@ -17,6 +17,7 @@ import type {
   BannerProduct,
   CartItem,
   CartOrderDraft,
+  CategoryShowcase,
   DiscountCode,
   DiscountPreview,
   FollowerSeries,
@@ -316,6 +317,17 @@ export interface ProductService {
    * Omit `merchantId` for the WHOLE marketplace (every shop); pass one for a
    * single shop's catalogue. */
   getFacets(merchantId?: string | null): Promise<ShopFacets>;
+  /**
+   * Public: a cover image and a product count for every category that has
+   * something to sell (migration 0057) — what the front page's category wall
+   * draws its tiles from.
+   *
+   * Distinct from getFacets(), which returns category NAMES for a filter
+   * control. This returns categories as merchandise: a picture, and an honest
+   * count taken over the whole table rather than over whichever page of
+   * products the client happened to fetch.
+   */
+  listCategoryShowcase(limit?: number): Promise<CategoryShowcase[]>;
   /**
    * Bulk create-or-update from an uploaded CSV, keyed on SKU: a row whose SKU
    * this shop already has updates that product, a new one creates it.

@@ -1,4 +1,11 @@
-import type { BannerProduct, Merchant, Paged, Product, ShopFacets } from "@/types";
+import type {
+  BannerProduct,
+  CategoryShowcase,
+  Merchant,
+  Paged,
+  Product,
+  ShopFacets,
+} from "@/types";
 import { MAX_IMPORT_ROWS, type ProductCsvInput } from "@/lib/productCsv";
 import type {
   ProductExportEmailResult,
@@ -80,6 +87,14 @@ type FeatureRow = ProductRow & { shop_handle: string | null; shop_name: string |
 /** A row from list_banner_placements() (0048): a FeatureRow plus the two
  * columns that belong to the placement rather than to the product. */
 type PlacementRow = FeatureRow & { placement_id: string; headline: string | null };
+
+/** A row from list_category_showcase() (0057). */
+type CategoryShowcaseRow = {
+  category: string;
+  product_count: number;
+  image: string | null;
+  image_alt: string | null;
+};
 
 function toPagedProducts(rows: SearchRow[]): Paged<Product> {
   return {
@@ -424,5 +439,26 @@ export const productsApi: ProductService = {
       low: Number(f.low ?? 0),
       out: Number(f.out ?? 0),
     };
+  },
+
+  /**
+   * The category wall's tiles (migration 0057).
+   *
+   * Rows with no image are dropped rather than rendered as an empty frame: the
+   * RPC already filters to photographed products, so this only fires if a
+   * seller's image URL is null in a way the query could not see, and a tile
+   * whose whole job is to be a picture is worse than no tile.
+   */
+  async listCategoryShowcase(limit = 60): Promise<CategoryShowcase[]> {
+    const { data, error } = await supabase.rpc("list_category_showcase", { p_limit: limit });
+    if (error) throw error;
+    return ((data ?? []) as CategoryShowcaseRow[])
+      .filter((row) => Boolean(row.image))
+      .map((row) => ({
+        category: row.category,
+        productCount: Number(row.product_count ?? 0),
+        image: row.image!,
+        imageAlt: row.image_alt ?? undefined,
+      }));
   },
 };

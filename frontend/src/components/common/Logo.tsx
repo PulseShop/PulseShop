@@ -1,11 +1,17 @@
 import { Link } from "react-router";
 import { cn } from "@/lib/utils";
 
-/* Served from public/ rather than imported from src/assets: it is the same file
-   the PWA icon set is generated from (scripts/generate-icons.mjs), and one copy
-   that both the build and the icon script read is one fewer thing to keep in
-   sync. Precached by the service worker like every other png under public/. */
-const logoUrl = "/icons/main_logo.png";
+/* Served from public/ rather than imported from src/assets: these are the same
+   files the PWA icon set is generated from (scripts/generate-icons.mjs), and one
+   copy that both the build and the icon script read is one fewer thing to keep
+   in sync. Precached by the service worker like every other png under public/.
+
+   THE 192px RASTER, NOT THE 1024px MASTER. Both are the same artwork, and the
+   mark is never drawn larger than 44px anywhere in the app — so main_logo.png
+   was shipping roughly a megapixel of detail to paint a 36px square, on the
+   masthead of every page, ahead of the first product photo. 192 still covers a
+   44px mark at 4x device pixel ratio with room to spare. */
+const logoUrl = "/icons/icon-192.png";
 
 type LogoProps = {
   size?: number;

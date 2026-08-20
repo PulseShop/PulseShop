@@ -11,6 +11,7 @@ import {
   Gamepad2,
   Gem,
   Headphones,
+  Heart,
   LayoutGrid,
   Laptop,
   List,
@@ -33,12 +34,13 @@ import {
 } from "lucide-react";
 import type { LucideIcon } from "lucide-react";
 import { useEffect, useMemo, useRef, useState } from "react";
-import { Link, useSearchParams } from "react-router";
+import { Link, NavLink, useSearchParams } from "react-router";
 import { MobileShell } from "@/components/layout/MobileShell";
 import { LogoLink } from "@/components/common/Logo";
 import { DesktopQuickNav } from "@/components/layout/DesktopQuickNav";
 import { SiteFooter } from "@/components/layout/SiteFooter";
 import { BrowsingHistoryRail } from "@/components/product/BrowsingHistoryRail";
+import { CategoryWall } from "@/components/product/CategoryWall";
 import { ProductCard } from "@/components/product/ProductCard";
 import { ProductImage } from "@/components/product/ProductImage";
 import { PriceRangeFilter } from "@/components/product/PriceRangeFilter";
@@ -54,6 +56,7 @@ import { homeSeo } from "@/lib/seo";
 import { cn } from "@/lib/utils";
 import { services } from "@/services";
 import { lastViewed, useBrowsingHistory } from "@/stores/browsingHistory";
+import { useFavorites } from "@/stores/favorites";
 import type { ViewedProduct } from "@/stores/browsingHistory";
 import type { BannerProduct, Merchant, Product } from "@/types";
 
@@ -262,6 +265,20 @@ export function MarketplacePage() {
     queryFn: () => services.follows.listShops({ pageSize: 8 }),
   });
 
+  /**
+   * The category wall's tiles (migration 0057).
+   *
+   * Its own query, like the two banner halves above and for the same reason: a
+   * failure here must not blank the products underneath it. CategoryWall
+   * renders nothing at all when this comes back empty or errored, so an
+   * unapplied migration degrades to the page as it was rather than to an error
+   * screen over the whole marketplace.
+   */
+  const showcaseQ = useQuery({
+    queryKey: ["category-showcase"],
+    queryFn: () => services.products.listCategoryShowcase(),
+  });
+
   /* ----------------------------------------------------------------------- *
    * Search: the match first, then what surrounds it.
    *
@@ -423,9 +440,28 @@ export function MarketplacePage() {
 
   return (
     <MobileShell homeTo="/" wide>
+      {/*
+        THE MASTHEAD, AND WHY THE TWO WIDTHS CARRY DIFFERENT SETS.
+
+        On a phone the row is exactly four things: the logo (home), the search
+        field, wishlist, account. It is short because it can be — Home, Shops
+        and Cart are already permanent tabs in the bottom bar three inches
+        below, so putting them up here too spends the narrowest strip on the
+        site restating controls the shopper can already see.
+
+        Wishlist is the exception that earns its place. It is a tab down there
+        as well, but it is the one control shoppers reach for mid-browse while
+        their thumb is at the top of a scrolled page, and its badge is the only
+        thing in the row that carries a changing number.
+
+        On desktop the bottom bar does not exist (BottomNav is lg:hidden), so
+        the same trim would leave Cart with nowhere to live and strand a
+        shopper's basket. The full icon row stays there for that reason, not
+        for symmetry.
+      */}
       <header className="glass-header sticky top-0 z-30 px-4 py-3 lg:px-6">
         <div className="flex items-center justify-between gap-3">
-          <LogoLink size={30} wordmark />
+          <LogoLink size={32} wordmark />
           <div className="hidden min-w-0 flex-1 lg:block lg:max-w-md">
             <SearchField value={search} onChange={setSearch} />
           </div>
@@ -435,8 +471,20 @@ export function MarketplacePage() {
               for. It renders active here rather than being hidden. */}
           <DesktopQuickNav />
         </div>
-        <div className="mt-2.5 lg:hidden">
-          <SearchField value={search} onChange={setSearch} />
+
+        {/* Phone: search and wishlist share the second line.
+            The row used to be search alone; the wishlist icon joins it as the
+            one destination worth reaching without scrolling back to a tab bar,
+            because it is where a shopper parks things mid-browse and the only
+            control up here carrying a number that changes as they do it.
+            Cart, Shops and Home are NOT here — they are permanent tabs three
+            inches below, and restating them would spend the narrowest strip on
+            the site on controls already in view. */}
+        <div className="mt-2.5 flex items-center gap-2 lg:hidden">
+          <div className="min-w-0 flex-1">
+            <SearchField value={search} onChange={setSearch} />
+          </div>
+          <WishlistButton />
         </div>
       </header>
 
@@ -491,8 +539,38 @@ export function MarketplacePage() {
           </div>
         )}
 
+        {/* THE SHOPS, EXPANDED, ON PHONES.
+            The bento column that carries "Explore shops" is desktop-only,
+            which left the phone layout with the collage above — four
+            photographs and one shop's name — as the entire answer to "who
+            sells here". The collage shows MERCHANDISE; this shows SELLERS, and
+            they are different questions. A rail rather than the desktop card's
+            vertical list because horizontal is the shape that fits eight shops
+            into a phone's width without pushing the catalogue down a screen. */}
+        {!isSearching && (
+          <ShopsRail
+            shops={shopsQ.data?.items ?? []}
+            loading={shopsQ.isLoading}
+            className="mt-5 lg:hidden"
+          />
+        )}
+
         {!isSearching && (
           <ShopFeatureStrip items={railItems} loading={featuresQ.isLoading} className="mt-5" />
+        )}
+
+        {/* The taxonomy as merchandise. Sits between the browsing panels and
+            the catalogue because that is what it is for: the bento says "look
+            at this", the grid below says "find me that", and this is the step
+            in between — what is sold here at all. Hidden while searching for
+            the same reason the bento is: a shopper who typed a query has
+            already answered the question this section asks. */}
+        {!isSearching && (
+          <CategoryWall
+            entries={showcaseQ.data ?? []}
+            loading={showcaseQ.isLoading}
+            className="mt-6 lg:mt-8"
+          />
         )}
 
         {/* Filters left, grid right — the storefront already put its filters on
@@ -1457,6 +1535,121 @@ function ShopsCard({ shops, loading }: { shops: Merchant[]; loading: boolean }) 
             ))}
       </div>
     </section>
+  );
+}
+
+/**
+ * The same shops as ShopsCard, laid out for a phone.
+ *
+ * Two components rather than one responsive one because the two layouts share
+ * no structure: the card is a vertical list of rows inside a bento panel, this
+ * is a horizontally scrolling rail of avatar-over-name tiles. Trying to express
+ * both as one component means a wrapper full of `lg:` reversals around every
+ * element, which is harder to read than the two plain versions and reliably
+ * produces a layout that is wrong at one width or the other.
+ *
+ * It shows more shops than the desktop card does (eight against five) because
+ * a rail is not competing for vertical space with anything — scrolling
+ * sideways costs the page nothing, where a sixth row in the bento column would
+ * push the whole right-hand stack taller.
+ */
+function ShopsRail({
+  shops,
+  loading,
+  className,
+}: {
+  shops: Merchant[];
+  loading: boolean;
+  className?: string;
+}) {
+  if (!loading && shops.length === 0) return null;
+
+  return (
+    <section aria-label="Shops on PulseShop" className={className}>
+      <div className="mb-2.5 flex items-center justify-between gap-2">
+        <h2 className="flex items-center gap-1.5 text-sm font-bold text-ink">
+          <Store className="size-4 text-primary" aria-hidden />
+          Explore shops
+        </h2>
+        <Link to="/shops" className="text-xs font-semibold text-primary hover:underline">
+          See all
+        </Link>
+      </div>
+
+      {/* Bleeds to the screen edges so the last tile is visibly cut off rather
+          than ending flush with the margin — the cue that tells a thumb there
+          is more to the right. */}
+      <div className="no-scrollbar -mx-4 flex gap-3 overflow-x-auto px-4">
+        {loading
+          ? Array.from({ length: 5 }).map((_, i) => (
+              <div key={i} className="flex w-16 shrink-0 flex-col items-center gap-1.5">
+                <Skeleton className="size-14 rounded-full" />
+                <Skeleton className="h-3 w-12 rounded" />
+              </div>
+            ))
+          : shops.slice(0, 8).map((shop) => (
+              <Link
+                key={shop.id}
+                to={`/${shop.handle}`}
+                className="flex w-16 shrink-0 flex-col items-center gap-1.5 text-center"
+              >
+                {shop.avatarUrl ? (
+                  <img
+                    src={shop.avatarUrl}
+                    alt=""
+                    loading="lazy"
+                    className="size-14 rounded-full object-cover ring-1 ring-line-soft"
+                  />
+                ) : (
+                  <span className="flex size-14 items-center justify-center rounded-full bg-primary/10">
+                    <Store className="size-5 text-primary" aria-hidden />
+                  </span>
+                )}
+                <span className="line-clamp-2 text-[11px] font-semibold leading-tight text-ink">
+                  {shop.name}
+                </span>
+              </Link>
+            ))}
+      </div>
+    </section>
+  );
+}
+
+/**
+ * The wishlist, as a phone-sized control in the masthead.
+ *
+ * Not a duplicate of the Favorites tab so much as a shortcut to it from where
+ * the thumb already is. The tab bar is the permanent home for the destination;
+ * this is the one that stays reachable while the shopper is head-down in the
+ * category wall, and it carries the count so "did that save?" is answerable
+ * without navigating.
+ *
+ * Deliberately NOT wired through DesktopQuickNav: that component's icon row is
+ * lg-only by design, and forcing it to render one of its four icons on a phone
+ * would make it two components pretending to be one.
+ */
+function WishlistButton() {
+  const count = useFavorites((s) => s.favorites.length);
+
+  return (
+    <NavLink
+      to="/favorites"
+      aria-label={count > 0 ? `Wishlist, ${count} saved` : "Wishlist"}
+      className={({ isActive }) =>
+        cn(
+          "relative flex size-11 shrink-0 items-center justify-center rounded-full border transition-colors",
+          "focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary",
+          isActive ? "border-primary/40 bg-primary/10 text-primary" : "border-line bg-card text-ink",
+        )
+      }
+    >
+      <Heart className="size-5" />
+      {count > 0 && (
+        <span className="absolute -right-0.5 -top-0.5 flex h-4 min-w-4 items-center justify-center rounded-full bg-favorite px-1 text-[10px] font-bold text-white ring-2 ring-card">
+          {count}
+        </span>
+      )}
+    </NavLink>
   );
 }
 
