@@ -8,6 +8,36 @@ export default defineConfig({
   resolve: {
     alias: { "@": path.resolve(__dirname, "src") },
   },
+  build: {
+    rollupOptions: {
+      output: {
+        /**
+         * Split the dependencies that never change from the app code that
+         * changes on every deploy.
+         *
+         * Without this the whole app is one hashed file, so shipping a copy
+         * tweak invalidates React, React Query, Supabase and Radix along with
+         * it — a returning shopper re-downloads ~200 KB of libraries that did
+         * not move. These three groups have their own release cadence and are
+         * big enough to be worth a separate cache entry each.
+         *
+         * Route-level splitting (React.lazy in main.tsx) is the other half and
+         * does the heavier lifting; this is about repeat visits rather than
+         * first loads.
+         */
+        manualChunks: {
+          react: ["react", "react-dom", "react-router"],
+          data: ["@tanstack/react-query", "@supabase/supabase-js", "zustand"],
+          ui: [
+            "@radix-ui/react-dialog",
+            "@radix-ui/react-popover",
+            "@radix-ui/react-select",
+            "@radix-ui/react-tooltip",
+          ],
+        },
+      },
+    },
+  },
   plugins: [
     react(),
     tailwindcss(),
