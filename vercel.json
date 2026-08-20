@@ -12,6 +12,7 @@
   "rewrites": [
     { "source": "/sitemap.xml", "destination": "/api/sitemap" },
     { "source": "/sitemap-static.xml", "destination": "/api/sitemap?kind=static" },
+    { "source": "/sitemap-categories.xml", "destination": "/api/sitemap?kind=categories" },
     {
       "source": "/sitemap-shops-:page(\\d+).xml",
       "destination": "/api/sitemap?kind=shops&page=:page"

@@ -271,12 +271,31 @@ export function StorefrontPage() {
    * that `/{handle}` owns. Two URLs asserting the same canonical is how a page
    * gets dropped from the index.
    */
+  /**
+   * The product list only goes into the tags on an UNFILTERED view.
+   *
+   * shopSeo() turns it into an ItemList, and the canonical URL of a filtered or
+   * searched storefront is still the bare `/{handle}` — so listing the four
+   * products that survived a colour filter would be describing one page with
+   * another page's contents. An unfiltered view is the one the server rendered
+   * and the one the canonical points at, and it is the only one whose grid can
+   * honestly stand in for the shop.
+   */
+  const unfiltered = activeFilterCount === 0 && !search.trim() && category === "All";
+
   useSeo(
     useMemo(
       () => (isPublic && merchant
-          ? shopSeo(seoShopFrom(merchant, facetsQ.data?.categories ?? []), window.location.origin)
+          ? shopSeo(
+              seoShopFrom(
+                merchant,
+                facetsQ.data?.categories ?? [],
+                unfiltered ? filtered : [],
+              ),
+              window.location.origin,
+            )
           : null),
-      [isPublic, merchant, facetsQ.data?.categories],
+      [isPublic, merchant, facetsQ.data?.categories, unfiltered, filtered],
     ),
   );
 

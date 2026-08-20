@@ -211,6 +211,38 @@ export interface SeoProduct {
   updatedAt?: string;
 }
 
+/** A product as `seo_category` returns it — a shop-grid card plus its shop. */
+export interface SeoCategoryProduct extends SeoShopProduct {
+  shopName: string;
+  shopHandle: string;
+}
+
+/** Shape of the `seo_category` RPC payload (migration 0056). */
+export interface SeoCategory {
+  name: string;
+  slug: string;
+  productCount: number;
+  shopCount: number;
+  shops: { name: string; handle: string; location: string; count: number }[];
+  products: SeoCategoryProduct[];
+}
+
+/**
+ * How much stock a category needs before it is worth indexing.
+ *
+ * The number is a judgement, not a rule from anywhere: below it, a category
+ * page is a heading over one or two products that the product pages themselves
+ * cover better. Google files pages like that as "crawled, currently not
+ * indexed", and a domain that ships thirty of them at once looks like it is
+ * generating doorways. Under the threshold the page still WORKS — a shopper who
+ * filters into it sees their products — it simply carries noindex until sellers
+ * have filled it.
+ *
+ * Passed to seo_sitemap_categories rather than duplicated in SQL, so the
+ * sitemap can never advertise a URL the renderer will answer with noindex.
+ */
+export const CATEGORY_MIN_PRODUCTS = 3;
+
 /** What a page contributes to <head>. `robots` false means noindex. */
 export interface PageSeo {
   title: string;
@@ -246,6 +278,23 @@ export interface PageSeo {
 
 export const shopPath = (handle: string) => `/${handle}`;
 export const productPath = (handle: string, slug: string) => `/${handle}/${slug}`;
+export const categoryPath = (slug: string) => `/category/${slug}`;
+
+/**
+ * Slugify, in the one form both sides of the wire have to agree on.
+ *
+ * Identical to slugify() in lib/slug.ts, and duplicated rather than imported
+ * because this module is copied into the serverless bundle and must stay
+ * dependency-free. It also has a third implementation, category_slug() in
+ * migration 0056, which resolves the URL this one builds. All three are the
+ * same three steps: lowercase, every run of non-alphanumerics to a dash,
+ * dashes trimmed off both ends.
+ */
+export const categorySlug = (category: string) =>
+  plain(category)
+    .toLowerCase()
+    .replace(/[^a-z0-9]+/g, "-")
+    .replace(/^-+|-+$/g, "");
 
 const absolute = (origin: string, pathOrUrl: string) => {
   if (!pathOrUrl) return "";
@@ -510,6 +559,84 @@ export function faqSeo(origin: string): PageSeo {
       },
     ],
   };
+}
+
+/**
+ * A category across every shop that stocks it.
+ *
+ * This is the page that answers "gaming consoles in kenya", the query with
+ * volume that neither a storefront nor a product page competes for. The title
+ * therefore leads with the category and carries the country, because that is
+ * the phrase being matched — the shop name, which leads a product title, would
+ * be the wrong thing in front here.
+ */
+export function categorySeo(category: SeoCategory, origin: string): PageSeo {
+  const name = plain(category.name);
+  const url = origin + categoryPath(category.slug);
+  const count = Number(category.productCount) || 0;
+  const shopCount = Number(category.shopCount) || 0;
+  const products = categoryProducts(category);
+
+  const description = truncate(
+    `Compare ${count} ${name.toLowerCase()} ${count === 1 ? "listing" : "listings"} ` +
+      `from ${shopCount} independent ${shopCount === 1 ? "shop" : "shops"} in Kenya. ` +
+      `Browse prices and order over WhatsApp on ${SITE_NAME}.`,
+    DESC_MAX,
+  );
+
+  const indexable = count >= CATEGORY_MIN_PRODUCTS;
+
+  return {
+    title: composeTitle(name, "Buy online in Kenya"),
+    description,
+    canonical: url,
+    image: absolute(origin, products[0]?.image || DEFAULT_IMAGE),
+    // The first card is the LCP element on a grid page, exactly as the hero is
+    // on a product page.
+    preloadImage: absolute(origin, products[0]?.image || ""),
+    robots: indexable,
+    ogType: "website",
+    // A thin category still gets its breadcrumbs and its ItemList — the markup
+    // is correct either way, and it is `robots` that decides whether the page
+    // enters the index. Emitting one and not the other would just mean the page
+    // arrives incomplete on the day it crosses the threshold.
+    jsonLd: [
+      {
+        "@context": "https://schema.org",
+        "@type": "CollectionPage",
+        name: `${name} on ${SITE_NAME}`,
+        url,
+        description,
+      },
+      breadcrumbs(origin, [
+        { name: "Shops", path: "/shops" },
+        { name, path: categoryPath(category.slug) },
+      ]),
+      ...(products.length
+        ? [
+            {
+              "@context": "https://schema.org",
+              "@type": "ItemList",
+              name,
+              numberOfItems: products.length,
+              itemListElement: products.map((p, i) => ({
+                "@type": "ListItem",
+                position: i + 1,
+                url: origin + productPath(p.shopHandle, p.slug),
+                name: plain(p.name),
+              })),
+            },
+          ]
+        : []),
+    ],
+  };
+}
+
+/** Same linkability filter as shopProducts(), plus the shop handle it links through. */
+export function categoryProducts(category: SeoCategory): SeoCategoryProduct[] {
+  return (category.products ?? []).filter(
+    (p) => p && isValidSlug(p.slug) && isValidSlug(p.shopHandle) && plain(p.name),
+  );
 }
 
 /** A page that exists but must never be indexed (cart, checkout, account, 404). */

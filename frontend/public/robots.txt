@@ -31,6 +31,12 @@ Disallow: /product/
 
 # Query-string variants of a storefront are the same page with a filter applied
 # and would otherwise be indexed as near-duplicates of it.
+#
+# `?category=` stays disallowed even now that /category/<slug> exists — they are
+# not the same page. The query string filters ONE shop's grid; the path is the
+# category across every shop, with its own copy, its own links and its own
+# canonical. Allowing the query form back in would put a near-duplicate of each
+# category page on every storefront on the platform.
 Disallow: /*?search=
 Disallow: /*?category=
 Disallow: /*?sort=

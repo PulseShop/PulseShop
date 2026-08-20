@@ -40,8 +40,12 @@
  * context, where escaping would not save us.
  */
 import {
+  type SeoCategory,
   type SeoProduct,
   type SeoShop,
+  categoryPath,
+  categoryProducts,
+  categorySlug,
   escapeHtml,
   formatKes,
   plain,
@@ -104,6 +108,8 @@ const STYLE = `<style>
 #ps-pre .ps-crumbs a{text-decoration:underline}
 #ps-pre .ps-bigprice{font-size:1.3rem;font-weight:800;margin:10px 0 6px}
 #ps-pre .ps-desc{font-size:.9rem;line-height:1.6;max-width:70ch}
+#ps-pre .ps-tags{list-style:none;padding:0;margin:10px 0 0;display:flex;flex-wrap:wrap;gap:8px}
+#ps-pre .ps-tags a{display:inline-block;background:var(--color-fill,#f5f5f4);border-radius:9999px;padding:6px 12px;font-size:.78rem;font-weight:600}
 </style>`;
 
 const wrap = (body: string) => `${STYLE}<div id="ps-pre">${body}</div>`;
@@ -113,16 +119,47 @@ const wrap = (body: string) => `${STYLE}<div id="ps-pre">${body}</div>`;
  * product page's "more from this shop" tail. One function so the two can never
  * drift into linking the same product two different ways.
  */
-function card(handle: string, p: { name: string; slug: string; price: number; image: string; imageAlt: string }): string {
+function card(
+  handle: string,
+  p: { name: string; slug: string; price: number; image: string; imageAlt: string },
+  /**
+   * True for the first card only. On a category page there is no banner, so
+   * that tile IS the LCP element and <head> preloads it — leaving it
+   * `loading="lazy"` would tell the browser to defer the one image the preload
+   * just asked it to hurry, which is how a preload ends up costing a request
+   * and buying nothing.
+   */
+  eager = false,
+): string {
   const name = plain(p.name);
   return (
     `<li><a class="ps-card" href="${escapeHtml(productPath(handle, p.slug))}">` +
-    img(p.image, plain(p.imageAlt) || name, "") +
+    img(p.image, plain(p.imageAlt) || name, "", eager) +
     `<span class="ps-name">${escapeHtml(truncate(name, 70))}</span>` +
     `<span class="ps-price">${escapeHtml(formatKes(p.price))}</span>` +
     `</a></li>`
   );
 }
+
+/**
+ * A pill row of links.
+ *
+ * This is the site's cross-linking, and it is the reason the three page types
+ * form a graph rather than three unconnected piles. A product links up to its
+ * category, a category links out to the shops stocking it, a shop links across
+ * to the categories it sells in. Every one of those is a link a crawler can
+ * follow to a page it has a reason to care about, with anchor text that says
+ * what it will find.
+ */
+const tags = (items: { href: string; label: string }[]) =>
+  items.length
+    ? `<ul class="ps-tags">${items
+        .map(
+          (t) =>
+            `<li><a href="${escapeHtml(t.href)}">${escapeHtml(truncate(t.label, 40))}</a></li>`,
+        )
+        .join("")}</ul>`
+    : "";
 
 /**
  * A storefront: who the shop is, then everything it sells, linked.
@@ -148,14 +185,67 @@ export function renderShopBody(shop: SeoShop): string {
     (meta ? `<p class="ps-muted">${escapeHtml(meta)}</p>` : "") +
     (blurb ? `<p class="ps-bio">${escapeHtml(blurb)}</p>` : "");
 
-  if (!products.length) return wrap(head);
+  // Up to the category pages for everything this shop sells. A storefront is
+  // the natural place for these: it is the only page that knows the full set,
+  // and it sends a crawler somewhere broader rather than deeper.
+  const cats = tags(
+    (shop.categories ?? [])
+      .map((c) => plain(c))
+      .filter(Boolean)
+      .slice(0, 8)
+      .map((c) => ({ href: categoryPath(categorySlug(c)), label: c })),
+  );
+
+  if (!products.length) return wrap(head + cats);
 
   return wrap(
     head +
+      cats +
       // Named rather than a bare "Products": the heading is anchor context for
       // every link beneath it, and "Products from GamerHQ" says which shop.
       `<h2>Products from ${escapeHtml(name)}</h2>` +
       `<ul class="ps-grid">${products.map((p) => card(shop.handle, p)).join("")}</ul>`,
+  );
+}
+
+/**
+ * A category across every shop that stocks it.
+ *
+ * The shop links matter as much as the product grid. A category page that only
+ * links down to products is a leaf that hoards whatever authority it earns; one
+ * that also links across to the storefronts stocking the category passes it to
+ * the pages that convert, and gives each shop an inbound link whose anchor text
+ * is the thing it sells.
+ */
+export function renderCategoryBody(category: SeoCategory): string {
+  const name = plain(category.name);
+  const products = categoryProducts(category);
+  const count = Number(category.productCount) || 0;
+  const shopCount = Number(category.shopCount) || 0;
+
+  const head =
+    `<p class="ps-crumbs"><a href="/shops">Shops</a> › ${escapeHtml(name)}</p>` +
+    `<h1>${escapeHtml(name)} in Kenya</h1>` +
+    `<p class="ps-bio">${escapeHtml(
+      `${count} ${count === 1 ? "listing" : "listings"} from ` +
+        `${shopCount} independent ${shopCount === 1 ? "shop" : "shops"}, ` +
+        `ordered over WhatsApp.`,
+    )}</p>`;
+
+  const shops = tags(
+    (category.shops ?? [])
+      .filter((s) => s && plain(s.name) && s.handle)
+      .slice(0, 12)
+      .map((s) => ({ href: shopPath(s.handle), label: plain(s.name) })),
+  );
+
+  const grid = products.length
+    ? `<h2>${escapeHtml(name)} on PulseShop</h2>` +
+      `<ul class="ps-grid">${products.map((p, i) => card(p.shopHandle, p, i === 0)).join("")}</ul>`
+    : "";
+
+  return wrap(
+    head + (shops ? `<h2>Shops stocking ${escapeHtml(name)}</h2>${shops}` : "") + grid,
   );
 }
 
@@ -203,6 +293,17 @@ export function renderProductBody(product: SeoProduct): string {
       `</p>` +
       `<p class="ps-bigprice">${escapeHtml(price)}</p>` +
       `<p class="ps-muted">${escapeHtml(stock)}</p>` +
-      (body ? `<p class="ps-desc">${escapeHtml(body)}</p>` : ""),
+      (body ? `<p class="ps-desc">${escapeHtml(body)}</p>` : "") +
+      // The way out of a leaf. Without this a product page links only upward to
+      // its own shop, so the deepest and most numerous pages on the site pass
+      // nothing sideways to the category pages that need it most.
+      (plain(product.category)
+        ? tags([
+            {
+              href: categoryPath(categorySlug(product.category)),
+              label: `More ${plain(product.category)}`,
+            },
+          ])
+        : ""),
   );
 }

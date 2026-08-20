@@ -22,7 +22,7 @@
  *    earns a "crawled, currently not indexed" verdict that costs the shops
  *    which do have stock.
  */
-import { escapeHtml } from "./_seo";
+import { CATEGORY_MIN_PRODUCTS, categoryPath, escapeHtml } from "./_seo";
 
 const SUPABASE_URL = process.env.SUPABASE_URL || process.env.VITE_SUPABASE_URL || "";
 const SUPABASE_ANON_KEY = process.env.SUPABASE_ANON_KEY || process.env.VITE_SUPABASE_ANON_KEY || "";
@@ -42,6 +42,11 @@ interface ProductRow {
   image: string;
   updated_at: string;
   total_count: number;
+}
+interface CategoryRow {
+  slug: string;
+  product_count: number;
+  updated_at: string;
 }
 
 async function rpc<T>(fn: string, args: Record<string, unknown>): Promise<T[]> {
@@ -157,6 +162,34 @@ async function handler(request: Request): Promise<Response> {
     );
   }
 
+  /**
+   * Categories.
+   *
+   * One file, no pagination: the taxonomy in lib/constants.ts has 37 leaves and
+   * is curated rather than user-generated, so this cannot grow into the
+   * thousands the way products can.
+   *
+   * The threshold is passed from CATEGORY_MIN_PRODUCTS, the same constant
+   * categorySeo() indexes on. That is the point of passing it rather than
+   * hardcoding a 3 in the SQL: a sitemap advertising a URL the renderer then
+   * serves noindex is an error Search Console reports against the whole domain,
+   * and two copies of one number is how that happens.
+   */
+  if (kind === "categories") {
+    const rows = await rpc<CategoryRow>("seo_sitemap_categories", {
+      p_min_products: CATEGORY_MIN_PRODUCTS,
+    });
+    if (!rows.length) return xml(doc(""), 404);
+    return xml(
+      doc(
+        rows
+          .filter((r) => r.slug)
+          .map((r) => urlEntry(`${origin}${categoryPath(r.slug)}`, xmlDate(r.updated_at)))
+          .join("\n"),
+      ),
+    );
+  }
+
   if (kind === "static") {
     // The handful of URLs that are neither a shop nor a product.
     const today = new Date().toISOString().slice(0, 10);
@@ -180,9 +213,13 @@ async function handler(request: Request): Promise<Response> {
 
   // The index. One probe row of each kind gives the total, which is all that is
   // needed to work out how many child sitemaps to advertise.
-  const [shopProbe, productProbe] = await Promise.all([
+  const [shopProbe, productProbe, categoryRows] = await Promise.all([
     rpc<ShopRow>("seo_sitemap_shops", { p_limit: 1, p_offset: 0 }),
     rpc<ProductRow>("seo_sitemap_products", { p_limit: 1, p_offset: 0 }),
+    // Not a probe — the whole list, because the child sitemap is only worth
+    // advertising if at least one category cleared the threshold, and that
+    // cannot be read off a count.
+    rpc<CategoryRow>("seo_sitemap_categories", { p_min_products: CATEGORY_MIN_PRODUCTS }),
   ]);
 
   /**
@@ -194,6 +231,7 @@ async function handler(request: Request): Promise<Response> {
     Math.min(MAX_PAGES, Math.ceil(Number(total || 0) / PAGE_SIZE));
 
   const children: string[] = [`${origin}/sitemap-static.xml`];
+  if (categoryRows.length) children.push(`${origin}/sitemap-categories.xml`);
   for (let i = 1; i <= pagesFor(shopProbe[0]?.total_count ?? 0); i++) {
     children.push(`${origin}/sitemap-shops-${i}.xml`);
   }

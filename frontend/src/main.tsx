@@ -29,6 +29,7 @@ import { ShopDetailsOnboardingPage } from "@/routes/auth/ShopDetailsOnboardingPa
 import { ShopperSignupPage } from "@/routes/auth/ShopperSignupPage";
 import { SignupPage } from "@/routes/auth/SignupPage";
 import { ShopsPage } from "@/routes/shops/ShopsPage";
+import { CategoryPage } from "@/routes/category/CategoryPage";
 import { CartPage } from "@/routes/cart/CartPage";
 import { CheckoutPage } from "@/routes/checkout/CheckoutPage";
 import { AboutPage } from "@/routes/marketing/AboutPage";
@@ -228,6 +229,11 @@ createRoot(document.getElementById("root")!).render(
                 Auth "Redirect URLs" allowlist */}
             <Route path="/reset-password" element={<ResetPasswordPage />} />
             <Route path="/shops" element={<ShopsPage />} />
+            {/* One category across every shop — the middle tier between a
+                storefront and a product, and the one search actually asks for
+                ("gaming consoles in kenya"). Two segments, so it outranks
+                /:shopSlug without any ordering trick. */}
+            <Route path="/category/:slug" element={<CategoryPage />} />
             {/* legacy: already in WhatsApp threads and order confirmations, so
                 it keeps resolving. A hard load is 301'd by api/render.ts; this
                 route covers an in-app navigation, which never reaches the
