@@ -1,5 +1,6 @@
 import { useMemo } from "react";
 import { Link } from "react-router";
+import { Sparkles } from "lucide-react";
 
 import { ProductImage } from "@/components/product/ProductImage";
 import { Skeleton } from "@/components/ui/Skeleton";
@@ -31,6 +32,21 @@ type Card = {
   title: string;
   tiles: CategoryShowcase[];
   productCount: number;
+};
+
+/**
+ * One picture in the curated card.
+ *
+ * Deliberately not a Product. The wall knows about categories and pictures, and
+ * handing it the whole product model to draw four thumbnails would make a
+ * layout component depend on the catalogue's shape for no gain.
+ */
+export type CuratedTile = {
+  id: string;
+  image?: string;
+  imageAlt?: string;
+  /** Where the tile leads — the product it is a photograph of. */
+  href: string;
 };
 
 /**
@@ -68,17 +84,37 @@ type Card = {
 export function CategoryWall({
   entries,
   loading,
+  curated,
+  curatedLoading = false,
   className,
 }: {
   entries: CategoryShowcase[];
   loading: boolean;
+  /**
+   * The free hourly rotation, drawn as one more card in the wall.
+   *
+   * It used to be a panel of its own at the top of the marketplace, beside the
+   * promoted hero. That put it in the one row on the page that is otherwise
+   * paid inventory, and gave a shopper two large photographs to scroll past
+   * before reaching anything they could navigate by. It is a WAY IN, exactly
+   * like a category is, so it belongs in the wall of ways in — leading it,
+   * because it is the only card here that changes hour to hour.
+   *
+   * Empty or absent means no card: a curated shelf with nothing on it is worse
+   * than one fewer card in the row.
+   */
+  curated?: CuratedTile[];
+  curatedLoading?: boolean;
   className?: string;
 }) {
   const cards = useMemo(() => buildCards(entries), [entries]);
+  const curatedTiles = (curated ?? []).filter((t) => t.image).slice(0, 4);
+  const hasCurated = curatedLoading || curatedTiles.length >= MIN_TILES;
 
   if (loading) {
     return (
       <section className={className} aria-label="Shop by category">
+        <WallHeading />
         <div className="grid grid-cols-2 gap-3 lg:grid-cols-4 lg:gap-4">
           {Array.from({ length: 4 }).map((_, i) => (
             <CategoryCardSkeleton key={i} />
@@ -88,13 +124,16 @@ export function CategoryWall({
     );
   }
 
-  // Nothing stocked in two leaves of any one group. Rendering a heading over an
-  // empty row would announce a section the catalogue cannot fill yet.
-  if (cards.length === 0) return null;
+  // Nothing stocked in two leaves of any one group, and no curated rotation
+  // either. Rendering a heading over an empty row would announce a section the
+  // catalogue cannot fill yet.
+  if (cards.length === 0 && !hasCurated) return null;
+
+  const total = cards.length + (hasCurated ? 1 : 0);
 
   return (
     <section className={className} aria-label="Shop by category">
-      <h2 className="mb-3 text-base font-extrabold text-ink lg:text-lg">Shop by category</h2>
+      <WallHeading />
       {/* Two columns on a phone, four on desktop — except at one card, where
           two columns would leave half the row empty beside it and read as a
           tile that failed to load rather than as a short list. A partly filled
@@ -111,14 +150,96 @@ export function CategoryWall({
       <div
         className={cn(
           "grid items-start gap-3 lg:grid-cols-4 lg:gap-4",
-          cards.length === 1 ? "grid-cols-1" : "grid-cols-2",
+          total === 1 ? "grid-cols-1" : "grid-cols-2",
         )}
       >
+        {hasCurated && <CuratedCard tiles={curatedTiles} loading={curatedLoading} />}
         {cards.map((card) => (
           <CategoryCard key={card.title} card={card} />
         ))}
       </div>
     </section>
+  );
+}
+
+/**
+ * The wall's heading, centred.
+ *
+ * Centred because this is now the page's main section rather than a strip
+ * between two bigger ones: the marketplace opens on the promoted banners and
+ * then hands the shopper the taxonomy, and a left-aligned label on a
+ * full-width grid of cards reads as a rail's caption rather than as the thing
+ * the page is about.
+ */
+function WallHeading() {
+  return (
+    <div className="mb-4 text-center lg:mb-5">
+      <h2 className="text-lg font-extrabold text-ink lg:text-2xl">Shop by category</h2>
+      <p className="mt-1 text-xs text-muted lg:text-sm">
+        Every shelf on PulseShop, and what is actually stocked on it.
+      </p>
+    </div>
+  );
+}
+
+/**
+ * The free hourly rotation, wearing a category card's clothes.
+ *
+ * NOTHING HERE IS BOUGHT, and the card says so in as many words. That sentence
+ * is the whole reason this half of the page works: the banners above are paid
+ * placement and labelled Promoted, and a shopper who cannot tell the two apart
+ * makes both labels worthless. It sat beside the paid hero until now, which was
+ * the worst possible place to make that distinction legible.
+ *
+ * The tiles are products and the heading leads to /shops, which is the honest
+ * pair: the picture is a specific thing you can buy, and the card as a whole
+ * stands for "the shops here", which is a place that exists.
+ */
+function CuratedCard({ tiles, loading }: { tiles: CuratedTile[]; loading: boolean }) {
+  return (
+    <article className="flex flex-col rounded-bento bg-primary/5 p-3 shadow-soft ring-1 ring-primary/15 lg:p-4">
+      <div className="mb-2.5 min-w-0 lg:mb-3">
+        <h3 className="flex items-center gap-1.5 text-sm font-extrabold leading-snug text-ink lg:text-[15px]">
+          <Sparkles className="size-4 shrink-0 text-primary" aria-hidden />
+          Curated
+        </h3>
+        <p className="mt-0.5 text-[11px] font-semibold text-muted">
+          One per shop, rotated hourly
+        </p>
+      </div>
+
+      <div className="grid grid-cols-2 gap-2">
+        {loading
+          ? Array.from({ length: 4 }).map((_, i) => (
+              <Skeleton key={i} className="aspect-square w-full rounded-xl" />
+            ))
+          : tiles.map((tile) => (
+              <Link
+                key={tile.id}
+                to={tile.href}
+                className={cn(
+                  "group min-w-0 overflow-hidden rounded-xl bg-fill focus-visible:outline-none",
+                  "focus-visible:ring-2 focus-visible:ring-primary",
+                )}
+              >
+                <ProductImage
+                  src={tile.image}
+                  alt={tile.imageAlt ?? ""}
+                  loading="lazy"
+                  className="aspect-square w-full object-cover transition-transform duration-300 group-hover:scale-[1.05]"
+                />
+              </Link>
+            ))}
+      </div>
+
+      {/* The disclaimer is the card's point, not its small print. */}
+      <p className="mt-2.5 text-[11px] leading-relaxed text-muted">
+        A product from every shop on PulseShop. Nobody pays for this.{" "}
+        <Link to="/shops" className="font-semibold text-primary hover:underline">
+          See all shops
+        </Link>
+      </p>
+    </article>
   );
 }
 

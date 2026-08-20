@@ -329,6 +329,17 @@ export interface ProductService {
    */
   listCategoryShowcase(limit?: number): Promise<CategoryShowcase[]>;
   /**
+   * Public: every product currently marked down, across every shop (migration
+   * 0058) — the front page's "Deals of the day" shelf.
+   *
+   * Its own read rather than a flag on searchProducts() for two reasons the
+   * migration header spells out: a filtered page is a sample, not "every
+   * discounted product", and a defaulted extra parameter on search_products
+   * would create an RPC overload. Ordered by the size of the discount, so the
+   * shelf leads with the biggest saving rather than the newest listing.
+   */
+  listDeals(limit?: number): Promise<Product[]>;
+  /**
    * Bulk create-or-update from an uploaded CSV, keyed on SKU: a row whose SKU
    * this shop already has updates that product, a new one creates it.
    *

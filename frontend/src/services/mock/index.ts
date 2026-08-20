@@ -1546,6 +1546,25 @@ export const mockServices: Services = {
     },
 
     /**
+     * Every discounted product, in memory (migration 0058).
+     *
+     * The same eligibility the RPC applies — nothing out of stock, nothing
+     * without a photograph — and the same ordering contract, biggest discount
+     * first, so the shelf reads identically against either adapter.
+     */
+    async listDeals(limit = 24): Promise<Product[]> {
+      await delay();
+      return products
+        .filter((p) => p.status !== "out" && p.images.length > 0 && (p.discountPct ?? 0) > 0)
+        .sort(
+          (a, b) =>
+            (b.discountPct ?? 0) - (a.discountPct ?? 0) || b.priceKes - a.priceKes,
+        )
+        .slice(0, limit)
+        .map((p) => ({ ...p, shopSlug: merchant.handle, shopName: merchant.name }));
+    },
+
+    /**
      * Mirrors the real upsert: SKU is identity, and a rename keeps the existing
      * slug exactly as the products_set_slug trigger would.
      *

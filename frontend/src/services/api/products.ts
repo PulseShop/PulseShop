@@ -321,6 +321,26 @@ export const productsApi: ProductService = {
   },
 
   /**
+   * Every product currently on discount (migration 0058).
+   *
+   * Same row shape as list_shop_features, so it maps through toProduct with the
+   * same two shop columns attached and the shelf can render with the ordinary
+   * ProductCard. The ordering (biggest discount first) is the RPC's, not the
+   * client's — the whole point of the separate read is that the shelf is a
+   * query over the whole table rather than a filtered page.
+   */
+  async listDeals(limit = 24): Promise<Product[]> {
+    const { data, error } = await supabase.rpc("list_deals", { p_limit: limit });
+    if (error) throw error;
+    return ((data ?? []) as FeatureRow[]).map((row) => {
+      const product = toProduct(row);
+      product.shopSlug = row.shop_handle ?? undefined;
+      product.shopName = row.shop_name ?? undefined;
+      return product;
+    });
+  },
+
+  /**
    * Bulk upsert keyed on (merchant_id, sku), the unique constraint the table
    * has carried since 0001. One round trip decides create-vs-update per row;
    * doing it in the client (read, diff, then insert some and update others)

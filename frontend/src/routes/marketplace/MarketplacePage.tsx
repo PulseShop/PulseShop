@@ -21,12 +21,14 @@ import {
   PawPrint,
   Search,
   Shirt,
+  ShoppingBag,
   SlidersHorizontal,
   Smartphone,
   Sofa,
   Sparkles,
   SprayCan,
   Store,
+  Tag,
   Tv,
   Utensils,
   Watch,
@@ -41,6 +43,7 @@ import { DesktopQuickNav } from "@/components/layout/DesktopQuickNav";
 import { SiteFooter } from "@/components/layout/SiteFooter";
 import { BrowsingHistoryRail } from "@/components/product/BrowsingHistoryRail";
 import { CategoryWall } from "@/components/product/CategoryWall";
+import type { CuratedTile } from "@/components/product/CategoryWall";
 import { ProductCard } from "@/components/product/ProductCard";
 import { ProductImage } from "@/components/product/ProductImage";
 import { PriceRangeFilter } from "@/components/product/PriceRangeFilter";
@@ -56,6 +59,7 @@ import { homeSeo } from "@/lib/seo";
 import { cn } from "@/lib/utils";
 import { services } from "@/services";
 import { lastViewed, useBrowsingHistory } from "@/stores/browsingHistory";
+import { cartCount, useCart } from "@/stores/cart";
 import { useFavorites } from "@/stores/favorites";
 import type { ViewedProduct } from "@/stores/browsingHistory";
 import type { BannerProduct, Merchant, Product } from "@/types";
@@ -76,6 +80,22 @@ const LIST_CLASS = "flex flex-col gap-3";
  * is shown and the thing the timer does cannot drift apart.
  */
 const ROTATE_MS = 12_000;
+
+/**
+ * How many bought slots the hero keeps before the rest go to the sponsored
+ * panel beside it.
+ *
+ * THREE, which at a twelve-second dwell is a thirty-six-second round trip — the
+ * outer limit of a rotation a shopper will actually see the end of. 0049
+ * replaced a ranked strip with a rotation precisely so that the last slot was
+ * worth the same as the first; a queue long enough that nobody reaches the back
+ * of it quietly undoes that. The fix is a second unit, not a longer queue.
+ *
+ * Nobody appears in both. An advert shown twice on one screen is not two
+ * impressions, it is one impression and a shopper who has learned to ignore the
+ * smaller panel.
+ */
+const HERO_SLOTS = 3;
 
 /**
  * The marketplace.
@@ -279,6 +299,20 @@ export function MarketplacePage() {
     queryFn: () => services.products.listCategoryShowcase(),
   });
 
+  /**
+   * Everything currently marked down (migration 0058).
+   *
+   * Its own query for the same reason as the three above: a failure here must
+   * degrade to a missing shelf, not to an error screen over the categories and
+   * the catalogue. DealsShelf renders nothing when this comes back empty, so a
+   * platform with no discounts on today simply has one fewer section rather
+   * than an empty heading promising deals.
+   */
+  const dealsQ = useQuery({
+    queryKey: ["deals-of-the-day"],
+    queryFn: () => services.products.listDeals(),
+  });
+
   /* ----------------------------------------------------------------------- *
    * Search: the match first, then what surrounds it.
    *
@@ -338,21 +372,35 @@ export function MarketplacePage() {
   }, [isSearching, products, relatedCategoryQ.data, relatedShopQ.data]);
 
   const features = featuresQ.data ?? [];
-  // ON DESKTOP the collage takes the first four of the free rotation and the
-  // strip continues from the fifth, so a shop appears in exactly one of them.
-  // Splitting one list rather than querying twice is what keeps "one product
-  // from EVERY shop" true across both.
-  //
-  // ON A PHONE there is no collage, so the strip is passed `features` whole
-  // instead of `railItems` — otherwise the four shops the collage would have
-  // carried are simply missing from the phone layout. That is why the split
-  // lives here as two values rather than being baked into the component.
-  //
-  // Four, not three, because four is how many shops a young platform has: at
-  // three the collage was full and the strip below it held a single lonely
-  // card, which reads as a rendering fault rather than as a small marketplace.
-  const collageItems = features.slice(0, 4);
-  const railItems = features.slice(4);
+
+  /**
+   * The free rotation, as four pictures for the curated card in the category
+   * wall (see CategoryWall's `curated` prop for why it moved there).
+   *
+   * Four, not three, because four is how many shops a young platform has: at
+   * three the card left a hole in its two-by-two grid, which reads as a
+   * rendering fault rather than as a small marketplace.
+   */
+  const curatedTiles: CuratedTile[] = features.slice(0, 4).map((p) => ({
+    id: p.id,
+    image: p.images[0],
+    imageAlt: p.imageAlts?.[0]?.trim() || undefined,
+    href: productHref(p),
+  }));
+
+  /**
+   * How the bought inventory splits between the two paid panels.
+   *
+   * The hero is the premium unit and keeps the front of the rotation; whatever
+   * does not fit becomes the sponsored panel beside it, visible at a glance
+   * rather than eventually. See HERO_SLOTS for why the cut is where it is.
+   *
+   * Every live placement therefore still reaches the front page, and reaches it
+   * in exactly one of the two units.
+   */
+  const placements = placementsQ.data ?? [];
+  const heroPlacements = placements.slice(0, HERO_SLOTS);
+  const sponsoredPlacements = placements.slice(HERO_SLOTS);
 
   const filterControls = (
     <>
@@ -477,19 +525,24 @@ export function MarketplacePage() {
           <DesktopQuickNav />
         </div>
 
-        {/* Phone: search and wishlist share the second line.
-            The row used to be search alone; the wishlist icon joins it as the
-            one destination worth reaching without scrolling back to a tab bar,
-            because it is where a shopper parks things mid-browse and the only
-            control up here carrying a number that changes as they do it.
-            Cart, Shops and Home are NOT here — they are permanent tabs three
-            inches below, and restating them would spend the narrowest strip on
-            the site on controls already in view. */}
+        {/* Phone: search, wishlist and CART share the second line.
+            The cart is up here now. It was a tab at the bottom and nothing
+            else, which is the right place for a destination and the wrong one
+            for a running total: a shopper adds something from a card halfway
+            down the page, and the only confirmation that it landed is a badge
+            below the fold of their own thumb. At the top it is in view at the
+            moment of the add and reachable without scrolling back, which is
+            the same argument the wishlist won on. It stays a tab as well —
+            the bar is site-wide and every other route still needs it.
+            Home and Shops are NOT here: they are tabs three inches below, and
+            restating them would spend the narrowest strip on the site on
+            controls already in view. */}
         <div className="mt-2.5 flex items-center gap-2 lg:hidden">
           <div className="min-w-0 flex-1">
             <SearchField value={search} onChange={setSearch} />
           </div>
           <WishlistButton />
+          <CartButton />
         </div>
       </header>
 
@@ -499,26 +552,27 @@ export function MarketplacePage() {
             document outline that changes every twelve seconds is no outline. */}
         <h1 className="sr-only">PulseShop marketplace — every shop in one place</h1>
 
-        {/* THE BENTO. Twelve columns past lg: the hero takes seven because it
-            is the only panel carrying a photograph at display size and the
-            collage takes the remaining five. It was seven / three / two, with
-            the last column stacking "Recommended for you" over "Explore
-            shops" — two narrow panels in the widest layout on the site, both
-            of them lists of links squeezed into 180 pixels while the collage
-            next door had no room to show a photograph properly. The shops are
-            a rail below now and the recommendations sit beside it, which gives
-            this row back to the one thing on it that is actually a picture.
+        {/* THE BANNERS. Twelve columns past lg: the promoted hero takes seven
+            because it is the only panel carrying a photograph at display size,
+            and the sponsored panel takes the remaining five.
+
+            BOTH HALVES OF THIS ROW ARE PAID, and that is new. The five columns
+            on the right used to hold the free hourly rotation, which put the
+            one unbuyable thing on the page inside the one row that is entirely
+            advertising — the worst possible place to make the distinction
+            legible. The rotation is a card in the category wall below now,
+            where it says in as many words that nobody paid for it, and this row
+            reads as what it is: the advertising strip, top of page, labelled
+            twice.
 
             IT DISAPPEARS THE MOMENT SOMEBODY SEARCHES. A shopper who typed a
             query has told you exactly what they want, and making them scroll
-            past a hero and a collage to reach it is the site arguing with
-            them. Browsing gets the bento; searching gets results at the top of
-            the page. */}
+            past two banners to reach it is the site arguing with them. */}
         {!isSearching && (
           <div className="grid gap-3 lg:grid-cols-12 lg:gap-4">
             <PromotedHero
               className="lg:col-span-7"
-              items={placementsQ.data ?? []}
+              items={heroPlacements}
               loading={placementsQ.isLoading}
               fallbackImages={features.slice(0, 4)}
               categories={categories}
@@ -526,95 +580,98 @@ export function MarketplacePage() {
               onCategory={setCategory}
             />
 
-            {/* Desktop only. On a phone this sat directly under the hero and
-                was the first thing between a shopper and the catalogue: a
-                second large photograph, immediately after the large photograph
-                they had just scrolled past. The shops rail below answers "who
-                sells here" in a fraction of the height, and the products
-                themselves are what the phone layout should be spending its
-                length on. */}
-            <ShopCollageCard
+            {/* Desktop only, like the collage it replaces. A phone already
+                carries one full-width advert at the top of this page; a second
+                one directly under it is the whole first screenful spent on
+                things nobody asked to see. */}
+            <SponsoredPanel
               className="hidden lg:col-span-5 lg:flex"
-              items={collageItems}
-              loading={featuresQ.isLoading}
+              items={sponsoredPlacements}
+              loading={placementsQ.isLoading}
             />
           </div>
         )}
 
-        {/* THE SHOPS, AND WHY THEY ARE A RAIL AT EVERY WIDTH NOW.
-            This was a vertical card in the bento on desktop and a rail on
-            phones, which meant the front page answered "who sells here" in two
-            different shapes depending on the window. The rail is the better of
-            the two at both sizes: a shop is an avatar and a name, that reads
-            horizontally, and a column of five of them was spending the tallest
-            slot in the bento on the least visual content in it.
+        {/* THE CATEGORIES. The main section of the page, and centred to say so.
 
-            It sits directly above the category wall deliberately. Shops and
-            categories are the two ways into a catalogue that are not a search
-            box, so they belong next to each other rather than with a strip of
-            individual products between them. */}
-        {!isSearching && (
-          <div className="mt-5 lg:mt-8 lg:flex lg:items-start lg:gap-6">
-            <ShopsRail
-              shops={shopsQ.data?.items ?? []}
-              loading={shopsQ.isLoading}
-              className="min-w-0 lg:flex-1"
-            />
-            {/* The recommendations panel's new home, now that the bento column
-                it used to live in is gone. Desktop only, as before.
-                empty:hidden matters: the card renders nothing at all until the
-                shopper has opened a product, and without it this reserves 14
-                rems of nothing beside the rail on every first visit. */}
-            <div className="mt-5 hidden shrink-0 lg:mt-0 lg:block lg:w-56 lg:empty:hidden">
-              <RecommendationsCard />
-            </div>
-          </div>
-        )}
+            This is the front page's answer to the only question a first-time
+            visitor actually has: what is sold here. The catalogue grid further
+            down answers "find me this", which is a different question and a
+            worse one to lead with on a young marketplace — an undifferentiated
+            grid of everything is at its least useful precisely when there is
+            not much of it.
 
-        {/* The taxonomy as merchandise. Sits between the browsing panels and
-            the catalogue because that is what it is for: the bento says "look
-            at this", the grid below says "find me that", and this is the step
-            in between — what is sold here at all. Hidden while searching for
-            the same reason the bento is: a shopper who typed a query has
-            already answered the question this section asks. */}
+            The free hourly rotation leads the wall as one more card. It is a
+            way in, exactly like a category is, so it belongs among the ways in
+            rather than in the paid row above.
+
+            Hidden while searching for the same reason the banners are: a
+            shopper who typed a query has already answered the question this
+            section asks. */}
         {!isSearching && (
           <CategoryWall
             entries={showcaseQ.data ?? []}
             loading={showcaseQ.isLoading}
-            className="mt-6 lg:mt-8"
+            curated={curatedTiles}
+            curatedLoading={featuresQ.isLoading}
+            className="mt-7 lg:mt-10"
           />
         )}
 
-        {/* The free rotation, in the one place it can be at both widths.
-            Two instances of one component, differing only in which slice of
-            the rotation they carry, because the collage above them exists on
-            desktop and not on a phone. Desktop's collage has already shown the
-            first four shops, so the desktop strip continues from the fifth;
-            the phone has no collage, so its strip carries the whole rotation
-            or those four shops would appear nowhere on a phone at all. The
-            hidden one is out of the accessibility tree, so this reads as a
-            single section to a screen reader. */}
+        {/* DEALS OF THE DAY. Every product on the platform that is marked down,
+            biggest discount first — a whole-table query (migration 0058), not a
+            filtered page, because a shelf that claims "every discount" and
+            shows whichever ones fell inside the first twelve rows is lying.
+
+            Directly under the categories because it is the other thing a
+            shopper browses BY. Categories are "what kind of thing", deals are
+            "what is cheap today", and neither of them needs a filter panel
+            opened first. */}
         {!isSearching && (
-          <>
-            <ShopFeatureStrip
-              items={railItems}
-              loading={featuresQ.isLoading}
-              className="mt-8 hidden lg:block"
-            />
-            <ShopFeatureStrip
-              items={features}
-              loading={featuresQ.isLoading}
-              className="mt-6 lg:hidden"
-            />
-          </>
+          <DealsShelf items={dealsQ.data ?? []} loading={dealsQ.isLoading} className="mt-8 lg:mt-12" />
         )}
+
+        {/* Who sells here. One row of avatars, kept between the two browsing
+            shelves above and the catalogue below, because a shop is the third
+            way into this page that is not a search box and it costs a single
+            line to offer. */}
+        {!isSearching && (
+          <ShopsRail
+            shops={shopsQ.data?.items ?? []}
+            loading={shopsQ.isLoading}
+            className="mt-8 lg:mt-10"
+          />
+        )}
+
 
         {/* Filters left, grid right — the storefront already put its filters on
             the left, and having them swap sides between the two browsing pages
             would be the kind of inconsistency nobody can name but everybody
             feels. The shops rail that used to sit on the right is now a bento
             card; two lists of the same shops on one screen was one too many. */}
-        <div className="mt-5 lg:flex lg:gap-6 xl:gap-8">
+        {/* THE CATALOGUE, DEMOTED BUT NOT DELETED.
+
+            It used to start a few pixels under the banners and be the whole
+            rest of the page. It is now the LAST browsing band, under the
+            categories, the deals and the shops, because a flat grid of
+            everything is the answer to "find me this" and the three sections
+            above are the answer to "what is here" — and on a catalogue this
+            size the second question is the one a visitor actually arrives
+            with. It stays because nothing else on the page can show the whole
+            catalogue at once, and because the sort control and the filter
+            panel have nowhere else to live. */}
+        {/* No top margin while searching: every band above this one is hidden
+            then, so the gap would open directly under the masthead. */}
+        <h2
+          className={cn(
+            "text-lg font-extrabold text-ink lg:text-2xl",
+            !isSearching && "mt-10 lg:mt-14",
+          )}
+        >
+          {isSearching ? "Search results" : "Everything on PulseShop"}
+        </h2>
+
+        <div className="mt-4 lg:flex lg:gap-6 xl:gap-8">
           <aside className="hidden shrink-0 lg:block lg:w-52">
             <div className="space-y-6">{filterControls}</div>
           </aside>
@@ -772,7 +829,21 @@ export function MarketplacePage() {
           </section>
         </div>
 
-        <BrowsingHistoryRail className="mt-10" />
+        {/* WHAT THE SHOPPER HAS DONE HERE, in one band at the foot of the page.
+            The rail is where they have been and the card is what that implies
+            they might want next, which is one thought, not two — they were
+            three sections apart until now, with the recommendations stranded in
+            a 14-rem column beside a rail of shop avatars.
+
+            The card renders nothing at all before a first product is opened, so
+            on a first visit this band is the history rail alone and the layout
+            simply closes up around it (lg:empty:hidden). */}
+        <div className="mt-10 lg:flex lg:items-start lg:gap-6">
+          <BrowsingHistoryRail className="min-w-0 lg:flex-1" />
+          <div className="mt-6 hidden shrink-0 lg:mt-0 lg:block lg:w-56 lg:empty:hidden">
+            <RecommendationsCard />
+          </div>
+        </div>
       </div>
 
       <SiteFooter className="mt-4" />
@@ -989,7 +1060,14 @@ function PromotedHero({
       onBlurCapture={release}
       {...(navigable ? swipe : {})}
       className={cn(
-        "hero-ink relative flex flex-col overflow-hidden rounded-bento p-5 sm:p-6 lg:min-h-104 lg:p-8",
+        // PHONE PADDING IS 16px, NOT 20px. The banner was taking most of a
+        // phone screen before the catalogue started; every measurement on it
+        // that only applies below sm has come down about 18% — the padding
+        // here, the arrow gutter, the picture, the headline and the two gaps
+        // under the slide. Nothing at sm and above moved: the panel was never
+        // too big on a laptop, and shrinking it there would just waste the
+        // seven columns it was given.
+        "hero-ink relative flex flex-col overflow-hidden rounded-bento p-4 sm:p-6 lg:min-h-104 lg:p-8",
         className,
       )}
     >
@@ -1007,7 +1085,7 @@ function PromotedHero({
           there are arrows. Without it they land on the vertical centre of the
           slide, which is exactly where the CTA button sits — the one control on
           the panel that must never be covered. */}
-      <div className={cn("flex flex-1 items-center", navigable && "px-8 sm:px-9")}>
+      <div className={cn("flex flex-1 items-center", navigable && "px-7 sm:px-9")}>
         {loading ? (
           <HeroSkeleton />
         ) : current ? (
@@ -1020,7 +1098,7 @@ function PromotedHero({
       </div>
 
       {items.length > 1 && (
-        <div className="mt-6 flex items-center gap-2">
+        <div className="mt-4 flex items-center gap-2 sm:mt-6">
           {items.map((item, i) => (
             <button
               key={item.placementId}
@@ -1091,7 +1169,7 @@ function HeroSlide({ product }: { product: BannerProduct }) {
   const ranged = hasPriceRange(product);
 
   return (
-    <div className="animate-hero-slide grid gap-5 sm:grid-cols-[1.1fr_0.9fr] sm:items-center sm:gap-6">
+    <div className="animate-hero-slide grid gap-4 sm:grid-cols-[1.1fr_0.9fr] sm:items-center sm:gap-6">
       <div className="min-w-0 order-2 sm:order-1">
         <span className="inline-flex items-center gap-1.5 rounded-full bg-warning/20 px-2.5 py-1 text-[11px] font-bold uppercase tracking-wide text-warning">
           <Megaphone className="size-3.5" aria-hidden />
@@ -1101,7 +1179,7 @@ function HeroSlide({ product }: { product: BannerProduct }) {
         {/* The headline is the copy the seller paid for; without one the
             product's own name does the job, which is why null is a perfectly
             ordinary value here rather than missing data. */}
-        <p className="mt-3 line-clamp-3 text-[1.6rem] font-extrabold leading-[1.08] tracking-tight sm:text-[2rem] lg:text-[2.5rem]">
+        <p className="mt-3 line-clamp-3 text-[1.3rem] font-extrabold leading-[1.08] tracking-tight sm:text-[2rem] lg:text-[2.5rem]">
           {product.headline?.trim() || product.name}
         </p>
 
@@ -1122,7 +1200,7 @@ function HeroSlide({ product }: { product: BannerProduct }) {
           <span className="text-xl font-extrabold sm:text-2xl">{formatKes(from)}</span>
         </p>
 
-        <div className="mt-5 flex flex-wrap items-center gap-3">
+        <div className="mt-4 flex flex-wrap items-center gap-3 sm:mt-5">
           <Link
             to={productHref(product)}
             className="group inline-flex items-center gap-2 rounded-full bg-primary py-1.5 pl-5 pr-1.5 text-sm font-bold text-on-accent transition-colors hover:bg-primary-deep"
@@ -1154,7 +1232,7 @@ function HeroSlide({ product }: { product: BannerProduct }) {
           <ProductImage
             src={product.images[0]}
             alt={product.imageAlts?.[0]?.trim() || product.name}
-            className="aspect-16/10 w-full rounded-[20px] object-cover shadow-float ring-1 ring-white/10 sm:aspect-square"
+            className="aspect-[1.95/1] w-full rounded-[20px] object-cover shadow-float ring-1 ring-white/10 sm:aspect-square"
           />
         </Link>
       </div>
@@ -1174,13 +1252,13 @@ function HouseSlide({ images }: { images: Product[] }) {
   const tiles = images.slice(0, 4);
 
   return (
-    <div className="animate-hero-slide grid gap-5 sm:grid-cols-[1.1fr_0.9fr] sm:items-center sm:gap-6">
+    <div className="animate-hero-slide grid gap-4 sm:grid-cols-[1.1fr_0.9fr] sm:items-center sm:gap-6">
       <div className="min-w-0">
         <span className="inline-flex items-center gap-1.5 rounded-full bg-primary/25 px-2.5 py-1 text-[11px] font-bold uppercase tracking-wide text-primary">
           <Sparkles className="size-3.5" aria-hidden />
           PulseShop
         </span>
-        <p className="mt-3 text-[1.6rem] font-extrabold leading-[1.08] tracking-tight sm:text-[2rem] lg:text-[2.5rem]">
+        <p className="mt-3 text-[1.3rem] font-extrabold leading-[1.08] tracking-tight sm:text-[2rem] lg:text-[2.5rem]">
           Every shop, one search box.
         </p>
         <p className="mt-2 max-w-sm text-sm leading-relaxed" style={{ color: "var(--hero-fg-dim)" }}>
@@ -1189,7 +1267,7 @@ function HouseSlide({ images }: { images: Product[] }) {
         </p>
         <Link
           to="/shops"
-          className="group mt-5 inline-flex items-center gap-2 rounded-full bg-primary py-1.5 pl-5 pr-1.5 text-sm font-bold text-on-accent transition-colors hover:bg-primary-deep"
+          className="group mt-4 inline-flex items-center gap-2 rounded-full bg-primary py-1.5 pl-5 pr-1.5 text-sm font-bold text-on-accent transition-colors hover:bg-primary-deep sm:mt-5"
         >
           Explore the shops
           <span className="flex size-8 items-center justify-center rounded-full bg-black/20 transition-transform group-hover:rotate-45">
@@ -1217,7 +1295,7 @@ function HouseSlide({ images }: { images: Product[] }) {
 
 function HeroSkeleton() {
   return (
-    <div className="grid gap-5 sm:grid-cols-[1.1fr_0.9fr] sm:items-center sm:gap-6">
+    <div className="grid gap-4 sm:grid-cols-[1.1fr_0.9fr] sm:items-center sm:gap-6">
       <div className="space-y-3">
         <Skeleton className="h-6 w-28 rounded-full bg-white/10" />
         <Skeleton className="h-10 w-full bg-white/10" />
@@ -1250,7 +1328,7 @@ function CategoryRail({
 
   return (
     <div
-      className="no-scrollbar -mx-5 mt-6 flex gap-2 overflow-x-auto px-5 sm:-mx-6 sm:px-6 lg:-mx-8 lg:px-8"
+      className="no-scrollbar -mx-4 mt-4 flex gap-2 overflow-x-auto px-4 sm:-mx-6 sm:mt-6 sm:px-6 lg:-mx-8 lg:px-8"
     >
       {categories.map((cat) => {
         const Icon = categoryIcon(cat);
@@ -1312,108 +1390,147 @@ function categoryIcon(name: string): LucideIcon {
 }
 
 /**
- * The free rotation, as a collage.
+ * The sponsored panel: the bought slots the hero has no room to rotate through.
  *
- * The lead product gets the wide tile and the next two share the row under it,
- * which is the arrangement that says "here is a place to look" rather than
- * "here are three ranked results" — and ranking would be wrong, because nothing
- * in this panel was bought and the order is whatever the hourly rotation
- * handed back.
+ * IT IS THE SAME INVENTORY AS THE HERO, IN A DIFFERENT SHAPE, and it is fed the
+ * tail of the list rather than a copy of it — see HERO_SLOTS. A rotation only
+ * sells the same thing to everybody while everybody can actually be reached; at
+ * twelve seconds a slide, the back of a long queue is theoretical. This panel
+ * is where that tail is visible at a glance instead of eventually, which also
+ * makes it the unit an advertiser buys when they want to be READ rather than
+ * waited for.
+ *
+ * LABELLED, always, on the panel and on every card in it. Same rule as the
+ * hero: the free rotation elsewhere on the page only works because a shopper
+ * can tell paid from earned, and a sponsored card that looks like an ordinary
+ * product tile spends that distinction for one extra click.
+ *
+ * WITH NOTHING IN THE TAIL IT SELLS THE SLOT ITSELF rather than quietly filling
+ * with free products. Borrowing the rotation here would put unpaid merchandise
+ * under a Sponsored heading, which is the exact failure HouseSlide exists to
+ * avoid at the top of the same row.
  */
-function ShopCollageCard({
+function SponsoredPanel({
   items,
   loading,
   className,
 }: {
-  items: Product[];
+  items: BannerProduct[];
   loading: boolean;
   className?: string;
 }) {
-  const [lead, ...rest] = items;
-
   return (
     <section
-      className={cn("flex flex-col rounded-bento bg-card p-4 shadow-soft", className)}
-      aria-label="A product from each shop"
+      aria-label="Sponsored products"
+      className={cn("flex-col rounded-bento bg-card p-4 shadow-soft", className)}
     >
       <div className="flex items-start justify-between gap-2">
-        {/* No forced line break any more: the card spans five columns rather
-            than three, so "Curated shop collections" fits on one line and the
-            <br> was splitting it mid-phrase for no reason. */}
-        <h2 className="text-sm font-bold leading-snug text-ink">Curated shop collections</h2>
-        <Link to="/shops" className="shrink-0 text-xs font-semibold text-primary hover:underline">
-          See all
-        </Link>
+        <h2 className="flex items-center gap-1.5 text-sm font-bold leading-snug text-ink">
+          <Megaphone className="size-4 shrink-0 text-warning" aria-hidden />
+          Sponsored
+        </h2>
+        <span className="shrink-0 text-[11px] font-semibold uppercase tracking-wide text-muted">
+          Paid placement
+        </span>
       </div>
 
       {loading ? (
-        <div className="mt-3 grid flex-1 grid-cols-3 grid-rows-[minmax(7rem,1fr)_auto] gap-2">
-          <Skeleton className="col-span-3 size-full rounded-2xl" />
+        <div className="mt-3 flex-1 space-y-2">
           {Array.from({ length: 3 }).map((_, i) => (
-            <Skeleton key={i} className="aspect-square w-full rounded-2xl" />
+            <Skeleton key={i} className="h-24 w-full rounded-2xl" />
           ))}
         </div>
-      ) : !lead ? (
-        <p className="mt-3 flex-1 text-xs leading-relaxed text-muted">
-          No shop has listed a product yet. This panel fills itself from the hourly rotation the
-          moment one does.
-        </p>
+      ) : items.length === 0 ? (
+        <SponsorPitch />
       ) : (
-        <>
-          {/* One wide tile over a row of three. The lead is not a ranking — the
-              hourly rotation decides the order and nothing here was bought — it
-              is just the shape that reads as a place to look rather than as a
-              list of results. */}
-          {/* The lead tile absorbs whatever height the bento row has spare
-              (1fr), the three under it stay square. The alternative — fixing
-              every tile's aspect ratio — leaves the card with a dead strip at
-              the bottom on any screen where another column is taller, which is
-              most of them. */}
-          <div className="mt-3 grid flex-1 grid-cols-3 grid-rows-[minmax(7rem,1fr)_auto] gap-2">
-            <Link
-              to={productHref(lead)}
-              className="group col-span-3 overflow-hidden rounded-2xl bg-fill"
-            >
-              <ProductImage
-                src={lead.images[0]}
-                alt={lead.imageAlts?.[0]?.trim() || lead.name}
-                loading="lazy"
-                className="size-full object-cover transition-transform duration-300 group-hover:scale-[1.04]"
-              />
-            </Link>
-            {rest.map((p) => (
-              <Link
-                key={p.id}
-                to={productHref(p)}
-                className="group overflow-hidden rounded-2xl bg-fill"
-              >
-                <ProductImage
-                  src={p.images[0]}
-                  alt={p.imageAlts?.[0]?.trim() || p.name}
-                  loading="lazy"
-                  className="aspect-square w-full object-cover transition-transform duration-300 group-hover:scale-[1.04]"
-                />
-              </Link>
-            ))}
-          </div>
-
-          <div className="mt-3">
-            <Link
-              to={lead.shopSlug ? `/${lead.shopSlug}` : "/shops"}
-              className="truncate text-sm font-extrabold text-ink hover:underline"
-            >
-              {lead.shopName ?? lead.name}
-            </Link>
-            <p className="mt-0.5 text-xs leading-relaxed text-muted">
-              One product from every shop on PulseShop, rotated hourly. Nobody pays for this.
-            </p>
-          </div>
-        </>
+        // CENTRED IN THE PANEL, not stacked at the top of it. The panel is as
+        // tall as the hero next door (lg:min-h-104) and usually holds two
+        // cards, so top-aligning them leaves a hand's width of empty card
+        // underneath — which reads as content that failed to load. Stretching
+        // the cards instead was worse: an eighty-pixel thumbnail blown up to
+        // half a panel is a picture with a caption squeezed off the side.
+        <ul className="mt-3 flex min-h-0 flex-1 flex-col justify-center gap-2">
+          {items.slice(0, 3).map((item) => (
+            <li key={item.placementId}>
+              <SponsoredCard product={item} />
+            </li>
+          ))}
+        </ul>
       )}
     </section>
   );
 }
 
+/** One bought slot, at list size rather than poster size. */
+function SponsoredCard({ product }: { product: BannerProduct }) {
+  return (
+    <Link
+      to={productHref(product)}
+      className="group flex items-center gap-3 overflow-hidden rounded-2xl bg-fill/60 p-2 transition-colors hover:bg-fill"
+    >
+      <ProductImage
+        src={product.images[0]}
+        alt={product.imageAlts?.[0]?.trim() || product.name}
+        loading="lazy"
+        className="size-20 shrink-0 rounded-xl object-cover transition-transform duration-300 group-hover:scale-[1.04]"
+      />
+      <div className="flex min-w-0 flex-1 flex-col justify-center gap-0.5">
+        <span className="flex w-fit items-center gap-1 rounded-full bg-warning/15 px-1.5 py-0.5 text-[10px] font-bold uppercase tracking-wide text-warning">
+          <Megaphone className="size-2.5" aria-hidden />
+          Sponsored
+        </span>
+        {/* The seller's own copy when they bought some, the product name when
+            they did not — the same fallback the hero slide uses, so one
+            placement reads the same in both units. */}
+        <p className="line-clamp-2 text-xs font-extrabold leading-snug text-ink">
+          {product.headline?.trim() || product.name}
+        </p>
+        <p className="text-sm font-extrabold text-primary">
+          {hasPriceRange(product) && <span className="text-[11px] text-muted">from </span>}
+          {formatKes(minVariantPrice(product))}
+        </p>
+        {product.shopName && (
+          <span className="flex items-center gap-1 text-[10px] font-semibold text-muted">
+            <Store className="size-3 shrink-0" aria-hidden />
+            <span className="truncate">{product.shopName}</span>
+          </span>
+        )}
+      </div>
+    </Link>
+  );
+}
+
+/**
+ * What the panel says when the tail is empty — which, on a young platform, is
+ * most days.
+ *
+ * The platform's own pitch, not borrowed inventory, for the reason HouseSlide
+ * spells out one panel to the left. An unsold advert slot is the one piece of
+ * space a marketplace can honestly talk about itself in, and this is the panel
+ * where "talking about itself" and "the thing being sold" are the same
+ * sentence.
+ */
+function SponsorPitch() {
+  return (
+    <div className="mt-3 flex flex-1 flex-col justify-center rounded-2xl bg-fill/60 p-4 text-center">
+      <span className="mx-auto flex size-10 items-center justify-center rounded-full bg-warning/15">
+        <Megaphone className="size-5 text-warning" aria-hidden />
+      </span>
+      <p className="mt-3 text-sm font-extrabold text-ink">This slot is open</p>
+      <p className="mt-1 text-xs leading-relaxed text-muted">
+        Sponsored placement puts one of your products at the top of the marketplace, labelled and
+        in front of every shopper who lands here.
+      </p>
+      <Link
+        to="/prices"
+        className="mt-3 inline-flex items-center justify-center gap-1.5 self-center rounded-full bg-ink px-4 py-2 text-xs font-bold text-on-accent transition-opacity hover:opacity-90"
+      >
+        See what it costs
+        <ArrowUpRight className="size-3.5" aria-hidden />
+      </Link>
+    </div>
+  );
+}
 
 /**
  * Recommended for you, built from the last thing they opened.
@@ -1603,25 +1720,35 @@ function ShopsRail({
 }
 
 /**
- * The wishlist, as a phone-sized control in the masthead.
+ * The wishlist and the cart, as phone-sized controls in the masthead.
  *
- * Not a duplicate of the Favorites tab so much as a shortcut to it from where
- * the thumb already is. The tab bar is the permanent home for the destination;
- * this is the one that stays reachable while the shopper is head-down in the
- * category wall, and it carries the count so "did that save?" is answerable
- * without navigating.
+ * Neither is a duplicate of its tab so much as a shortcut to it from where the
+ * thumb already is. The tab bar is the permanent home for the destination;
+ * these are the two that stay reachable while the shopper is head-down in the
+ * category wall, and they are the only controls on the page carrying a number
+ * that changes as the shopper works — which is the whole argument for lifting
+ * them up here. "Did that save?" and "did that go in?" should be answerable
+ * without navigating and without scrolling.
  *
  * Deliberately NOT wired through DesktopQuickNav: that component's icon row is
- * lg-only by design, and forcing it to render one of its four icons on a phone
+ * lg-only by design, and forcing it to render two of its four icons on a phone
  * would make it two components pretending to be one.
  */
-function WishlistButton() {
-  const count = useFavorites((s) => s.favorites.length);
-
+function HeaderIconLink({
+  to,
+  label,
+  count,
+  icon: Icon,
+}: {
+  to: string;
+  label: string;
+  count: number;
+  icon: LucideIcon;
+}) {
   return (
     <NavLink
-      to="/favorites"
-      aria-label={count > 0 ? `Wishlist, ${count} saved` : "Wishlist"}
+      to={to}
+      aria-label={label}
       className={({ isActive }) =>
         cn(
           "relative flex size-11 shrink-0 items-center justify-center rounded-full border transition-colors",
@@ -1630,13 +1757,37 @@ function WishlistButton() {
         )
       }
     >
-      <Heart className="size-5" />
+      <Icon className="size-5" />
       {count > 0 && (
         <span className="absolute -right-0.5 -top-0.5 flex h-4 min-w-4 items-center justify-center rounded-full bg-favorite px-1 text-[10px] font-bold text-white ring-2 ring-card">
           {count}
         </span>
       )}
     </NavLink>
+  );
+}
+
+function WishlistButton() {
+  const count = useFavorites((s) => s.favorites.length);
+  return (
+    <HeaderIconLink
+      to="/favorites"
+      label={count > 0 ? `Wishlist, ${count} saved` : "Wishlist"}
+      count={count}
+      icon={Heart}
+    />
+  );
+}
+
+function CartButton() {
+  const qty = useCart((s) => cartCount(s.items));
+  return (
+    <HeaderIconLink
+      to="/cart"
+      label={qty > 0 ? `Cart, ${qty} item${qty === 1 ? "" : "s"}` : "Cart"}
+      count={qty}
+      icon={ShoppingBag}
+    />
   );
 }
 
@@ -1670,17 +1821,28 @@ function SearchField({ value, onChange }: { value: string; onChange: (v: string)
 }
 
 /**
- * The rest of the free rotation, under the bento.
+ * Deals of the day: every marked-down product on the platform.
  *
- * Nothing here is bought: the database picks one product per registered shop
- * and rotates the selection hourly, so a shop that opened this morning sits
- * beside the busiest one on the platform. The first three lead the collage
- * panel above; this rail carries whichever shops that panel had no room for,
- * which is why it is a scrolling rail at every width rather than a grid of
- * three — the count depends on how many shops exist, and a grid that leaves one
- * card alone on a second row is worse than a rail.
+ * A WHOLE-TABLE QUERY, not a filtered page (migration 0058). The obvious
+ * version of this shelf fetches a page of products and keeps the ones with a
+ * discount, which would make "every product on discount" mean "whichever
+ * discounts happened to fall in the first twelve rows" — and would go empty the
+ * day a shop lists a dozen full-price items. The RPC orders by the size of the
+ * discount, so the shelf leads with the biggest saving rather than the newest
+ * listing, and this component does not re-sort it.
+ *
+ * A GRID, NOT A RAIL. The two shelves above it — categories and shops — are
+ * both about narrowing down, and a rail suits those because the shopper is
+ * looking for one entry among many. This one is merchandise: every tile is a
+ * thing to buy at a price that is lower today, so the shopper wants to compare
+ * them, and comparing is what a grid is for. It also means the ordinary
+ * ProductCard does the work, savings badge and all, instead of a second tile
+ * design that would have to be kept in step with it.
+ *
+ * NOTHING ON OFFER MEANS NO SECTION. A heading that promises deals over an
+ * empty row is worse than one fewer band on the page.
  */
-function ShopFeatureStrip({
+function DealsShelf({
   items,
   loading,
   className,
@@ -1691,49 +1853,32 @@ function ShopFeatureStrip({
 }) {
   if (loading) {
     return (
-      <div className={cn("no-scrollbar -mx-4 flex gap-3 overflow-x-auto px-4 lg:-mx-6 lg:px-6", className)}>
-        {Array.from({ length: 4 }).map((_, i) => (
-          <Skeleton key={i} className="h-36 w-64 shrink-0 rounded-card" />
-        ))}
-      </div>
+      <section className={className} aria-label="Deals of the day">
+        <Skeleton className="mb-3 h-6 w-44 rounded" />
+        <div className={GRID_CLASS}>
+          {Array.from({ length: 4 }).map((_, i) => (
+            <ProductCardSkeleton key={i} />
+          ))}
+        </div>
+      </section>
     );
   }
   if (items.length === 0) return null;
 
   return (
-    <section aria-label="More from the shops on PulseShop" className={className}>
-      <div className="mb-2.5 flex items-center gap-1.5">
-        <Sparkles className="size-4 text-primary" aria-hidden />
-        <h2 className="text-sm font-bold text-ink">More from the shops on PulseShop</h2>
+    <section className={className} aria-label="Deals of the day">
+      <div className="mb-3 flex flex-wrap items-baseline justify-between gap-2">
+        <h2 className="flex items-center gap-2 text-lg font-extrabold text-ink lg:text-2xl">
+          <Tag className="size-5 text-favorite" aria-hidden />
+          Deals of the day
+        </h2>
+        <p className="text-xs font-semibold text-muted lg:text-sm">
+          {items.length} {items.length === 1 ? "product is" : "products are"} marked down right now
+        </p>
       </div>
-      <div className="no-scrollbar -mx-4 flex gap-3 overflow-x-auto px-4 lg:-mx-6 lg:px-6">
+      <div className={GRID_CLASS}>
         {items.map((p) => (
-          <Link
-            key={p.id}
-            to={productHref(p)}
-            className="group relative w-64 shrink-0 overflow-hidden rounded-card bg-card shadow-soft transition-shadow hover:shadow-md"
-          >
-            <div className="flex h-36">
-              <div className="flex min-w-0 flex-1 flex-col justify-center gap-1 p-4">
-                {p.shopName && (
-                  <span className="flex w-fit items-center gap-1 rounded-full bg-fill px-2 py-0.5 text-[10px] font-bold uppercase tracking-wide text-muted">
-                    <Store className="size-3" aria-hidden />
-                    <span className="max-w-32 truncate">{p.shopName}</span>
-                  </span>
-                )}
-                <p className="line-clamp-2 text-sm font-extrabold leading-snug text-ink">{p.name}</p>
-                <p className="text-sm font-extrabold text-primary">{formatKes(p.priceKes)}</p>
-              </div>
-              <div className="w-28 shrink-0 overflow-hidden bg-fill">
-                <ProductImage
-                  src={p.images[0]}
-                  alt={p.imageAlts?.[0]?.trim() || p.name}
-                  loading="lazy"
-                  className="size-full object-cover transition-transform duration-300 group-hover:scale-[1.04]"
-                />
-              </div>
-            </div>
-          </Link>
+          <ProductCard key={p.id} product={p} />
         ))}
       </div>
     </section>
