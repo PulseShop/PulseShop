@@ -19,6 +19,7 @@ import { useCartSync } from "@/hooks/useCart";
 import { useFavoritesSync } from "@/hooks/useFavorites";
 import { useProfileSync } from "@/hooks/useProfileSync";
 import { isSupabaseConfigured, supabase } from "@/services/api/client";
+import { useAttribution } from "@/stores/attribution";
 import { useAuth } from "@/stores/auth";
 import { useOrderStore } from "@/stores/order";
 import { useToasts } from "@/stores/toast";
@@ -43,11 +44,13 @@ import { InventoryPage } from "@/routes/dashboard/InventoryPage";
 import { OrdersDashboardPage } from "@/routes/dashboard/OrdersPage";
 import { ReviewsDashboardPage } from "@/routes/dashboard/ReviewsPage";
 import { SettingsPage } from "@/routes/dashboard/SettingsPage";
+import { ShareLinksPage } from "@/routes/dashboard/ShareLinksPage";
 import { AccountPage } from "@/routes/account/AccountPage";
 import { FavoritesPage } from "@/routes/favorites/FavoritesPage";
 import { OrderPage } from "@/routes/order/OrderPage";
 import { OrdersPage } from "@/routes/order/OrdersPage";
 import { ProductDetailPage } from "@/routes/product/ProductDetailPage";
+import { ShareLinkPage } from "@/routes/share/ShareLinkPage";
 import { StorefrontPage } from "@/routes/storefront/StorefrontPage";
 import { RequireMerchant } from "./routes/auth/RequireAuth";
 import { AuthCallbackPage } from "./routes/auth/AuthCallbackPage";
@@ -181,6 +184,9 @@ function AppSync() {
     }
     if (wasSignedIn.current) {
       useOrderStore.getState().clearCustomer();
+      // Which shared link this device arrived on is personal to whoever was
+      // browsing, and it persists to localStorage under a fixed key.
+      useAttribution.getState().clear();
       queryClient.clear();
     }
     wasSignedIn.current = false;
@@ -225,6 +231,11 @@ createRoot(document.getElementById("root")!).render(
                 route covers an in-app navigation, which never reaches the
                 server, and replaces itself with the canonical URL. */}
             <Route path="/product/:id" element={<ProductDetailPage />} />
+            {/* Short share links (migration 0052). Two segments, so it ranks
+                above /:shopSlug/:productSlug without any ordering trick, and
+                "s" is reserved from the shop-handle space by that same
+                specificity. */}
+            <Route path="/s/:code" element={<ShareLinkPage />} />
             <Route path="/favorites" element={<FavoritesPage />} />
             <Route path="/cart" element={<CartPage />} />
             <Route path="/checkout" element={<CheckoutPage />} />
@@ -237,6 +248,7 @@ createRoot(document.getElementById("root")!).render(
             <Route path="/dashboard/orders" element={<RequireMerchant><OrdersDashboardPage /></RequireMerchant>} />
             <Route path="/dashboard/reviews" element={<RequireMerchant><ReviewsDashboardPage /></RequireMerchant>} />
             <Route path="/dashboard/analytics" element={<RequireMerchant><AnalyticsPage /></RequireMerchant>} />
+            <Route path="/dashboard/share" element={<RequireMerchant><ShareLinksPage /></RequireMerchant>} />
             <Route path="/dashboard/settings" element={<RequireMerchant><SettingsPage /></RequireMerchant>} />
             <Route path="/dev/components" element={<ComponentsPage />} />
             {/* Owner-only platform statistics. The gate is in the database

@@ -412,6 +412,7 @@ export function InventoryPage() {
                     <div className="flex justify-end gap-1">
                       <ShareMenu
                         product={p}
+                        isOwner
                         triggerClassName="flex size-8 items-center justify-center rounded-lg text-muted transition-colors hover:bg-primary/10 hover:text-primary"
                         iconClassName="size-4"
                       />
@@ -525,6 +526,7 @@ export function InventoryPage() {
                 <div className="flex items-center gap-1">
                   <ShareMenu
                     product={p}
+                    isOwner
                     triggerClassName="flex size-9 items-center justify-center rounded-lg text-muted transition-colors hover:bg-primary/10 hover:text-primary"
                     iconClassName="size-4"
                   />

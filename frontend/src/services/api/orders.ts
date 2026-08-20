@@ -39,6 +39,7 @@ interface OrderRow {
   total_kes: number;
   discount_code: string | null;
   discount_kes: number;
+  share_code: string | null;
   placed_at: string;
   order_items: OrderItemRow[];
 }
@@ -69,6 +70,7 @@ function toMerchantOrder(row: OrderRow): MerchantOrder {
     totalKes: row.total_kes,
     discountCode: row.discount_code,
     discountKes: row.discount_kes,
+    shareCode: row.share_code,
     placedAt: row.placed_at,
     items: (row.order_items ?? []).map(toOrderLine),
   };
@@ -158,6 +160,7 @@ async function placeOrder(
   idempotencyKey: string,
   captchaToken?: string,
   discountCode?: string | null,
+  shareCode?: string | null,
 ): Promise<PlacedOrderRef> {
   const { data, error } = await supabase.functions.invoke<{
     reference?: string;
@@ -179,6 +182,7 @@ async function placeOrder(
         qty: i.qty,
       })),
       discount_code: discountCode || null,
+      share_code: shareCode || null,
     },
   });
 
@@ -206,6 +210,8 @@ export const ordersApi: OrderService = {
       [{ productId: draft.productId, size: draft.size, color: draft.color, qty: draft.qty }],
       draft.idempotencyKey,
       draft.captchaToken,
+      null,
+      draft.shareCode,
     );
   },
 
@@ -218,6 +224,7 @@ export const ordersApi: OrderService = {
       draft.idempotencyKey,
       draft.captchaToken,
       draft.discountCode,
+      draft.shareCode,
     );
   },
 

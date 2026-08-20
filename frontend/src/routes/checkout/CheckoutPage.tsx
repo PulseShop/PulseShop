@@ -22,6 +22,7 @@ import { cartOrderLink } from "@/lib/deeplinks";
 import { isValidPhone } from "@/lib/phone";
 import { cn } from "@/lib/utils";
 import { services } from "@/services";
+import { activeShareCode, useAttribution } from "@/stores/attribution";
 import { type AppliedDiscount, DiscountCodeSection } from "@/components/cart/DiscountCodeSection";
 import type { PaymentMethod } from "@/types";
 import { useClearCart } from "@/hooks/useCart";
@@ -214,6 +215,10 @@ export function CheckoutPage() {
       idempotencyKey,
       captchaToken: captcha.token,
       discountCode: applied?.preview.valid ? applied.code : undefined,
+      // Which shared link brought this buyer in, if any. Read through
+      // activeShareCode() rather than off the store so the 30-day window is
+      // applied — see stores/attribution.ts.
+      shareCode: activeShareCode(),
     });
 
   const openPayment = async () => {
@@ -505,6 +510,9 @@ export function CheckoutPage() {
           if (!pendingReference) return;
           recordOrders(pendingReference, pendingToken, method, channel);
           clearCart();
+          // The link has been credited on the order; keeping it would let one
+          // Status post claim every future order from this device too.
+          useAttribution.getState().clear();
           navigate("/orders");
         }}
       />

@@ -65,13 +65,18 @@ const RESERVED = new Set([
   "shop", "shops", "product", "cart", "checkout", "order", "orders", "account",
   "favorites", "login", "signup", "welcome", "auth", "reset-password",
   "dashboard", "dev", "api", "assets", "icons", "prices", "about", "faq",
-  "admindev",
+  "admindev", "s",
 ]);
 
 /** Pages that exist for a signed-in human and must never be indexed. */
 const PRIVATE_ROOTS = new Set([
   "cart", "checkout", "order", "orders", "account", "favorites", "login",
   "signup", "auth", "reset-password", "dashboard", "dev", "shop", "admindev",
+  // /s/CODE is a doorway that immediately replaces itself with the real
+  // product page (migration 0052). Indexing it would put a redirect in the
+  // results where the product belongs, and would have a crawler scoring
+  // clicks against sellers' share links.
+  "s",
 ]);
 
 // ---------------------------------------------------------------------------

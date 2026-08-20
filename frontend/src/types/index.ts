@@ -481,6 +481,47 @@ export interface DiscountCode {
   createdAt: string;
 }
 
+/**
+ * Where a share link was posted. Not the same list as OrderChannel: "status"
+ * (WhatsApp Status) and "tiktok" are places a seller PROMOTES to but cannot
+ * take an order through, and "direct" is the absence of a channel, which a
+ * share link by definition is not.
+ */
+export type ShareChannel = "whatsapp" | "status" | "instagram" | "facebook" | "tiktok" | "other";
+
+/**
+ * One short link (`/s/CODE`) and what it earned (migration 0052).
+ *
+ * `orderCount` counts every order that arrived on the link; `revenueKes`
+ * counts only the PAID ones. The gap between them is the seller's real
+ * conversion story, so the two are deliberately not collapsed into one number.
+ */
+export interface ShareLink {
+  id: string;
+  code: string;
+  /** Null for a link that points at the shop rather than one product. */
+  productId: string | null;
+  productName: string;
+  channel: ShareChannel;
+  /** Seller-set campaign name, "" when they never set one. */
+  label: string;
+  clickCount: number;
+  orderCount: number;
+  revenueKes: number;
+  createdAt: string;
+}
+
+/** Where a share code points, resolved from the code alone. */
+export interface ShareTarget {
+  code: string;
+  shopSlug: string;
+  shopName: string;
+  /** Null when the link points at the shop rather than a product. */
+  productId: string | null;
+  productSlug: string | null;
+  channel: ShareChannel;
+}
+
 /** The buyer-facing effect of applying a code, computed before the order is
  * placed. Advisory only — place_order re-validates and re-computes this
  * itself, and its answer is the one that's actually charged. */
@@ -523,6 +564,10 @@ export interface OrderDraft extends OrderSubmission {
   customer: { name: string; phone: string; notes: string };
   channel: OrderChannel;
   payment: null | { method: PaymentMethod; status: PaymentStatus };
+  /** The share link the buyer arrived on, if any (migration 0052). Attribution
+   * only: place_order drops one it can't resolve rather than failing the
+   * order. */
+  shareCode?: string | null;
 }
 
 /** A multi-item order from the cart checkout. All items belong to one shop. */
@@ -540,6 +585,8 @@ export interface CartOrderDraft extends OrderSubmission {
   /** A code the buyer applied at checkout. Validated and applied server-side
    * in place_order — never trusted for the actual charge. */
   discountCode?: string | null;
+  /** See OrderDraft.shareCode. */
+  shareCode?: string | null;
 }
 
 export interface Favorite {
@@ -624,6 +671,9 @@ export interface MerchantOrder {
   totalKes: number;
   discountCode: string | null;
   discountKes: number;
+  /** Which share link brought this order in, or null for a buyer who arrived
+   * without one. */
+  shareCode: string | null;
   placedAt: string;
   items: OrderLine[];
 }

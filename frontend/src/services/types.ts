@@ -39,6 +39,9 @@ import type {
   Product,
   ProductReview,
   ProductType,
+  ShareChannel,
+  ShareLink,
+  ShareTarget,
   ShopFacets,
   ShopStatus,
 } from "@/types";
@@ -501,6 +504,34 @@ export interface DiscountService {
   ): Promise<DiscountPreview>;
 }
 
+/**
+ * Short share links (migration 0052) — the attribution layer under every
+ * social feature.
+ *
+ * `ensureLink` is get-or-create rather than create: the seller's question is
+ * "what is my WhatsApp Status worth", not "what did this one tap earn", so
+ * re-sharing the same product to the same channel returns the same code. Pass
+ * a `label` to split one channel into separate campaigns.
+ *
+ * `resolve` is the only method a stranger calls, and the only one that works
+ * signed out — it is what `/s/CODE` runs. It counts the click as a side
+ * effect, so callers must not call it speculatively.
+ */
+export interface ShareLinkService {
+  /**
+   * The code for this (product, channel, label), minting one on first use.
+   * Only the product's own merchant may call it; anyone else sharing gets the
+   * plain product URL client-side instead. Pass a null productId for a link
+   * to the whole shop.
+   */
+  ensureLink(productId: string | null, channel: ShareChannel, label?: string): Promise<string>;
+  /** Where a code points, or null when it doesn't resolve. Counts a click. */
+  resolve(code: string): Promise<ShareTarget | null>;
+  /** The signed-in seller's own links with clicks, orders and paid revenue. */
+  listLinks(): Promise<ShareLink[]>;
+  deleteLink(id: string): Promise<void>;
+}
+
 /** Image uploads. Mock keeps base64 inline; the API adapter uses Supabase Storage. */
 export interface StorageService {
   /** Upload an image and return a URL usable in an <img src>. `folder` groups files. */
@@ -604,4 +635,5 @@ export interface Services {
   payments: PaymentService;
   storage: StorageService;
   discounts: DiscountService;
+  shareLinks: ShareLinkService;
 }

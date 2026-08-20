@@ -6,6 +6,7 @@ import {
   Boxes,
   LayoutDashboard,
   MessageSquare,
+  Link2,
   Settings,
   ShoppingCart,
 } from "lucide-react";
@@ -22,6 +23,7 @@ const nav = [
   { to: "/dashboard/orders", label: "Orders", icon: ShoppingCart },
   { to: "/dashboard/reviews", label: "Reviews", icon: MessageSquare },
   { to: "/dashboard/analytics", label: "Analytics", icon: BarChart3 },
+  { to: "/dashboard/share", label: "Share links", icon: Link2 },
   { to: "/dashboard/settings", label: "Settings", icon: Settings },
 ];
 

@@ -791,6 +791,7 @@ export function ProductDetailPage() {
           </button>
           <ShareMenu
             product={product}
+            isOwner={ownsProduct}
             triggerClassName="flex size-10 shrink-0 items-center justify-center rounded-full border border-edge bg-card/70 text-ink"
           />
           <Button

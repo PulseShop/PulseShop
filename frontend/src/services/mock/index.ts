@@ -34,6 +34,9 @@ import type {
   Plan,
   Product,
   ProductReview,
+  ShareChannel,
+  ShareLink,
+  ShareTarget,
   ShopFacets,
   PlatformStats,
   GrowthPoint,
@@ -75,6 +78,7 @@ const RATINGS_KEY = "pulseshop-mock-my-ratings";
 const PROFILE_KEY = "pulseshop-mock-profile";
 const DISCOUNT_CODES_KEY = "pulseshop-mock-discount-codes";
 const DISCOUNT_REDEMPTIONS_KEY = "pulseshop-mock-discount-redemptions";
+const SHARE_LINKS_KEY = "pulseshop-mock-share-links";
 
 const delay = (ms = LATENCY) => new Promise((r) => setTimeout(r, ms));
 
@@ -323,21 +327,21 @@ function seedOrders(): MerchantOrder[] {
       id: "o-seed-1", reference: makeRef(), customerName: "Amina Njoroge",
       customerPhone: "254712345678", customerNotes: "Deliver after 5pm please",
       channel: "whatsapp", paymentMethod: "mpesa", paymentStatus: "paid",
-      subtotalKes: total(o1), totalKes: total(o1), discountCode: null, discountKes: 0,
+      subtotalKes: total(o1), totalKes: total(o1), discountCode: null, discountKes: 0, shareCode: null,
       placedAt: minsAgo(35), items: o1,
     },
     {
       id: "o-seed-2", reference: makeRef(), customerName: "Brian Otieno",
       customerPhone: "254798765432", customerNotes: "",
       channel: "instagram", paymentMethod: null, paymentStatus: "pending",
-      subtotalKes: total(o2), totalKes: total(o2), discountCode: null, discountKes: 0,
+      subtotalKes: total(o2), totalKes: total(o2), discountCode: null, discountKes: 0, shareCode: null,
       placedAt: minsAgo(180), items: o2,
     },
     {
       id: "o-seed-3", reference: makeRef(), customerName: "Cynthia Wanjiru",
       customerPhone: "254733222111", customerNotes: "Gift wrap if possible",
       channel: "facebook", paymentMethod: "paypal", paymentStatus: "paid",
-      subtotalKes: total(o3), totalKes: total(o3), discountCode: null, discountKes: 0,
+      subtotalKes: total(o3), totalKes: total(o3), discountCode: null, discountKes: 0, shareCode: null,
       placedAt: minsAgo(1440), items: o3,
     },
   ];
@@ -432,6 +436,67 @@ function findValidMockCode(code: string, customerPhone?: string): DiscountCode |
     return null;
   }
   return found;
+}
+
+/**
+ * Share links (migration 0052), mock side.
+ *
+ * Only the link rows are stored. Clicks live on the row because nothing else
+ * records them, but orders and revenue are DERIVED from ordersReceived on
+ * every read, exactly as share_link_performance() derives them from a join —
+ * a second stored counter is a second thing to keep in step with the orders
+ * list, and it would drift the first time a mock order was seeded or cleared.
+ */
+interface MockShareLink {
+  id: string;
+  code: string;
+  productId: string | null;
+  channel: ShareChannel;
+  label: string;
+  clickCount: number;
+  createdAt: string;
+}
+
+// No O/0/I/1 — these codes are read off a phone screen and typed. Mirrors
+// new_share_code() in 0052.
+const SHARE_ALPHABET = "ABCDEFGHJKLMNPQRSTUVWXYZ23456789";
+
+function loadShareLinks(): MockShareLink[] {
+  try {
+    const raw = localStorage.getItem(SHARE_LINKS_KEY);
+    return raw ? (JSON.parse(raw) as MockShareLink[]) : [];
+  } catch {
+    return [];
+  }
+}
+
+function saveShareLinks(list: MockShareLink[]) {
+  try {
+    localStorage.setItem(SHARE_LINKS_KEY, JSON.stringify(list));
+  } catch {
+    /* quota — mock only */
+  }
+}
+
+let shareLinks = loadShareLinks();
+
+function makeShareCode(): string {
+  for (let attempt = 0; attempt < 20; attempt++) {
+    let code = "";
+    for (let i = 0; i < 5; i++) {
+      code += SHARE_ALPHABET[Math.floor(Math.random() * SHARE_ALPHABET.length)];
+    }
+    if (!shareLinks.some((l) => l.code === code)) return code;
+  }
+  throw new Error("could not generate a unique share code");
+}
+
+/** Mirrors place_order: a code that doesn't resolve is dropped, never an error.
+ * Attribution is bookkeeping; losing it must never cost the sale. */
+function resolveMockShareCode(code: string | null | undefined): string | null {
+  if (!code) return null;
+  const match = shareLinks.find((l) => l.code.toUpperCase() === code.trim().toUpperCase());
+  return match ? match.code : null;
 }
 
 function loadIds(key: string): string[] {
@@ -1451,6 +1516,7 @@ export const mockServices: Services = {
             totalKes: total,
             discountCode: null,
             discountKes: 0,
+            shareCode: resolveMockShareCode(draft.shareCode),
             placedAt: new Date().toISOString(),
             items,
           },
@@ -1522,6 +1588,7 @@ export const mockServices: Services = {
           totalKes: total,
           discountCode: match ? match.code : null,
           discountKes,
+          shareCode: resolveMockShareCode(draft.shareCode),
           placedAt: new Date().toISOString(),
           items,
         },
@@ -1581,6 +1648,87 @@ export const mockServices: Services = {
         (r) => r.order.reference === reference && r.accessToken === accessToken,
       );
       return rec ? structuredClone(rec.order) : null;
+    },
+  },
+
+  shareLinks: {
+    async ensureLink(productId: string | null, channel: ShareChannel, label = ""): Promise<string> {
+      await delay();
+      const trimmed = label.trim();
+      // Get-or-create on the same key the unique index uses in 0052, so
+      // re-opening the share sheet returns the code the seller already posted
+      // rather than minting a rival one.
+      const existing = shareLinks.find(
+        (l) => l.productId === productId && l.channel === channel && l.label === trimmed,
+      );
+      if (existing) return existing.code;
+
+      const link: MockShareLink = {
+        id: `sl${Date.now()}`,
+        code: makeShareCode(),
+        productId,
+        channel,
+        label: trimmed,
+        clickCount: 0,
+        createdAt: new Date().toISOString(),
+      };
+      shareLinks = [link, ...shareLinks];
+      saveShareLinks(shareLinks);
+      return link.code;
+    },
+
+    async resolve(code: string): Promise<ShareTarget | null> {
+      await delay();
+      const idx = shareLinks.findIndex((l) => l.code.toUpperCase() === code.trim().toUpperCase());
+      if (idx === -1) return null;
+
+      // The click counter is a side effect of resolving, same as the RPC —
+      // which is why nothing calls resolve() speculatively.
+      shareLinks = shareLinks.map((l, i) =>
+        i === idx ? { ...l, clickCount: l.clickCount + 1 } : l,
+      );
+      saveShareLinks(shareLinks);
+
+      const link = shareLinks[idx];
+      const product = link.productId ? products.find((p) => p.id === link.productId) : undefined;
+      return {
+        code: link.code,
+        shopSlug: merchant.handle,
+        shopName: merchant.name,
+        productId: product?.id ?? null,
+        productSlug: product?.slug ?? null,
+        channel: link.channel,
+      };
+    },
+
+    async listLinks(): Promise<ShareLink[]> {
+      await delay();
+      return shareLinks.map((l) => {
+        const attributed = ordersReceived.filter((o) => o.shareCode === l.code);
+        return {
+          id: l.id,
+          code: l.code,
+          productId: l.productId,
+          productName: l.productId
+            ? (products.find((p) => p.id === l.productId)?.name ?? "")
+            : "",
+          channel: l.channel,
+          label: l.label,
+          clickCount: l.clickCount,
+          orderCount: attributed.length,
+          // Paid only, like the RPC: a pending order is a claim, not money.
+          revenueKes: attributed
+            .filter((o) => o.paymentStatus === "paid")
+            .reduce((sum, o) => sum + o.totalKes, 0),
+          createdAt: l.createdAt,
+        };
+      });
+    },
+
+    async deleteLink(id: string): Promise<void> {
+      await delay();
+      shareLinks = shareLinks.filter((l) => l.id !== id);
+      saveShareLinks(shareLinks);
     },
   },
 

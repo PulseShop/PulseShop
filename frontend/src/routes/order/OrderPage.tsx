@@ -21,6 +21,7 @@ import { isValidPhone } from "@/lib/phone";
 import { productImageSrc } from "@/lib/productImage";
 import { cn } from "@/lib/utils";
 import { services } from "@/services";
+import { activeShareCode, useAttribution } from "@/stores/attribution";
 import { ProductImage } from "@/components/product/ProductImage";
 import type { PaymentMethod } from "@/types";
 import { useOrderStore } from "@/stores/order";
@@ -189,6 +190,8 @@ export function OrderPage() {
       payment: null,
       idempotencyKey,
       captchaToken: captcha.token,
+      // See CheckoutPage — same rule, single-item path.
+      shareCode: activeShareCode(),
     });
 
   const openPayment = async () => {
@@ -405,6 +408,9 @@ export function OrderPage() {
         onPaid={(method) => {
           if (!pendingReference) return;
           recordOrder(pendingReference, pendingToken, method, channel);
+          // Credited on the order now, so it must not follow this device into
+          // the next one. Same rule as CheckoutPage.
+          useAttribution.getState().clear();
         }}
       />
     </MobileShell>

@@ -4,9 +4,11 @@ import { useRef, useState } from "react";
 import { flushSync } from "react-dom";
 import { FacebookIcon, WhatsAppIcon, InstagramIcon } from "@/components/ui/BrandIcons";
 import { productShareLinks } from "@/lib/deeplinks";
+import { shareableUrl } from "@/lib/shareLinks";
+import { services } from "@/services";
 import { useAuth } from "@/stores/auth";
 import { useToasts } from "@/stores/toast";
-import type { Product } from "@/types";
+import type { Product, ShareChannel } from "@/types";
 import { InstagramStoryTemplate } from "./InstagramStoryTemplate";
 import { InstagramStoryTutorialModal } from "./InstagramStoryTutorialModal";
 
@@ -19,13 +21,24 @@ import { InstagramStoryTutorialModal } from "./InstagramStoryTutorialModal";
  * automatically, so the best we can do is hand the seller a ready-made 9:16
  * graphic with the product link already on their clipboard, and let them
  * paste it onto the Story themselves in the Instagram app.
+ *
+ * ATTRIBUTION (migration 0052): when the seller shares their OWN product, each
+ * destination gets its own short `/s/CODE` link, so the dashboard can later
+ * say which channel actually paid. Everyone else — a shopper sending a friend
+ * a product — shares the plain canonical URL, since a share link belongs to
+ * the shop that minted it and there is nothing to attribute a stranger's
+ * share to.
  */
 export function ShareMenu({
   product,
+  isOwner = false,
   triggerClassName,
   iconClassName = "size-5",
 }: {
   product: Product;
+  /** True when the viewer is the merchant who owns this product. Only they get
+   * tracked short links; see the note above. */
+  isOwner?: boolean;
   triggerClassName: string;
   iconClassName?: string;
 }) {
@@ -39,25 +52,58 @@ export function ShareMenu({
   const links = productShareLinks(product);
   const canNativeShare = typeof navigator !== "undefined" && !!navigator.share;
 
+  /** The URL to hand this particular destination. Never throws — a failure to
+   * mint a tracked link degrades to the plain product URL rather than
+   * blocking the share. */
+  const urlFor = (channel: ShareChannel) =>
+    shareableUrl(services.shareLinks.ensureLink, {
+      isOwner,
+      productId: product.id,
+      channel,
+      fallbackUrl: links.url,
+    });
+
   const copyLink = async () => {
-    await navigator.clipboard.writeText(links.url);
+    const url = await urlFor("instagram");
+    await navigator.clipboard.writeText(url);
     push("Link copied — paste it in your Instagram bio or story", "success");
     setOpen(false);
   };
 
   const nativeShare = async () => {
     setOpen(false);
+    const url = await urlFor("other");
     try {
-      await navigator.share({ title: product.name, text: links.caption, url: links.url });
+      await navigator.share({ title: product.name, text: links.caption, url });
     } catch {
       /* user cancelled */
     }
+  };
+
+  // Facebook and WhatsApp are plain anchors, so their href has to be ready
+  // before the click rather than resolved during it. Minting happens when the
+  // menu opens, which is also the last moment the seller could still change
+  // their mind about sharing at all.
+  const [channelUrls, setChannelUrls] = useState<{ facebook: string; whatsapp: string }>({
+    facebook: links.facebook,
+    whatsapp: links.whatsapp,
+  });
+
+  const prepare = async (nextOpen: boolean) => {
+    setOpen(nextOpen);
+    if (!nextOpen || !isOwner) return;
+    const [fb, wa] = await Promise.all([urlFor("facebook"), urlFor("whatsapp")]);
+    setChannelUrls({
+      facebook: `https://www.facebook.com/sharer/sharer.php?u=${encodeURIComponent(fb)}`,
+      whatsapp: `https://wa.me/?text=${encodeURIComponent(`${links.caption} ${wa}`)}`,
+    });
   };
 
   const generateStory = async () => {
     setOpen(false);
     setGenerating(true);
     try {
+      const url = await urlFor("instagram");
       // Mount the hidden 1080x1920 template synchronously so templateRef is
       // populated before html2canvas reads it — a normal setState wouldn't
       // commit in time inside this async handler.
@@ -80,7 +126,7 @@ export function ShareMenu({
       // failure, just a smaller ask to paste the link manually.
       let linkCopied = true;
       try {
-        await navigator.clipboard.writeText(links.url);
+        await navigator.clipboard.writeText(url);
       } catch {
         linkCopied = false;
       }
@@ -88,7 +134,7 @@ export function ShareMenu({
       push(
         linkCopied
           ? "Story image downloaded and link copied — open Instagram Stories, add the image, then use the Link sticker to paste it in."
-          : `Story image downloaded. Copy your link — ${links.url} — then paste it with the Link sticker in Instagram Stories.`,
+          : `Story image downloaded. Copy your link — ${url} — then paste it with the Link sticker in Instagram Stories.`,
         "success",
       );
     } catch {
@@ -102,7 +148,7 @@ export function ShareMenu({
   return (
     <>
       {storyProduct && <InstagramStoryTemplate ref={templateRef} product={storyProduct} shopName={shopName} />}
-      <Popover.Root open={open} onOpenChange={setOpen}>
+      <Popover.Root open={open} onOpenChange={prepare}>
         <Popover.Trigger asChild>
           <button
             type="button"
@@ -151,7 +197,7 @@ export function ShareMenu({
               </button>
             </div>
             <a
-              href={links.facebook}
+              href={channelUrls.facebook}
               target="_blank"
               rel="noreferrer"
               onClick={() => setOpen(false)}
@@ -161,7 +207,7 @@ export function ShareMenu({
               Share to Facebook
             </a>
             <a
-              href={links.whatsapp}
+              href={channelUrls.whatsapp}
               target="_blank"
               rel="noreferrer"
               onClick={() => setOpen(false)}

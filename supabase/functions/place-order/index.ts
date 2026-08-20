@@ -97,6 +97,12 @@ const PayloadSchema = z.object({
   /** Optional seller-created discount code. place_order() validates and
    * applies it server-side, so this is forwarded, never trusted. */
   discount_code: z.string().trim().min(4).max(24).nullish(),
+  /** Which share link the buyer arrived on (migration 0052). Bookkeeping only:
+   * place_order() drops one it cannot resolve rather than rejecting the order,
+   * so a malformed value here costs attribution and never a sale. Bounded to
+   * the generated code shape so junk is dropped at this layer rather than
+   * travelling to Postgres. */
+  share_code: z.string().trim().regex(/^[A-Za-z2-9]{5,10}$/).nullish(),
 });
 
 /**
@@ -231,6 +237,7 @@ Deno.serve(async (req) => {
     p_idempotency_key: body.idempotency_key ?? null,
     p_customer_id: customerId,
     p_discount_code: body.discount_code ?? null,
+    p_share_code: body.share_code ?? null,
   });
 
   if (error) {

@@ -10,6 +10,7 @@ import { ordersApi } from "./orders";
 import { paymentsApi } from "./payments";
 import { productsApi } from "./products";
 import { reviewsApi } from "./reviews";
+import { shareLinksApi } from "./shareLinks";
 import { storageApi } from "./storage";
 
 /**
@@ -30,4 +31,5 @@ export const apiServices: Services = {
   payments: paymentsApi,
   storage: storageApi,
   discounts: discountsApi,
+  shareLinks: shareLinksApi,
 };
