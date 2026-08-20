@@ -262,7 +262,7 @@ export function MarketplacePage() {
 
   const shopsQ = useQuery({
     queryKey: ["marketplace-shops"],
-    queryFn: () => services.follows.listShops({ pageSize: 8 }),
+    queryFn: () => services.follows.listShops({ pageSize: 12 }),
   });
 
   /**
@@ -338,14 +338,19 @@ export function MarketplacePage() {
   }, [isSearching, products, relatedCategoryQ.data, relatedShopQ.data]);
 
   const features = featuresQ.data ?? [];
-  // The collage takes the first four of the free rotation and the rail below the
-  // bento continues from where it stopped, so a shop appears in exactly one of
-  // them. Splitting the same list rather than querying twice is what keeps "one
-  // product from EVERY shop" true across both.
+  // ON DESKTOP the collage takes the first four of the free rotation and the
+  // strip continues from the fifth, so a shop appears in exactly one of them.
+  // Splitting one list rather than querying twice is what keeps "one product
+  // from EVERY shop" true across both.
+  //
+  // ON A PHONE there is no collage, so the strip is passed `features` whole
+  // instead of `railItems` — otherwise the four shops the collage would have
+  // carried are simply missing from the phone layout. That is why the split
+  // lives here as two values rather than being baked into the component.
   //
   // Four, not three, because four is how many shops a young platform has: at
-  // three the collage was full and the rail below it held a single lonely card,
-  // which reads as a rendering fault rather than as a small marketplace.
+  // three the collage was full and the strip below it held a single lonely
+  // card, which reads as a rendering fault rather than as a small marketplace.
   const collageItems = features.slice(0, 4);
   const railItems = features.slice(4);
 
@@ -495,16 +500,20 @@ export function MarketplacePage() {
         <h1 className="sr-only">PulseShop marketplace — every shop in one place</h1>
 
         {/* THE BENTO. Twelve columns past lg: the hero takes seven because it
-            is the only panel carrying a photograph at display size, the collage
-            three, and the two stacked cards share the last two. Below lg it is
-            one column in the same order, which is also reading order.
+            is the only panel carrying a photograph at display size and the
+            collage takes the remaining five. It was seven / three / two, with
+            the last column stacking "Recommended for you" over "Explore
+            shops" — two narrow panels in the widest layout on the site, both
+            of them lists of links squeezed into 180 pixels while the collage
+            next door had no room to show a photograph properly. The shops are
+            a rail below now and the recommendations sit beside it, which gives
+            this row back to the one thing on it that is actually a picture.
 
             IT DISAPPEARS THE MOMENT SOMEBODY SEARCHES. A shopper who typed a
             query has told you exactly what they want, and making them scroll
-            past a hero, a collage and two side panels to reach it is the site
-            arguing with them. On a phone that was most of a screen of furniture
-            before the first result. Browsing gets the bento; searching gets
-            results at the top of the page. */}
+            past a hero and a collage to reach it is the site arguing with
+            them. Browsing gets the bento; searching gets results at the top of
+            the page. */}
         {!isSearching && (
           <div className="grid gap-3 lg:grid-cols-12 lg:gap-4">
             <PromotedHero
@@ -517,46 +526,49 @@ export function MarketplacePage() {
               onCategory={setCategory}
             />
 
+            {/* Desktop only. On a phone this sat directly under the hero and
+                was the first thing between a shopper and the catalogue: a
+                second large photograph, immediately after the large photograph
+                they had just scrolled past. The shops rail below answers "who
+                sells here" in a fraction of the height, and the products
+                themselves are what the phone layout should be spending its
+                length on. */}
             <ShopCollageCard
-              className="lg:col-span-3"
+              className="hidden lg:col-span-5 lg:flex"
               items={collageItems}
               loading={featuresQ.isLoading}
             />
-
-            {/* Desktop only. On a phone this column was a colour swatch panel
-                and a shop list stacked between the hero and the products —
-                two panels of browsing aids in the narrowest place on the site,
-                pushing the actual catalogue below a second screenful. Both
-                live on elsewhere: colours in the filter sheet, shops on /shops
-                and in the bottom tab bar.
-
-                auto-rows-min so the cards keep their natural heights rather
-                than splitting the row between them. */}
-            <div className="hidden auto-rows-min gap-3 lg:col-span-2 lg:grid lg:grid-cols-1 lg:gap-4">
-              <RecommendationsCard />
-              <ShopsCard shops={shopsQ.data?.items ?? []} loading={shopsQ.isLoading} />
-            </div>
           </div>
         )}
 
-        {/* THE SHOPS, EXPANDED, ON PHONES.
-            The bento column that carries "Explore shops" is desktop-only,
-            which left the phone layout with the collage above — four
-            photographs and one shop's name — as the entire answer to "who
-            sells here". The collage shows MERCHANDISE; this shows SELLERS, and
-            they are different questions. A rail rather than the desktop card's
-            vertical list because horizontal is the shape that fits eight shops
-            into a phone's width without pushing the catalogue down a screen. */}
-        {!isSearching && (
-          <ShopsRail
-            shops={shopsQ.data?.items ?? []}
-            loading={shopsQ.isLoading}
-            className="mt-5 lg:hidden"
-          />
-        )}
+        {/* THE SHOPS, AND WHY THEY ARE A RAIL AT EVERY WIDTH NOW.
+            This was a vertical card in the bento on desktop and a rail on
+            phones, which meant the front page answered "who sells here" in two
+            different shapes depending on the window. The rail is the better of
+            the two at both sizes: a shop is an avatar and a name, that reads
+            horizontally, and a column of five of them was spending the tallest
+            slot in the bento on the least visual content in it.
 
+            It sits directly above the category wall deliberately. Shops and
+            categories are the two ways into a catalogue that are not a search
+            box, so they belong next to each other rather than with a strip of
+            individual products between them. */}
         {!isSearching && (
-          <ShopFeatureStrip items={railItems} loading={featuresQ.isLoading} className="mt-5" />
+          <div className="mt-5 lg:mt-8 lg:flex lg:items-start lg:gap-6">
+            <ShopsRail
+              shops={shopsQ.data?.items ?? []}
+              loading={shopsQ.isLoading}
+              className="min-w-0 lg:flex-1"
+            />
+            {/* The recommendations panel's new home, now that the bento column
+                it used to live in is gone. Desktop only, as before.
+                empty:hidden matters: the card renders nothing at all until the
+                shopper has opened a product, and without it this reserves 14
+                rems of nothing beside the rail on every first visit. */}
+            <div className="mt-5 hidden shrink-0 lg:mt-0 lg:block lg:w-56 lg:empty:hidden">
+              <RecommendationsCard />
+            </div>
+          </div>
         )}
 
         {/* The taxonomy as merchandise. Sits between the browsing panels and
@@ -571,6 +583,30 @@ export function MarketplacePage() {
             loading={showcaseQ.isLoading}
             className="mt-6 lg:mt-8"
           />
+        )}
+
+        {/* The free rotation, in the one place it can be at both widths.
+            Two instances of one component, differing only in which slice of
+            the rotation they carry, because the collage above them exists on
+            desktop and not on a phone. Desktop's collage has already shown the
+            first four shops, so the desktop strip continues from the fifth;
+            the phone has no collage, so its strip carries the whole rotation
+            or those four shops would appear nowhere on a phone at all. The
+            hidden one is out of the accessibility tree, so this reads as a
+            single section to a screen reader. */}
+        {!isSearching && (
+          <>
+            <ShopFeatureStrip
+              items={railItems}
+              loading={featuresQ.isLoading}
+              className="mt-8 hidden lg:block"
+            />
+            <ShopFeatureStrip
+              items={features}
+              loading={featuresQ.isLoading}
+              className="mt-6 lg:hidden"
+            />
+          </>
         )}
 
         {/* Filters left, grid right — the storefront already put its filters on
@@ -1301,10 +1337,10 @@ function ShopCollageCard({
       aria-label="A product from each shop"
     >
       <div className="flex items-start justify-between gap-2">
-        <h2 className="text-sm font-bold leading-snug text-ink">
-          Curated shop
-          <br className="hidden lg:inline" /> collections
-        </h2>
+        {/* No forced line break any more: the card spans five columns rather
+            than three, so "Curated shop collections" fits on one line and the
+            <br> was splitting it mid-phrase for no reason. */}
+        <h2 className="text-sm font-bold leading-snug text-ink">Curated shop collections</h2>
         <Link to="/shops" className="shrink-0 text-xs font-semibold text-primary hover:underline">
           See all
         </Link>
@@ -1491,67 +1527,18 @@ function ViewedSeedLink({ seed }: { seed: ViewedProduct }) {
 }
 
 /**
- * Shops to explore.
+ * The shops, as one rail at every width.
  *
- * The social half of the front page: a shopper who likes what they see should
- * be able to go to the seller, not just the SKU.
- */
-function ShopsCard({ shops, loading }: { shops: Merchant[]; loading: boolean }) {
-  return (
-    <section className="rounded-bento bg-card p-4 shadow-soft">
-      <div className="flex items-center justify-between gap-2">
-        <h2 className="text-sm font-bold text-ink">Explore shops</h2>
-        <Link to="/shops" className="text-xs font-semibold text-primary hover:underline">
-          See all
-        </Link>
-      </div>
-      <div className="mt-3 space-y-1">
-        {loading
-          ? Array.from({ length: 4 }).map((_, i) => (
-              <div key={i} className="flex items-center gap-2 py-1">
-                <Skeleton className="size-8 shrink-0 rounded-full" />
-                <Skeleton className="h-3.5 w-24 rounded" />
-              </div>
-            ))
-          : shops.slice(0, 5).map((shop) => (
-              <Link
-                key={shop.id}
-                to={`/${shop.handle}`}
-                className="flex items-center gap-2 rounded-btn py-1.5 pr-1 transition-colors hover:bg-fill"
-              >
-                {shop.avatarUrl ? (
-                  <img
-                    src={shop.avatarUrl}
-                    alt=""
-                    className="size-8 shrink-0 rounded-full object-cover ring-1 ring-line-soft"
-                  />
-                ) : (
-                  <span className="flex size-8 shrink-0 items-center justify-center rounded-full bg-primary/10">
-                    <Store className="size-3.5 text-primary" />
-                  </span>
-                )}
-                <span className="min-w-0 truncate text-sm font-semibold text-ink">{shop.name}</span>
-              </Link>
-            ))}
-      </div>
-    </section>
-  );
-}
-
-/**
- * The same shops as ShopsCard, laid out for a phone.
+ * There used to be two components for this: a vertical card of five shops in
+ * the desktop bento, and this rail on phones. Two shapes for one answer, chosen
+ * by window width, and the card was the weaker of them — a shop is an avatar
+ * and a name, which reads horizontally, so a column of them spent the tallest
+ * slot in the bento on the least visual content in it. The card is gone and
+ * this is what both widths get.
  *
- * Two components rather than one responsive one because the two layouts share
- * no structure: the card is a vertical list of rows inside a bento panel, this
- * is a horizontally scrolling rail of avatar-over-name tiles. Trying to express
- * both as one component means a wrapper full of `lg:` reversals around every
- * element, which is harder to read than the two plain versions and reliably
- * produces a layout that is wrong at one width or the other.
- *
- * It shows more shops than the desktop card does (eight against five) because
- * a rail is not competing for vertical space with anything — scrolling
- * sideways costs the page nothing, where a sixth row in the bento column would
- * push the whole right-hand stack taller.
+ * A rail is not competing for vertical space with anything, so it can afford to
+ * show every shop the query returned: scrolling sideways costs the page nothing,
+ * where each extra row in the old card pushed the whole bento column taller.
  */
 function ShopsRail({
   shops,
@@ -1587,7 +1574,7 @@ function ShopsRail({
                 <Skeleton className="h-3 w-12 rounded" />
               </div>
             ))
-          : shops.slice(0, 8).map((shop) => (
+          : shops.slice(0, 12).map((shop) => (
               <Link
                 key={shop.id}
                 to={`/${shop.handle}`}
