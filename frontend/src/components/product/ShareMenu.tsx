@@ -3,14 +3,17 @@ import { CircleHelp, ImageDown, Loader2, Share2 } from "lucide-react";
 import { useRef, useState } from "react";
 import { flushSync } from "react-dom";
 import { FacebookIcon, WhatsAppIcon, InstagramIcon } from "@/components/ui/BrandIcons";
+import { formatKes, hasPriceRange, minVariantPrice } from "@/lib/currency";
 import { productShareLinks } from "@/lib/deeplinks";
 import { shareableUrl } from "@/lib/shareLinks";
+import { cardFileName, downloadCardImage, statusCaption } from "@/lib/statusCard";
 import { services } from "@/services";
 import { useAuth } from "@/stores/auth";
 import { useToasts } from "@/stores/toast";
 import type { Product, ShareChannel } from "@/types";
 import { InstagramStoryTemplate } from "./InstagramStoryTemplate";
 import { InstagramStoryTutorialModal } from "./InstagramStoryTutorialModal";
+import { CARD_BACKGROUND, StatusCardTemplate } from "./StatusCardTemplate";
 
 /**
  * Share-this-product control. Where the native Web Share sheet is available
@@ -47,8 +50,12 @@ export function ShareMenu({
   const [open, setOpen] = useState(false);
   const [generating, setGenerating] = useState(false);
   const [storyProduct, setStoryProduct] = useState<Product | null>(null);
+  // The Status card needs its link BAKED IN (Status has nothing tappable), so
+  // unlike the Story template it cannot mount until the URL has resolved.
+  const [statusCard, setStatusCard] = useState<{ product: Product; url: string } | null>(null);
   const [tutorialOpen, setTutorialOpen] = useState(false);
   const templateRef = useRef<HTMLDivElement>(null);
+  const statusRef = useRef<HTMLDivElement>(null);
   const links = productShareLinks(product);
   const canNativeShare = typeof navigator !== "undefined" && !!navigator.share;
 
@@ -99,6 +106,21 @@ export function ShareMenu({
     });
   };
 
+  /**
+   * Copy `text`, reporting whether it landed. Never throws: by the time this
+   * runs the image is already on the seller's phone, so a clipboard refusal
+   * (permission denied, insecure context) is a smaller ask to type the link by
+   * hand, not a failed share.
+   */
+  const tryCopy = async (text: string): Promise<boolean> => {
+    try {
+      await navigator.clipboard.writeText(text);
+      return true;
+    } catch {
+      return false;
+    }
+  };
+
   const generateStory = async () => {
     setOpen(false);
     setGenerating(true);
@@ -108,31 +130,14 @@ export function ShareMenu({
       // populated before html2canvas reads it — a normal setState wouldn't
       // commit in time inside this async handler.
       flushSync(() => setStoryProduct(product));
-      const { default: html2canvas } = await import("html2canvas");
-      const canvas = await html2canvas(templateRef.current!, {
-        width: 1080,
-        height: 1920,
-        useCORS: true,
-        backgroundColor: "#fafaf9",
-      });
-      const fileSlug = product.sku.replace(/[^a-z0-9]+/gi, "-").toLowerCase();
-      const image = document.createElement("a");
-      image.href = canvas.toDataURL("image/png");
-      image.download = `${fileSlug}-instagram-story.png`;
-      image.click();
-
-      // The image is already downloaded at this point — a clipboard failure
-      // (permission denied, insecure context) shouldn't read as a total
-      // failure, just a smaller ask to paste the link manually.
-      let linkCopied = true;
-      try {
-        await navigator.clipboard.writeText(url);
-      } catch {
-        linkCopied = false;
-      }
+      await downloadCardImage(
+        templateRef.current!,
+        cardFileName(product.sku, "instagram-story"),
+        "#fafaf9",
+      );
 
       push(
-        linkCopied
+        (await tryCopy(url))
           ? "Story image downloaded and link copied — open Instagram Stories, add the image, then use the Link sticker to paste it in."
           : `Story image downloaded. Copy your link — ${url} — then paste it with the Link sticker in Instagram Stories.`,
         "success",
@@ -145,9 +150,63 @@ export function ShareMenu({
     }
   };
 
+  /**
+   * The Status kit: a 9:16 card with the short link printed on it, plus a
+   * ready-to-paste caption.
+   *
+   * Status is where the reach is here — it reaches every contact who has saved
+   * the seller's number, and it expires in 24 hours. That expiry is the whole
+   * design constraint: this is a graphic the seller needs a NEW copy of every
+   * single day, so the entire flow is one tap. Anything longer and they go
+   * back to screenshotting the product page and cropping it badly.
+   */
+  const generateStatusCard = async () => {
+    setOpen(false);
+    setGenerating(true);
+    try {
+      const url = await urlFor("status");
+      // Unlike the Story path, this waits on the URL before rendering: the
+      // link is drawn INTO the image, so mounting first would bake in a
+      // placeholder.
+      flushSync(() => setStatusCard({ product, url }));
+      await downloadCardImage(
+        statusRef.current!,
+        cardFileName(product.sku, "whatsapp-status"),
+        CARD_BACKGROUND,
+      );
+
+      const caption = statusCaption({
+        productName: product.name,
+        price: `${hasPriceRange(product) ? "from " : ""}${formatKes(minVariantPrice(product))}`,
+        url,
+        inStock: product.status !== "out",
+      });
+
+      push(
+        (await tryCopy(caption))
+          ? "Status image saved and caption copied — post it to your WhatsApp Status, then paste the caption."
+          : `Status image saved. The link is printed on it: ${url}`,
+        "success",
+      );
+    } catch {
+      push("Couldn't make the Status image — try again.", "danger");
+    } finally {
+      setGenerating(false);
+      setStatusCard(null);
+    }
+  };
+
   return (
     <>
       {storyProduct && <InstagramStoryTemplate ref={templateRef} product={storyProduct} shopName={shopName} />}
+      {statusCard && (
+        <StatusCardTemplate
+          ref={statusRef}
+          product={statusCard.product}
+          shopName={shopName}
+          url={statusCard.url}
+        />
+      )}
       <Popover.Root open={open} onOpenChange={prepare}>
         <Popover.Trigger asChild>
           <button
@@ -165,6 +224,14 @@ export function ShareMenu({
             align="end"
             className="z-50 w-64 rounded-card border border-line-soft bg-card p-1.5 shadow-modal animate-modal-in"
           >
+            <button
+              type="button"
+              onClick={generateStatusCard}
+              className="flex w-full items-center gap-2.5 rounded-lg px-3 py-2 text-left text-sm font-semibold text-ink hover:bg-fill-soft"
+            >
+              <WhatsAppIcon className="size-4 text-whatsapp" />
+              Save for WhatsApp Status
+            </button>
             {canNativeShare && (
               <button
                 type="button"
