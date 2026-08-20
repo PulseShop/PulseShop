@@ -42,6 +42,53 @@ export function encodeCsv(rows: string[][]): string {
   return BOM + rows.map((row) => row.map(encodeField).join(",")).join("\r\n") + "\r\n";
 }
 
+/** The delimiters a spreadsheet realistically emits, in the order they are
+ * preferred when a header line is genuinely ambiguous. */
+const DELIMITERS = [",", ";", "\t", "|"] as const;
+
+/**
+ * Which character separates this file's columns.
+ *
+ * A comma is not a safe assumption. Excel writes the LOCALE's list separator,
+ * which is a semicolon everywhere that uses a comma for decimals, so a seller
+ * on a Kenyan or European Windows install exports a semicolon file from their
+ * old platform and every row of it arrives here as one enormous single column.
+ * The failure is invisible in a spreadsheet, which re-splits it on open, and it
+ * looked to us like a file with no recognisable header at all.
+ *
+ * Sniffing is done on the header line only, and outside quotes, because that is
+ * the one line whose shape we know: it is short, it is all field names, and the
+ * true delimiter is whichever candidate appears most often in it. A file with a
+ * single column has no delimiter to find and falls through to the comma, which
+ * parses it correctly either way.
+ */
+function sniffDelimiter(src: string): string {
+  let line = "";
+  let quoted = false;
+  for (let i = 0; i < src.length; i++) {
+    const ch = src[i];
+    if (ch === '"') quoted = !quoted;
+    else if (!quoted && (ch === "\n" || ch === "\r")) break;
+    line += ch;
+  }
+
+  let best = ",";
+  let bestCount = 0;
+  for (const d of DELIMITERS) {
+    let count = 0;
+    let inQuotes = false;
+    for (const ch of line) {
+      if (ch === '"') inQuotes = !inQuotes;
+      else if (!inQuotes && ch === d) count++;
+    }
+    if (count > bestCount) {
+      best = d;
+      bestCount = count;
+    }
+  }
+  return best;
+}
+
 /**
  * CSV text to rows. Never throws: malformed input degrades to the best reading
  * available (an unterminated quote simply runs to end of file) so that callers
@@ -51,9 +98,13 @@ export function encodeCsv(rows: string[][]): string {
  * Blank lines are dropped rather than returned as empty rows: a trailing
  * newline is normal, and a spreadsheet that exports a few empty rows at the
  * bottom of the sheet should not produce "row 41 is missing a SKU".
+ *
+ * The delimiter is detected from the header unless one is given; see
+ * sniffDelimiter. Everything else about the grammar is fixed by RFC 4180.
  */
-export function parseCsv(text: string): string[][] {
+export function parseCsv(text: string, delimiter?: string): string[][] {
   const src = text.charCodeAt(0) === 0xfeff ? text.slice(1) : text;
+  const delim = delimiter ?? sniffDelimiter(src);
 
   const rows: string[][] = [];
   let row: string[] = [];
@@ -101,7 +152,7 @@ export function parseCsv(text: string): string[][] {
       i++;
       continue;
     }
-    if (ch === ",") {
+    if (ch === delim) {
       endField();
       i++;
       continue;

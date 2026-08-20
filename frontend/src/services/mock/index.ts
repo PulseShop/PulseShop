@@ -1545,12 +1545,26 @@ export const mockServices: Services = {
         .slice(0, limit);
     },
 
-    /** Mirrors the real upsert: SKU is identity, and a rename keeps the
-     * existing slug exactly as the products_set_slug trigger would. */
+    /**
+     * Mirrors the real upsert: SKU is identity, and a rename keeps the existing
+     * slug exactly as the products_set_slug trigger would.
+     *
+     * A field the CSV had no column for arrives as `undefined`, and dropping
+     * those keys before the spread is what makes a partial file safe here: a
+     * sheet of SKUs and prices must not blank the photos and descriptions of
+     * every product it touches. On a NEW product the same absence falls through
+     * to the defaults below, which are the ones the database would have applied.
+     */
     async importProducts(rows: ProductCsvInput[]): Promise<ProductImportResult> {
       await delay();
       let created = 0;
       let updated = 0;
+
+      /** The row minus the fields the file never carried. */
+      const stated = (row: ProductCsvInput) =>
+        Object.fromEntries(
+          Object.entries(row).filter(([, v]) => v !== undefined),
+        ) as Partial<ProductCsvInput>;
 
       for (const row of rows) {
         const idx = products.findIndex((p) => p.sku === row.sku);
@@ -1558,16 +1572,31 @@ export const mockServices: Services = {
           const base = slugify(row.name) || "item";
           let slug = base;
           for (let n = 1; products.some((p) => p.slug === slug); n++) slug = `${base}-${n}`;
+          const stockQty = row.stockQty ?? 0;
           products = [
             {
-              ...row,
+              // Column defaults from migration 0001, for everything the file
+              // left unsaid. Photos especially: importing details now and
+              // adding pictures later is a supported way to work, not an error.
+              discountPct: null,
+              sizes: null,
+              colors: null,
+              summary: null,
+              description: "",
+              images: [],
+              ...stated(row),
+              sku: row.sku,
+              name: row.name,
+              category: row.category,
+              priceKes: row.priceKes,
+              stockQty,
               id: `p${Date.now()}${created}`,
               slug,
-              status: statusForQty(row.stockQty),
+              status: statusForQty(stockQty),
               sizePriceAdj: {},
               colorPriceAdj: {},
               metaDescription: null,
-              // CSV import doesn't carry Phone/PC specs — same as the real
+              // CSV import doesn't carry Phone/PC specs, same as the real
               // adapter, which only ever writes the columns the CSV has.
               productType: "general",
               phoneSpecs: null,
@@ -1583,7 +1612,8 @@ export const mockServices: Services = {
           // Spread the row over the existing product, never the reverse: the
           // fields a CSV has no column for (slug, variant pricing, colour
           // photos, SEO text) have to survive the import untouched.
-          products[idx] = { ...products[idx], ...row, status: statusForQty(row.stockQty) };
+          const merged = { ...products[idx], ...stated(row) };
+          products[idx] = { ...merged, status: statusForQty(merged.stockQty) };
           updated++;
         }
       }

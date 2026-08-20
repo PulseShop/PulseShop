@@ -1,5 +1,13 @@
 import { useMutation } from "@tanstack/react-query";
-import { AlertTriangle, CheckCircle2, Download, FileDown, Mail, Upload } from "lucide-react";
+import {
+  AlertTriangle,
+  CheckCircle2,
+  Download,
+  FileDown,
+  Info,
+  Mail,
+  Upload,
+} from "lucide-react";
 import { useRef, useState } from "react";
 import { Button } from "@/components/ui/Button";
 import { Modal } from "@/components/ui/Modal";
@@ -9,6 +17,7 @@ import {
   LIST_SEPARATOR,
   MAX_IMPORT_ROWS,
   PRODUCT_CSV_COLUMNS,
+  REQUIRED_CSV_COLUMNS,
   type ParsedProductCsv,
   exportFilename,
   parseProductCsv,
@@ -113,6 +122,7 @@ export function InventoryTransfer({ onImported }: { onImported: () => void }) {
 
   const ready = parsed?.rows.length ?? 0;
   const failed = parsed?.errors.length ?? 0;
+  const adjusted = parsed?.warnings.length ?? 0;
 
   return (
     <>
@@ -219,6 +229,11 @@ export function InventoryTransfer({ onImported }: { onImported: () => void }) {
                 <span className="flex items-center gap-1.5 text-success">
                   <CheckCircle2 className="size-4" /> {ready} ready
                 </span>
+                {adjusted > 0 && (
+                  <span className="flex items-center gap-1.5 text-warning">
+                    <Info className="size-4" /> {adjusted} adjusted
+                  </span>
+                )}
                 {failed > 0 && (
                   <span className="flex items-center gap-1.5 text-danger">
                     <AlertTriangle className="size-4" /> {failed} skipped
@@ -226,6 +241,29 @@ export function InventoryTransfer({ onImported }: { onImported: () => void }) {
                 )}
               </div>
             </div>
+
+            {adjusted > 0 && (
+              <div className="mt-4">
+                <p className="mb-2 text-xs font-bold uppercase tracking-wide text-muted">
+                  Imported with changes
+                </p>
+                {/* Separate from the skipped list on purpose. These rows ARE
+                    being imported; this is the record of what could not be used
+                    so the seller knows what to go back and fix, most often a
+                    photo that has to be uploaded from the product page. */}
+                <ul className="max-h-40 space-y-1.5 overflow-y-auto rounded-card border border-warning/30 bg-warning/5 p-3">
+                  {parsed.warnings.map((w) => (
+                    <li key={w.row} className="text-xs leading-relaxed text-muted">
+                      <span className="font-bold text-ink">
+                        Row {w.row}
+                        {w.sku ? ` (${w.sku})` : ""}
+                      </span>{" "}
+                      {w.message}
+                    </li>
+                  ))}
+                </ul>
+              </div>
+            )}
 
             {failed > 0 && (
               <div className="mt-4">
@@ -273,10 +311,14 @@ export function InventoryTransfer({ onImported }: { onImported: () => void }) {
  * hidden in a help page. The template is the same encoder the export uses, so
  * what they download here always matches what the parser expects. */
 function FormatGuide() {
+  const optional = PRODUCT_CSV_COLUMNS.filter(
+    (c) => !(REQUIRED_CSV_COLUMNS as readonly string[]).includes(c),
+  );
+
   return (
     <div className="mt-5 rounded-card border border-line-soft p-4">
       <div className="mb-3 flex items-center justify-between gap-3">
-        <p className="text-xs font-bold uppercase tracking-wide text-muted">Expected columns</p>
+        <p className="text-xs font-bold uppercase tracking-wide text-muted">Columns</p>
         <button
           type="button"
           onClick={() => downloadCsv("pulseshop-import-template.csv", productCsvTemplate())}
@@ -285,31 +327,50 @@ function FormatGuide() {
           <FileDown className="size-3.5" /> Download template
         </button>
       </div>
-      <p className="font-mono text-xs leading-relaxed text-ink">
-        {PRODUCT_CSV_COLUMNS.join(", ")}
-      </p>
+
+      <dl className="space-y-1.5 text-xs">
+        <div className="flex gap-2">
+          <dt className="w-16 shrink-0 font-bold text-ink">Required</dt>
+          <dd className="font-mono leading-relaxed text-ink">
+            {REQUIRED_CSV_COLUMNS.join(", ")}
+          </dd>
+        </div>
+        <div className="flex gap-2">
+          <dt className="w-16 shrink-0 font-bold text-muted">Optional</dt>
+          <dd className="font-mono leading-relaxed text-muted">{optional.join(", ")}</dd>
+        </div>
+      </dl>
+
       <ul className="mt-3 space-y-1 text-xs text-muted">
         <li>
-          <strong className="text-ink">sku</strong> is required on every row and decides whether
-          the row updates an existing product or creates a new one.
+          <strong className="text-ink">sku</strong> decides whether a row updates an existing
+          product or creates a new one.
         </li>
         <li>
-          <strong className="text-ink">sizes</strong>, <strong className="text-ink">colors</strong>{" "}
-          and <strong className="text-ink">images</strong> hold several values separated by{" "}
-          <code className="rounded bg-fill px-1 font-mono">{LIST_SEPARATOR}</code>, for
-          example <code className="rounded bg-fill px-1 font-mono">SM;M;LG</code>.
+          <strong className="text-ink">images</strong> are optional. Import the details now and
+          add photos from each product page whenever you're ready. Addresses that aren't links
+          are skipped and listed, and the rest of the row still imports.
         </li>
         <li>
-          <strong className="text-ink">category</strong>, sizes and colours must match the options
-          in the product form, so the storefront filters keep working.
+          <strong className="text-ink">sizes</strong> and <strong className="text-ink">colors</strong>{" "}
+          hold several values, separated by{" "}
+          <code className="rounded bg-fill px-1 font-mono">{LIST_SEPARATOR}</code> or a comma, for
+          example <code className="rounded bg-fill px-1 font-mono">SM;M;LG</code>. Anything we
+          don't stock is skipped rather than failing the row.
         </li>
         <li>
-          <strong className="text-ink">images</strong> are web addresses starting with http, not
-          files. Upload photos through the product form.
+          A <strong className="text-ink">category</strong> outside the product form's list still
+          imports, kept as you typed it. Matching the list is what keeps the storefront filters
+          working, so it's worth tidying later.
         </li>
         <li>
-          Columns the file doesn't carry, such as per-size pricing and SEO text, are left as they
-          are on products that already exist.
+          Common header names work too: <span className="font-mono">Price</span>,{" "}
+          <span className="font-mono">Qty</span> and <span className="font-mono">Photos</span> are
+          understood, as are semicolon and tab separated files.
+        </li>
+        <li>
+          Columns the file doesn't carry are left exactly as they are on products that already
+          exist, so a sheet of just SKUs and prices only changes prices.
         </li>
       </ul>
     </div>

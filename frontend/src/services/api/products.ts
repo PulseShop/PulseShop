@@ -354,24 +354,64 @@ export const productsApi: ProductService = {
     if (readErr) throw readErr;
     const existingSkus = new Set((existing ?? []).map((r) => (r as { sku: string }).sku));
 
-    const { error } = await supabase.from("products").upsert(
-      rows.map((r) => ({
+    /**
+     * A field the CSV had no column for is `undefined`, and an undefined field
+     * must not appear in the payload at all.
+     *
+     * This is what makes a partial import non-destructive. `upsert` writes
+     * every key it is given, so sending `images: []` for a file with no images
+     * column would erase the photographs of every product the file touches, and
+     * a two-column sheet of SKUs and prices would strip a catalogue bare. An
+     * omitted key is left alone on conflict and takes the column default on
+     * insert, which is exactly the intent.
+     */
+    const payload = rows.map((r) => {
+      const row: Record<string, unknown> = {
         merchant_id: uid,
         sku: r.sku,
         name: r.name,
         category: r.category,
         price_kes: r.priceKes,
-        discount_pct: r.discountPct,
-        stock_qty: r.stockQty,
-        sizes: r.sizes,
-        colors: r.colors,
-        summary: r.summary,
-        description: r.description,
-        images: r.images,
-      })),
-      { onConflict: "merchant_id,sku" },
-    );
-    if (error) throw error;
+      };
+      if (r.discountPct !== undefined) row.discount_pct = r.discountPct;
+      if (r.stockQty !== undefined) row.stock_qty = r.stockQty;
+      if (r.sizes !== undefined) row.sizes = r.sizes;
+      if (r.colors !== undefined) row.colors = r.colors;
+      if (r.summary !== undefined) row.summary = r.summary;
+      if (r.description !== undefined) row.description = r.description;
+      if (r.images !== undefined) row.images = r.images;
+      return row;
+    });
+
+    /**
+     * Grouped by which columns each row states, because PostgREST builds one
+     * INSERT from a bulk payload and rejects it outright if the objects do not
+     * all carry the same keys.
+     *
+     * Rows normally vary in only one way: a stock cell left blank is "not
+     * stated" rather than zero, so a file can hold a mix of rows that set stock
+     * and rows that do not. That is one or two groups in practice, not one
+     * request per row.
+     *
+     * Sequential rather than transactional, which is a real if small change:
+     * if the second group fails, the first is already written. Every row here
+     * is an independent upsert keyed on SKU, so re-importing the same file
+     * afterwards converges rather than duplicating.
+     */
+    const groups = new Map<string, Record<string, unknown>[]>();
+    for (const row of payload) {
+      const shape = Object.keys(row).sort().join(",");
+      const group = groups.get(shape);
+      if (group) group.push(row);
+      else groups.set(shape, [row]);
+    }
+
+    for (const group of groups.values()) {
+      const { error } = await supabase
+        .from("products")
+        .upsert(group, { onConflict: "merchant_id,sku" });
+      if (error) throw error;
+    }
 
     const updated = rows.filter((r) => existingSkus.has(r.sku)).length;
     return { created: rows.length - updated, updated };
