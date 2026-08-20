@@ -65,7 +65,7 @@ const RESERVED = new Set([
   "shop", "shops", "product", "cart", "checkout", "order", "orders", "account",
   "favorites", "login", "signup", "welcome", "auth", "reset-password",
   "dashboard", "dev", "api", "assets", "icons", "prices", "about", "faq",
-  "admindev", "s",
+  "admindev", "s", "g",
 ]);
 
 /** Pages that exist for a signed-in human and must never be indexed. */
@@ -77,6 +77,10 @@ const PRIVATE_ROOTS = new Set([
   // results where the product belongs, and would have a crawler scoring
   // clicks against sellers' share links.
   "s",
+  // /g/CODE is a live group buy whose whole distribution is people forwarding
+  // the link to each other. Indexing it would put a half-filled group with a
+  // deadline on it into search results long after that deadline passed.
+  "g",
 ]);
 
 // ---------------------------------------------------------------------------

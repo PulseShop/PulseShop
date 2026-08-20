@@ -12,6 +12,7 @@ export const services: Services = isSupabaseConfigured ? apiServices : mockServi
 export type {
   Credentials,
   DiscountCodeInput,
+  GroupBuyInput,
   MerchantUpdate,
   ProductInput,
   Services,

@@ -6,6 +6,7 @@ import { cartApi } from "./cart";
 import { discountsApi } from "./discounts";
 import { favoritesApi } from "./favorites";
 import { followsApi } from "./follows";
+import { groupBuysApi } from "./groupBuys";
 import { ordersApi } from "./orders";
 import { paymentsApi } from "./payments";
 import { productsApi } from "./products";
@@ -32,4 +33,5 @@ export const apiServices: Services = {
   storage: storageApi,
   discounts: discountsApi,
   shareLinks: shareLinksApi,
+  groupBuys: groupBuysApi,
 };

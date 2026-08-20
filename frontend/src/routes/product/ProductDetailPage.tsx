@@ -9,6 +9,7 @@ import { ProductCard } from "@/components/product/ProductCard";
 import { ProductSpecs } from "@/components/product/ProductSpecs";
 import { RatingRow } from "@/components/product/RatingRow";
 import { ReviewsSection } from "@/components/product/ReviewsSection";
+import { GroupBuyBanner } from "@/components/product/GroupBuyBanner";
 import { ShareMenu } from "@/components/product/ShareMenu";
 import { ColorSelector } from "@/components/product/ColorSelector";
 import { SizeSelector } from "@/components/product/SizeSelector";
@@ -530,6 +531,9 @@ export function ProductDetailPage() {
                   much of a dead end as an out-of-stock item. */}
               {merchant && <FulfillmentBadge fulfillment={merchant.fulfillment} />}
             </div>
+            {/* Renders nothing unless a group buy is actually running on this
+                product, which is the usual case — see GroupBuyBanner. */}
+            <GroupBuyBanner productId={product.id} />
             {descriptionBullets.length > 0 && (
               <div className="space-y-2 text-sm leading-relaxed text-ink/80">
                 <ul className="list-disc space-y-1.5 pl-5 marker:text-primary">

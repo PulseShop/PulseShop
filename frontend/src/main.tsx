@@ -44,12 +44,14 @@ import { InventoryPage } from "@/routes/dashboard/InventoryPage";
 import { OrdersDashboardPage } from "@/routes/dashboard/OrdersPage";
 import { ReviewsDashboardPage } from "@/routes/dashboard/ReviewsPage";
 import { SettingsPage } from "@/routes/dashboard/SettingsPage";
+import { GroupBuysPage } from "@/routes/dashboard/GroupBuysPage";
 import { ShareLinksPage } from "@/routes/dashboard/ShareLinksPage";
 import { AccountPage } from "@/routes/account/AccountPage";
 import { FavoritesPage } from "@/routes/favorites/FavoritesPage";
 import { OrderPage } from "@/routes/order/OrderPage";
 import { OrdersPage } from "@/routes/order/OrdersPage";
 import { ProductDetailPage } from "@/routes/product/ProductDetailPage";
+import { GroupBuyPage } from "@/routes/group/GroupBuyPage";
 import { ShareLinkPage } from "@/routes/share/ShareLinkPage";
 import { StorefrontPage } from "@/routes/storefront/StorefrontPage";
 import { RequireMerchant } from "./routes/auth/RequireAuth";
@@ -236,6 +238,8 @@ createRoot(document.getElementById("root")!).render(
                 "s" is reserved from the shop-handle space by that same
                 specificity. */}
             <Route path="/s/:code" element={<ShareLinkPage />} />
+            {/* Group buys (migration 0054). Same two-segment reasoning as /s. */}
+            <Route path="/g/:code" element={<GroupBuyPage />} />
             <Route path="/favorites" element={<FavoritesPage />} />
             <Route path="/cart" element={<CartPage />} />
             <Route path="/checkout" element={<CheckoutPage />} />
@@ -249,6 +253,7 @@ createRoot(document.getElementById("root")!).render(
             <Route path="/dashboard/reviews" element={<RequireMerchant><ReviewsDashboardPage /></RequireMerchant>} />
             <Route path="/dashboard/analytics" element={<RequireMerchant><AnalyticsPage /></RequireMerchant>} />
             <Route path="/dashboard/share" element={<RequireMerchant><ShareLinksPage /></RequireMerchant>} />
+            <Route path="/dashboard/group-buys" element={<RequireMerchant><GroupBuysPage /></RequireMerchant>} />
             <Route path="/dashboard/settings" element={<RequireMerchant><SettingsPage /></RequireMerchant>} />
             <Route path="/dev/components" element={<ComponentsPage />} />
             {/* Owner-only platform statistics. The gate is in the database

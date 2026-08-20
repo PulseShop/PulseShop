@@ -8,6 +8,7 @@ import {
   MessageSquare,
   Link2,
   Settings,
+  Users,
   ShoppingCart,
 } from "lucide-react";
 import type { ReactNode } from "react";
@@ -24,6 +25,7 @@ const nav = [
   { to: "/dashboard/reviews", label: "Reviews", icon: MessageSquare },
   { to: "/dashboard/analytics", label: "Analytics", icon: BarChart3 },
   { to: "/dashboard/share", label: "Share links", icon: Link2 },
+  { to: "/dashboard/group-buys", label: "Group buys", icon: Users },
   { to: "/dashboard/settings", label: "Settings", icon: Settings },
 ];
 

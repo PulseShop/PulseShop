@@ -34,6 +34,9 @@ import type {
   Plan,
   Product,
   ProductReview,
+  GroupBuy,
+  GroupBuyStatus,
+  MerchantGroupBuy,
   ShareChannel,
   ShareLink,
   ShareTarget,
@@ -44,6 +47,7 @@ import type {
 import type {
   Credentials,
   DiscountCodeInput,
+  GroupBuyInput,
   MerchantUpdate,
   PageQuery,
   ProductExportEmailResult,
@@ -79,6 +83,7 @@ const PROFILE_KEY = "pulseshop-mock-profile";
 const DISCOUNT_CODES_KEY = "pulseshop-mock-discount-codes";
 const DISCOUNT_REDEMPTIONS_KEY = "pulseshop-mock-discount-redemptions";
 const SHARE_LINKS_KEY = "pulseshop-mock-share-links";
+const GROUP_BUYS_KEY = "pulseshop-mock-group-buys";
 
 const delay = (ms = LATENCY) => new Promise((r) => setTimeout(r, ms));
 
@@ -497,6 +502,92 @@ function resolveMockShareCode(code: string | null | undefined): string | null {
   if (!code) return null;
   const match = shareLinks.find((l) => l.code.toUpperCase() === code.trim().toUpperCase());
   return match ? match.code : null;
+}
+
+/**
+ * Group buys (migration 0054), mock side.
+ *
+ * Members are stored on the row rather than in a second collection: there is
+ * no query here that wants members without their group, and one array keeps
+ * the "did this join fill it" check to a single read.
+ */
+interface MockGroupBuy {
+  id: string;
+  code: string;
+  productId: string;
+  targetCount: number;
+  percentOff: number;
+  closesAt: string;
+  status: GroupBuyStatus;
+  discountCode: string | null;
+  createdAt: string;
+  members: { phone: string; name: string; qty: number }[];
+}
+
+function loadGroupBuys(): MockGroupBuy[] {
+  try {
+    const raw = localStorage.getItem(GROUP_BUYS_KEY);
+    return raw ? (JSON.parse(raw) as MockGroupBuy[]) : [];
+  } catch {
+    return [];
+  }
+}
+
+function saveGroupBuys(list: MockGroupBuy[]) {
+  try {
+    localStorage.setItem(GROUP_BUYS_KEY, JSON.stringify(list));
+  } catch {
+    /* quota — mock only */
+  }
+}
+
+let groupBuys = loadGroupBuys();
+
+function makeGroupCode(): string {
+  for (let attempt = 0; attempt < 20; attempt++) {
+    let code = "";
+    for (let i = 0; i < 5; i++) {
+      code += SHARE_ALPHABET[Math.floor(Math.random() * SHARE_ALPHABET.length)];
+    }
+    if (!groupBuys.some((g) => g.code === code)) return code;
+  }
+  throw new Error("could not generate a unique group code");
+}
+
+/** Expiry is derived on read here too, exactly as group_buy_json() does it, so
+ * the mock and the real backend cannot disagree about what "open" means. */
+function derivedStatus(gb: MockGroupBuy): GroupBuyStatus {
+  if (gb.status === "open" && Date.now() > new Date(gb.closesAt).getTime()) return "expired";
+  return gb.status;
+}
+
+/** Mirrors group_buy_json(): the earned code is shown to members of a filled
+ * group and to nobody else. */
+function toMockGroupBuy(gb: MockGroupBuy, phone?: string | null): GroupBuy {
+  const product = products.find((p) => p.id === gb.productId);
+  const isMember = Boolean(phone && gb.members.some((m) => m.phone === phone.trim()));
+  const base = product ? variantPrice(product, null, null) : 0;
+  return {
+    code: gb.code,
+    status: derivedStatus(gb),
+    targetCount: gb.targetCount,
+    memberCount: gb.members.length,
+    percentOff: gb.percentOff,
+    closesAt: gb.closesAt,
+    isMember,
+    discountCode: isMember && gb.status === "filled" ? gb.discountCode : null,
+    productId: gb.productId,
+    productName: product?.name ?? "",
+    productSlug: product?.slug ?? "",
+    productImage: productImageSrc(product?.images ?? []),
+    stockQty: product?.stockQty ?? 0,
+    priceKes: base,
+    groupPriceKes: product
+      ? variantPriceWithCode(product, null, null, gb.percentOff)
+      : 0,
+    shopSlug: merchant.handle,
+    shopName: merchant.name,
+  };
 }
 
 function loadIds(key: string): string[] {
@@ -1648,6 +1739,124 @@ export const mockServices: Services = {
         (r) => r.order.reference === reference && r.accessToken === accessToken,
       );
       return rec ? structuredClone(rec.order) : null;
+    },
+  },
+
+  groupBuys: {
+    async getByCode(code: string, phone?: string | null): Promise<GroupBuy | null> {
+      await delay();
+      const gb = groupBuys.find((g) => g.code.toUpperCase() === code.trim().toUpperCase());
+      return gb ? toMockGroupBuy(gb, phone) : null;
+    },
+
+    async activeForProduct(productId: string): Promise<GroupBuy | null> {
+      await delay();
+      const gb = groupBuys.find(
+        (g) => g.productId === productId && derivedStatus(g) === "open",
+      );
+      // No phone: this is the public product page, which never needs the code.
+      return gb ? toMockGroupBuy(gb, null) : null;
+    },
+
+    async join(code: string, name: string, phone: string, qty = 1): Promise<GroupBuy> {
+      await delay();
+      const idx = groupBuys.findIndex((g) => g.code.toUpperCase() === code.trim().toUpperCase());
+      if (idx === -1) throw new Error("this group buy does not exist");
+      const gb = groupBuys[idx];
+      if (derivedStatus(gb) !== "open") throw new Error("this group buy has already closed");
+
+      const cleanPhone = phone.trim();
+      // Re-joining is idempotent, not an error — someone who taps the link
+      // twice should see the group they are already in.
+      const members = gb.members.some((m) => m.phone === cleanPhone)
+        ? gb.members.map((m) => (m.phone === cleanPhone ? { ...m, name: name.trim(), qty } : m))
+        : [...gb.members, { phone: cleanPhone, name: name.trim(), qty }];
+
+      let next: MockGroupBuy = { ...gb, members };
+      if (members.length >= gb.targetCount) {
+        const dcode = `KIKUNDI-${gb.code}`;
+        next = { ...next, status: "filled", discountCode: dcode };
+        // Settles into a real discount code, same as the RPC — so the code the
+        // group earned goes through the ordinary checkout path.
+        if (!discountCodes.some((c) => c.code === dcode)) {
+          discountCodes = [
+            {
+              id: `dc${Date.now()}`,
+              code: dcode,
+              percentOff: gb.percentOff,
+              startsAt: new Date().toISOString(),
+              expiresAt: new Date(Date.now() + 48 * 3_600_000).toISOString(),
+              maxRedemptions: members.length,
+              redemptionCount: 0,
+              appliesTo: "selected",
+              productIds: [gb.productId],
+              active: true,
+              createdAt: new Date().toISOString(),
+            },
+            ...discountCodes,
+          ];
+          saveDiscountCodes(discountCodes);
+        }
+      }
+
+      groupBuys = groupBuys.map((g, i) => (i === idx ? next : g));
+      saveGroupBuys(groupBuys);
+      return toMockGroupBuy(next, cleanPhone);
+    },
+
+    async listMine(): Promise<MerchantGroupBuy[]> {
+      await delay();
+      return groupBuys.map((gb) => {
+        const product = products.find((p) => p.id === gb.productId);
+        return {
+          id: gb.id,
+          code: gb.code,
+          productId: gb.productId,
+          productName: product?.name ?? "",
+          productImage: productImageSrc(product?.images ?? []),
+          targetCount: gb.targetCount,
+          memberCount: gb.members.length,
+          percentOff: gb.percentOff,
+          closesAt: gb.closesAt,
+          status: derivedStatus(gb),
+          discountCode: gb.discountCode,
+          createdAt: gb.createdAt,
+        };
+      });
+    },
+
+    async create(input: GroupBuyInput): Promise<string> {
+      await delay();
+      // One open group buy per product — two live groups on the same item at
+      // different prices is a shop arguing with itself.
+      if (groupBuys.some((g) => g.productId === input.productId && derivedStatus(g) === "open")) {
+        throw new Error("this product already has a group buy running");
+      }
+      const gb: MockGroupBuy = {
+        id: `gb${Date.now()}`,
+        code: makeGroupCode(),
+        productId: input.productId,
+        targetCount: input.targetCount,
+        percentOff: input.percentOff,
+        closesAt: new Date(Date.now() + input.hours * 3_600_000).toISOString(),
+        status: "open",
+        discountCode: null,
+        createdAt: new Date().toISOString(),
+        members: [],
+      };
+      groupBuys = [gb, ...groupBuys];
+      saveGroupBuys(groupBuys);
+      return gb.code;
+    },
+
+    async cancel(id: string): Promise<void> {
+      await delay();
+      // Only from 'open', mirroring cancel_group_buy: a filled group has
+      // already handed its members a code.
+      groupBuys = groupBuys.map((g) =>
+        g.id === id && derivedStatus(g) === "open" ? { ...g, status: "cancelled" } : g,
+      );
+      saveGroupBuys(groupBuys);
     },
   },
 

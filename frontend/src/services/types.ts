@@ -21,6 +21,8 @@ import type {
   DiscountPreview,
   FollowerSeries,
   Fulfillment,
+  GroupBuy,
+  MerchantGroupBuy,
   Merchant,
   PlacementInput,
   Plan,
@@ -504,6 +506,46 @@ export interface DiscountService {
   ): Promise<DiscountPreview>;
 }
 
+/** What the seller sets when starting a group buy. The code, the deadline and
+ * the settlement are all the server's business. */
+export interface GroupBuyInput {
+  productId: string;
+  /** How many buyers have to join. 2 to 50. */
+  targetCount: number;
+  percentOff: number;
+  /** How long it runs. 6 hours to 14 days. */
+  hours: number;
+}
+
+/**
+ * Group buys — "bei ya kikundi" (migration 0054).
+ *
+ * A group buy settles into a DISCOUNT CODE rather than a second pricing path,
+ * so everything that already governs codes (stacking, caps, one per buyer)
+ * governs this for free. `join` returns the group in its post-join state,
+ * including that code when the join is what filled it.
+ *
+ * `getByCode` and `join` both take the reader's phone, because membership is
+ * keyed on the phone number rather than on an account: most people arrive
+ * here from a WhatsApp group with no PulseShop login at all.
+ */
+export interface GroupBuyService {
+  /** Public: one group buy by its code, or null. Pass the reader's phone to
+   * have their membership (and the earned code) resolved. */
+  getByCode(code: string, phone?: string | null): Promise<GroupBuy | null>;
+  /** Public: the group buy running on a product right now, or null. */
+  activeForProduct(productId: string): Promise<GroupBuy | null>;
+  /** Public: commit to buying. Idempotent for a phone already in the group. */
+  join(code: string, name: string, phone: string, qty?: number): Promise<GroupBuy>;
+  /** The signed-in seller's own group buys, newest first. */
+  listMine(): Promise<MerchantGroupBuy[]>;
+  /** Returns the new group's code. */
+  create(input: GroupBuyInput): Promise<string>;
+  /** Only affects one that is still open — a filled group has already handed
+   * its members a code, and withdrawing that is not this call's job. */
+  cancel(id: string): Promise<void>;
+}
+
 /**
  * Short share links (migration 0052) — the attribution layer under every
  * social feature.
@@ -636,4 +678,5 @@ export interface Services {
   storage: StorageService;
   discounts: DiscountService;
   shareLinks: ShareLinkService;
+  groupBuys: GroupBuyService;
 }

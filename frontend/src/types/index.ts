@@ -511,6 +511,57 @@ export interface ShareLink {
   createdAt: string;
 }
 
+export type GroupBuyStatus = "open" | "filled" | "expired" | "cancelled";
+
+/**
+ * A group buy as a BUYER sees it (migration 0054) — the /g/CODE page and the
+ * banner on the product page.
+ *
+ * `discountCode` is null unless the reader is a member of a filled group. The
+ * server decides that, not the client: the code is what the group recruited
+ * for, so handing it to anyone who merely opened the link would spend a slot
+ * the members earned.
+ */
+export interface GroupBuy {
+  code: string;
+  status: GroupBuyStatus;
+  targetCount: number;
+  memberCount: number;
+  percentOff: number;
+  closesAt: string;
+  /** True when the phone the caller identified with has already joined. */
+  isMember: boolean;
+  discountCode: string | null;
+  productId: string;
+  productName: string;
+  productSlug: string;
+  productImage: string;
+  stockQty: number;
+  /** What the product costs normally, after any discount it already carries. */
+  priceKes: number;
+  /** What it costs once the group fills. */
+  groupPriceKes: number;
+  shopSlug: string;
+  shopName: string;
+}
+
+/** One row on the seller's group-buy list — same run, seen from the shop side. */
+export interface MerchantGroupBuy {
+  id: string;
+  code: string;
+  productId: string;
+  productName: string;
+  productImage: string;
+  targetCount: number;
+  memberCount: number;
+  percentOff: number;
+  closesAt: string;
+  status: GroupBuyStatus;
+  /** The code minted when it filled, or null while it is still running. */
+  discountCode: string | null;
+  createdAt: string;
+}
+
 /** Where a share code points, resolved from the code alone. */
 export interface ShareTarget {
   code: string;
