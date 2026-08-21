@@ -67,8 +67,12 @@ export function RailArrow({
  * overflow and never look again. Pass something that changes with the content,
  * usually its length.
  */
-export function useRailScroll(ref: RefObject<HTMLDivElement | null>, signature: unknown = null) {
-  const [{ canLeft, canRight }, setReach] = useState({ canLeft: false, canRight: false });
+export function useRailScroll(ref: RefObject<HTMLElement | null>, signature: unknown = null) {
+  const [{ canLeft, canRight, index }, setReach] = useState({
+    canLeft: false,
+    canRight: false,
+    index: 0,
+  });
 
   useEffect(() => {
     const el = ref.current;
@@ -80,7 +84,14 @@ export function useRailScroll(ref: RefObject<HTMLDivElement | null>, signature: 
     // a different place.
     const update = () => {
       const max = el.scrollWidth - el.clientWidth;
-      setReach({ canLeft: el.scrollLeft > 4, canRight: el.scrollLeft < max - 4 });
+      setReach({
+        canLeft: el.scrollLeft > 4,
+        canRight: el.scrollLeft < max - 4,
+        // Only meaningful when the children are full-width snap items — a rail
+        // of 45%-wide deal tiles has no "current one" and its caller ignores
+        // this. For the panels that ARE one-at-a-time, it is what the dots read.
+        index: el.clientWidth > 0 ? Math.round(el.scrollLeft / el.clientWidth) : 0,
+      });
     };
 
     update();
@@ -107,5 +118,9 @@ export function useRailScroll(ref: RefObject<HTMLDivElement | null>, signature: 
       behavior: "smooth",
     });
 
-  return { canLeft, canRight, scrollBy };
+  /** Jump to the nth full-width item. What a dot does when it is pressed. */
+  const scrollToIndex = (i: number) =>
+    ref.current?.scrollTo({ left: i * ref.current.clientWidth, behavior: "smooth" });
+
+  return { canLeft, canRight, index, scrollBy, scrollToIndex };
 }

@@ -1574,6 +1574,26 @@ function categoryIcon(name: string): LucideIcon {
  * makes it the unit an advertiser buys when they want to be READ rather than
  * waited for.
  *
+ * TWO SHAPES, ONE DOM. Past lg it is that glanceable list: three cards stacked
+ * in a column beside the hero, all visible at once, which is the whole pitch of
+ * the unit. On a phone there is no column to stack in — the panel is full width
+ * above the hero — and three stacked cards made it two and a half times the
+ * hero's height, so the page opened on advertising and the shopper scrolled
+ * past the catalogue to reach anything they came for. Below lg the same three
+ * cards become one-at-a-time and swipe sideways, which puts the panel at the
+ * hero's size and gives the two paid units the same footprint.
+ *
+ * THE SWIPE IS THE BROWSER'S, not a gesture handler. Scroll snapping does it in
+ * CSS, so the carousel is momentum, rubber-banding and accessibility for free,
+ * and the whole difference between the two shapes is a handful of lg: classes
+ * rather than a second component or a JS breakpoint. The dots read the scroll
+ * position back out; see useRailScroll.
+ *
+ * IT DOES NOT ADVANCE ON ITS OWN, unlike the hero. Two adverts auto-rotating on
+ * one phone screen are two things moving in a shopper's peripheral vision while
+ * they try to read a third, and the hero already owns that behaviour. Here the
+ * shopper asks for the next one.
+ *
  * LABELLED, always, on the panel and on every card in it. Same rule as the
  * hero: the free rotation elsewhere on the page only works because a shopper
  * can tell paid from earned, and a sponsored card that looks like an ordinary
@@ -1593,12 +1613,37 @@ function SponsoredPanel({
   loading: boolean;
   className?: string;
 }) {
+  const track = useRef<HTMLUListElement>(null);
+  const { index, scrollToIndex } = useRailScroll(track, items.length);
+
+  /* Three, the column's worth. The phone carousel could carry the whole tail
+     now that it costs no height, but the two widths showing a different number
+     of adverts would make "how many did my slot appear beside" unanswerable. */
+  const shown = items.slice(0, 3);
+
   return (
     <section
       aria-label="Sponsored products"
-      className={cn("flex-col rounded-bento bg-card p-4 shadow-soft", className)}
+      /* min-w-0 is load-bearing, not tidying. This section is a GRID ITEM, and
+         a grid item's default min-width is auto: it refuses to shrink below the
+         width its contents want. Below lg its contents are now a horizontal
+         track of three full-width cards, so "what the contents want" became
+         three screens wide and the panel blew 140px out of its own cell and out
+         of the phone shell with it. The same applies again to the track itself
+         as a flex item of this column. Both need an explicit floor of zero
+         before overflow-x can do its job. */
+      className={cn("min-w-0 flex-col rounded-bento bg-card p-4 shadow-soft", className)}
     >
-      <div className="flex items-start justify-between gap-2">
+      {/* DESKTOP ONLY, and not because a phone has no room for a heading. On a
+          phone this panel shows ONE card, and that card already wears a
+          Sponsored badge — the heading was the same word twice, thirty pixels
+          apart, which is how the panel ended up taller than the hero it is
+          meant to match. The hero labels itself exactly this way: a badge on
+          the slide and nothing above it. Past lg the heading comes back,
+          because there it stands over three cards at once and says what the
+          column IS. The section's aria-label carries the name at both widths,
+          so nothing is lost to a screen reader. */}
+      <div className="hidden items-start justify-between gap-2 lg:flex">
         <h2 className="flex items-center gap-1.5 text-sm font-bold leading-snug text-ink">
           <Megaphone className="size-4 shrink-0 text-warning" aria-hidden />
           Sponsored
@@ -1609,27 +1654,66 @@ function SponsoredPanel({
       </div>
 
       {loading ? (
-        <div className="mt-3 flex-1 space-y-2">
-          {Array.from({ length: 3 }).map((_, i) => (
-            <Skeleton key={i} className="h-28 w-full rounded-2xl" />
-          ))}
+        <div className="flex-1 space-y-2 lg:mt-3">
+          {/* One card's worth on a phone, where only one is on screen; the
+              column's worth past lg. A skeleton that reserves three rows of a
+              box that will hold one is a bigger lie than no skeleton. */}
+          <Skeleton className="h-28 w-full rounded-2xl" />
+          <Skeleton className="hidden h-28 w-full rounded-2xl lg:block" />
+          <Skeleton className="hidden h-28 w-full rounded-2xl lg:block" />
         </div>
       ) : items.length === 0 ? (
         <SponsorPitch />
       ) : (
-        // CENTRED IN THE PANEL, not stacked at the top of it. The panel is as
-        // tall as the hero next door (lg:min-h-104) and usually holds two
-        // cards, so top-aligning them leaves a hand's width of empty card
-        // underneath — which reads as content that failed to load. Stretching
-        // the cards instead was worse: an eighty-pixel thumbnail blown up to
-        // half a panel is a picture with a caption squeezed off the side.
-        <ul className="mt-3 flex min-h-0 flex-1 flex-col justify-center gap-2">
-          {items.slice(0, 3).map((item) => (
-            <li key={item.placementId}>
-              <SponsoredCard product={item} />
-            </li>
-          ))}
-        </ul>
+        <>
+          {/* Below lg: a snapping horizontal track, one card per screen.
+              Past lg: the column it has always been, CENTRED rather than
+              stacked at the top — the panel is as tall as the hero next door
+              (lg:min-h-104) and usually holds two cards, so top-aligning them
+              leaves a hand's width of empty card underneath, which reads as
+              content that failed to load. */}
+          <ul
+            ref={track}
+            className={cn(
+              "no-scrollbar flex min-w-0 snap-x snap-mandatory gap-2 overflow-x-auto lg:mt-3",
+              "lg:min-h-0 lg:flex-1 lg:snap-none lg:flex-col lg:justify-center lg:overflow-x-visible",
+            )}
+          >
+            {shown.map((item) => (
+              <li key={item.placementId} className="w-full shrink-0 snap-start lg:w-auto">
+                <SponsoredCard product={item} />
+              </li>
+            ))}
+          </ul>
+
+          {/* Phone only, because past lg every card is already on screen and a
+              dot would be pointing at something the shopper can see. Same
+              treatment as the hero's dots, in ink rather than white, so the two
+              paid panels read as one family; no progress fill, because nothing
+              here is on a clock. */}
+          {shown.length > 1 && (
+            <div className="mt-4 flex items-center gap-2 lg:hidden">
+              {shown.map((item, i) => (
+                <button
+                  key={item.placementId}
+                  type="button"
+                  onClick={() => scrollToIndex(i)}
+                  aria-label={`Show sponsored product ${i + 1} of ${shown.length}`}
+                  aria-current={i === index}
+                  className="group flex h-8 items-center focus-visible:outline-none"
+                >
+                  <span
+                    className={cn(
+                      "block h-1.5 rounded-full transition-all duration-300",
+                      "group-focus-visible:ring-2 group-focus-visible:ring-primary",
+                      i === index ? "w-8 bg-ink" : "w-3 bg-line group-hover:bg-muted",
+                    )}
+                  />
+                </button>
+              ))}
+            </div>
+          )}
+        </>
       )}
     </section>
   );
@@ -1644,11 +1728,16 @@ function SponsoredPanel({
  * announces one control containing another. The picture and the headline are
  * the links to the product instead, which is where a shopper aims anyway.
  *
- * SAME SHAPE AS THE HERO SLIDE ON A PHONE, deliberately: contained picture on
- * the left at thumbnail size, then the label, the price and the two things you
- * can actually do. The two paid units sit one above the other below lg, and
- * having them disagree about where the price goes would read as two unrelated
- * widgets rather than as one advertising band.
+ * SAME SHAPE AND NOW THE SAME SIZE AS THE HERO SLIDE ON A PHONE, deliberately:
+ * contained picture on the left at 7rem, then the label, the price and the two
+ * things you can actually do. The two paid units sit one above the other below
+ * lg, one card each, and every measurement that differed between them was a
+ * reason for the eye to treat them as two unrelated widgets rather than as one
+ * advertising band.
+ *
+ * IT SHRINKS BACK PAST lg, where three of these stack in a five-column panel
+ * beside the hero rather than filling the width alone. Same card, two sizes,
+ * because the space it is given is genuinely different in the two places.
  */
 function SponsoredCard({ product }: { product: BannerProduct }) {
   const { addLabel, onAddClick, variantSheet } = useProductAdd(product);
@@ -1664,7 +1753,7 @@ function SponsoredCard({ product }: { product: BannerProduct }) {
           src={product.images[0]}
           alt={product.imageAlts?.[0]?.trim() || product.name}
           loading="lazy"
-          className="size-20 shrink-0 rounded-xl bg-card object-contain p-1 transition-transform duration-300 group-hover:scale-[1.04]"
+          className="size-28 shrink-0 rounded-xl bg-card object-contain p-1.5 transition-transform duration-300 group-hover:scale-[1.04] lg:size-20 lg:p-1"
         />
       </Link>
 
@@ -1677,33 +1766,41 @@ function SponsoredCard({ product }: { product: BannerProduct }) {
             they did not — the same fallback the hero slide uses, so one
             placement reads the same in both units. */}
         <Link to={productHref(product)} className="min-w-0">
-          <p className="line-clamp-2 text-xs font-extrabold leading-snug text-ink hover:text-primary">
+          <p className="line-clamp-1 text-base font-extrabold leading-snug text-ink hover:text-primary lg:line-clamp-2 lg:text-xs">
             {product.headline?.trim() || product.name}
           </p>
         </Link>
-        <p className="text-sm font-extrabold text-primary">
-          {hasPriceRange(product) && <span className="text-[11px] text-muted">from </span>}
+        <p className="text-lg font-extrabold text-primary lg:text-sm">
+          {hasPriceRange(product) && <span className="text-xs text-muted lg:text-[11px]">from </span>}
           {formatKes(minVariantPrice(product))}
         </p>
 
-        <div className="mt-1 flex flex-wrap items-center gap-1.5">
+        {/* NO WRAPPING ON A PHONE. The card is 344px wide there and the shop
+            chip carries a name the seller chose, so "Add" plus "Heelsilhouette"
+            overflows and drops to a second line — on ONE of the three cards,
+            which then sets the height of the whole track and put the panel 40px
+            over the hero it is supposed to match. The chip truncates instead;
+            it already had the min-w-0 to do it and was never given the chance.
+            Past lg the cards are narrow and stacked, and wrapping is the right
+            answer again. */}
+        <div className="mt-1 flex items-center gap-1.5 lg:flex-wrap">
           {!soldOut && (
             <button
               type="button"
               onClick={onAddClick}
               aria-label={addLabel}
-              className="inline-flex min-h-8 items-center gap-1 rounded-full bg-primary px-2.5 text-[11px] font-bold text-on-accent transition-colors hover:bg-primary-deep"
+              className="inline-flex min-h-9 shrink-0 items-center gap-1.5 rounded-full bg-primary px-3.5 text-sm font-bold text-on-accent transition-colors hover:bg-primary-deep lg:min-h-8 lg:gap-1 lg:px-2.5 lg:text-[11px]"
             >
-              <ShoppingBag className="size-3.5 shrink-0" aria-hidden />
+              <ShoppingBag className="size-4 shrink-0 lg:size-3.5" aria-hidden />
               Add
             </button>
           )}
           {product.shopSlug && product.shopName && (
             <Link
               to={`/${product.shopSlug}`}
-              className="inline-flex min-h-8 min-w-0 max-w-full items-center gap-1 rounded-full bg-card px-2.5 text-[11px] font-semibold text-muted ring-1 ring-line transition-colors hover:text-ink"
+              className="inline-flex min-h-9 min-w-0 max-w-full items-center gap-1.5 rounded-full bg-card px-3 text-sm font-semibold text-muted ring-1 ring-line transition-colors hover:text-ink lg:min-h-8 lg:gap-1 lg:px-2.5 lg:text-[11px]"
             >
-              <Store className="size-3 shrink-0" aria-hidden />
+              <Store className="size-3.5 shrink-0 lg:size-3" aria-hidden />
               <span className="truncate">{product.shopName}</span>
             </Link>
           )}
