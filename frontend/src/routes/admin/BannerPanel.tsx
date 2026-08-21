@@ -1,7 +1,10 @@
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import {
   ArrowDown,
+  ArrowDownToLine,
   ArrowUp,
+  ArrowUpToLine,
+  LayoutList,
   Megaphone,
   Pause,
   Play,
@@ -16,9 +19,11 @@ import { Modal } from "@/components/ui/Modal";
 import { Skeleton } from "@/components/ui/Skeleton";
 import { useDebounced } from "@/hooks/useDebounced";
 import { formatKes } from "@/lib/currency";
+import { HERO_SLOTS } from "@/lib/placements";
 import { cn } from "@/lib/utils";
 import { services } from "@/services";
 import { useToasts } from "@/stores/toast";
+import type { LucideIcon } from "lucide-react";
 import type { AdminPlacement, AdminProductHit, PlacementInput } from "@/types";
 
 /**
@@ -53,6 +58,21 @@ import type { AdminPlacement, AdminProductHit, PlacementInput } from "@/types";
  * arrows on each row are what sets that order. Booking a new ad puts it last
  * rather than first, because otherwise every seller's position would quietly
  * degrade each time somebody else paid.
+ *
+ * TWO UNITS, ONE LIST. The marketplace sells the same bookings in two shapes —
+ * a rotating hero at poster size, and a compact panel beside it (below it on a
+ * phone) that shows three at a glance rather than one at a time. Which shape an
+ * ad gets is decided by WHERE IT SITS IN THIS LIST: the first HERO_SLOTS are the
+ * hero, everything after is the panel. That was invisible here until now, so the
+ * owner was selling two products and could only see one of them; the list is
+ * drawn as two labelled groups instead, with a control on each row that moves
+ * an ad across the line.
+ *
+ * MOVING ONE IN MOVES ONE OUT, and the UI says so rather than hiding it. The
+ * hero holds exactly HERO_SLOTS because a rotation longer than that has a back
+ * nobody reaches — see lib/placements.ts. Promoting a fourth ad therefore has
+ * to demote a third, and an owner who is not shown that trade will believe they
+ * sold four hero slots.
  */
 export function BannerPanel() {
   const queryClient = useQueryClient();
@@ -111,6 +131,33 @@ export function BannerPanel() {
     reorder.mutate(ids);
   };
 
+  /**
+   * Move one ad to a given position, pushing everything between it and there
+   * along by one.
+   *
+   * A splice rather than a swap, which is the difference between "trade places
+   * with the ad at slot 3" and "become slot 3". Crossing the hero boundary is
+   * the second thing: an ad promoted from the panel has to land INSIDE the
+   * hero's slots and the one it displaces has to land outside them, and a swap
+   * would do that only by accident when the two happened to be adjacent.
+   */
+  const moveTo = (from: number, to: number) => {
+    if (from === to) return;
+    const ids = placements.map((p) => p.id);
+    const [moved] = ids.splice(from, 1);
+    ids.splice(to, 0, moved);
+    reorder.mutate(ids);
+  };
+
+  /* Where the front page cuts the list. Everything above is the rotating hero,
+     everything below is the compact panel — see lib/placements.ts. */
+  const promoted = placements.slice(0, HERO_SLOTS);
+  const sponsored = placements.slice(HERO_SLOTS);
+  /* The two groups are only meaningfully different once there is something on
+     both sides of the line; below that every booking is in the hero and a
+     "move to sponsored" button would be a control that does nothing. */
+  const split = placements.length > HERO_SLOTS;
+
   return (
     <section className="rounded-card bg-card p-5 shadow-soft">
       <div className="flex flex-wrap items-start justify-between gap-3">
@@ -120,8 +167,8 @@ export function BannerPanel() {
             Banner ads
           </h2>
           <p className="mt-0.5 text-xs text-muted">
-            Paid slots at the top of the marketplace. {liveCount} running of {placements.length}{" "}
-            booked.
+            Paid slots at the top of the marketplace, in two units. {liveCount} running of{" "}
+            {placements.length} booked.
           </p>
         </div>
         <Button size="sm" onClick={() => setAdding(true)}>
@@ -132,8 +179,9 @@ export function BannerPanel() {
 
       {placements.length > 1 && (
         <p className="mt-3 rounded-btn bg-fill-soft px-3 py-2 text-xs text-muted">
-          The marketplace hero cycles these one at a time, twelve seconds each, in this order. Use
-          the arrows to move an ad up or down the rotation; up to 12 run at once.
+          The arrows set the order within a unit. The first {HERO_SLOTS} bookings are the promoted
+          hero and the rest fill the sponsored panel, so promoting a fourth ad moves the third one
+          down into the panel. Up to 12 run at once.
         </p>
       )}
 
@@ -154,23 +202,48 @@ export function BannerPanel() {
       ) : placements.length === 0 ? (
         <p className="mt-6 text-sm text-muted">
           Nobody has bought a slot yet, so the marketplace hero is cycling the free rotation
-          instead — one product from every registered shop. That is the intended resting state.
-          Place several ads and the hero cycles those instead, twelve seconds each.
+          instead — one product from every registered shop, and the sponsored panel is showing its
+          own pitch. That is the intended resting state. Place several ads and the hero cycles the
+          first {HERO_SLOTS} of them, twelve seconds each, with the rest in the panel beside it.
         </p>
       ) : (
-        <ul className="mt-4 space-y-2">
-          {placements.map((p, i) => (
-            <PlacementRow
-              key={p.id}
-              placement={p}
-              position={i}
-              total={placements.length}
-              reordering={reorder.isPending}
-              onMove={(delta) => move(i, delta)}
-              onEdit={() => setEditing(p)}
-            />
-          ))}
-        </ul>
+        <div className="mt-4 space-y-5">
+          <PlacementGroup
+            icon={Megaphone}
+            title="Promoted"
+            caption={`The rotating hero, ${HERO_SLOTS} slots, twelve seconds each.`}
+            rows={promoted}
+            offset={0}
+            total={placements.length}
+            reordering={reorder.isPending}
+            onMove={move}
+            /* Out of the hero and to the front of the panel. The ad that was
+               first in the panel takes the slot this one vacated. */
+            onCross={split ? (i) => moveTo(i, HERO_SLOTS) : undefined}
+            crossLabel="Move to sponsored"
+            crossIcon={ArrowDownToLine}
+            onEdit={setEditing}
+          />
+
+          <PlacementGroup
+            icon={LayoutList}
+            title="Sponsored"
+            caption="The compact panel beside the hero, and above it on a phone."
+            rows={sponsored}
+            offset={HERO_SLOTS}
+            total={placements.length}
+            reordering={reorder.isPending}
+            onMove={move}
+            /* Into the LAST hero slot rather than the first: buying your way to
+               the front of the rotation is a different thing from buying your
+               way into it, and the arrows are how the owner sells the first. */
+            onCross={(i) => moveTo(i, HERO_SLOTS - 1)}
+            crossLabel="Move to promoted"
+            crossIcon={ArrowUpToLine}
+            onEdit={setEditing}
+            empty={`Nothing here yet. The ${HERO_SLOTS + 1}th booking lands in this panel, or move one down from the hero above.`}
+          />
+        </div>
       )}
 
       <PlacementDialog
@@ -187,20 +260,109 @@ export function BannerPanel() {
 
 /* ------------------------------------------------------------------------- */
 
+/**
+ * One of the two units, with its bookings under it.
+ *
+ * IT IS A LABEL OVER A SLICE, not a separate list. The rows underneath are the
+ * same ordered array the front page reads, cut at HERO_SLOTS, so `offset` is
+ * what turns a position inside the group back into a position in the whole
+ * rotation — every control below still speaks in whole-list indices, because
+ * that is what the reorder RPC takes.
+ *
+ * THE EMPTY SPONSORED GROUP STILL DRAWS. An owner with three bookings needs to
+ * know the fourth will land somewhere different, and a section that appears out
+ * of nowhere on the fourth sale teaches that lesson later and worse.
+ */
+function PlacementGroup({
+  icon: Icon,
+  title,
+  caption,
+  rows,
+  offset,
+  total,
+  reordering,
+  onMove,
+  onCross,
+  crossLabel,
+  crossIcon,
+  onEdit,
+  empty,
+}: {
+  icon: LucideIcon;
+  title: string;
+  caption: string;
+  rows: AdminPlacement[];
+  /** Where this group starts in the whole rotation. */
+  offset: number;
+  total: number;
+  reordering: boolean;
+  onMove: (index: number, delta: number) => void;
+  /** Undefined while there is nothing on the other side of the line to trade
+   *  places with — see `split` in BannerPanel. */
+  onCross?: (index: number) => void;
+  crossLabel: string;
+  crossIcon: LucideIcon;
+  onEdit: (placement: AdminPlacement) => void;
+  empty?: string;
+}) {
+  return (
+    <div>
+      <div className="mb-2 flex flex-wrap items-baseline gap-x-2 gap-y-0.5">
+        <h3 className="flex items-center gap-1.5 text-xs font-bold uppercase tracking-wide text-ink">
+          <Icon className="size-3.5 text-warning" aria-hidden />
+          {title}
+        </h3>
+        <span className="text-[11px] text-muted">{caption}</span>
+      </div>
+
+      {rows.length === 0 ? (
+        <p className="rounded-card border border-dashed border-line px-3 py-4 text-xs text-muted">
+          {empty}
+        </p>
+      ) : (
+        <ul className="space-y-2">
+          {rows.map((p, i) => (
+            <PlacementRow
+              key={p.id}
+              placement={p}
+              position={offset + i}
+              total={total}
+              reordering={reordering}
+              onMove={(delta) => onMove(offset + i, delta)}
+              onCross={onCross ? () => onCross(offset + i) : undefined}
+              crossLabel={crossLabel}
+              crossIcon={crossIcon}
+              onEdit={() => onEdit(p)}
+            />
+          ))}
+        </ul>
+      )}
+    </div>
+  );
+}
+
 function PlacementRow({
   placement,
   position,
   total,
   reordering,
   onMove,
+  onCross,
+  crossLabel,
+  crossIcon: CrossIcon,
   onEdit,
 }: {
   placement: AdminPlacement;
-  /** Zero-based index in the rotation; shown to the owner as 1-based. */
+  /** Zero-based index in the WHOLE rotation, not in the group; shown to the
+   *  owner as 1-based. */
   position: number;
   total: number;
   reordering: boolean;
   onMove: (delta: number) => void;
+  /** Moves this ad to the other unit. Absent when there is no other unit yet. */
+  onCross?: () => void;
+  crossLabel: string;
+  crossIcon: LucideIcon;
   onEdit: () => void;
 }) {
   const queryClient = useQueryClient();
@@ -297,6 +459,15 @@ function PlacementRow({
       </div>
 
       <div className="flex shrink-0 items-center gap-1">
+        {onCross && (
+          <IconButton
+            label={`${crossLabel} — ${placement.productName}`}
+            onClick={onCross}
+            disabled={reordering}
+          >
+            <CrossIcon className="size-4" />
+          </IconButton>
+        )}
         <IconButton
           label={placement.active ? "Pause this ad" : "Resume this ad"}
           onClick={() => toggle.mutate()}

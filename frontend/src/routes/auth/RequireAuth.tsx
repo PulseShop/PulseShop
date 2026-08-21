@@ -14,8 +14,10 @@ export function RequireMerchant({ children }: { children: ReactNode }) {
   if (!session) {
     return <Navigate to="/login" replace state={{ from: location }} />;
   }
+  // A shopper who reached a seller-only URL gets the marketplace, which is
+  // where every other shopper redirect on the site now lands — see LoginPage.
   if (session.accountType !== "merchant") {
-    return <Navigate to="/shops" replace />;
+    return <Navigate to="/" replace />;
   }
   return <>{children}</>;
 }

@@ -1,7 +1,8 @@
 import { useRef } from "react";
 import { Link } from "react-router";
-import { ChevronLeft, ChevronRight, X } from "lucide-react";
+import { X } from "lucide-react";
 import { ProductImage } from "@/components/product/ProductImage";
+import { RailArrow, useRailScroll } from "@/components/ui/RailArrow";
 import { formatKes } from "@/lib/currency";
 import { cn } from "@/lib/utils";
 import { useBrowsingHistory } from "@/stores/browsingHistory";
@@ -30,13 +31,7 @@ export function BrowsingHistoryRail({ className }: { className?: string }) {
 
   if (viewed.length === 0) return null;
 
-  /** One "page" of scroll, near enough — 80% keeps a tile in view as an anchor
-   *  so the jump reads as a scroll rather than as a page change. */
-  const scrollBy = (direction: 1 | -1) =>
-    rail.current?.scrollBy({
-      left: direction * rail.current.clientWidth * 0.8,
-      behavior: "smooth",
-    });
+  const { canLeft, canRight, scrollBy } = useRailScroll(rail, viewed.length);
 
   return (
     <section aria-label="Your browsing history" className={cn("relative", className)}>
@@ -54,12 +49,8 @@ export function BrowsingHistoryRail({ className }: { className?: string }) {
       <div className="relative">
         {/* Desktop only: a touch device scrolls the rail directly, and arrows
             there would sit on top of the thing they scroll. */}
-        {viewed.length > 4 && (
-          <>
-            <RailArrow side="left" onClick={() => scrollBy(-1)} />
-            <RailArrow side="right" onClick={() => scrollBy(1)} />
-          </>
-        )}
+        {canLeft && <RailArrow side="left" label="your history" onClick={() => scrollBy(-1)} />}
+        {canRight && <RailArrow side="right" label="your history" onClick={() => scrollBy(1)} />}
 
         <div
           ref={rail}
@@ -106,20 +97,3 @@ export function BrowsingHistoryRail({ className }: { className?: string }) {
  *  Product and may predate a slug being recorded. */
 const productPath = (item: { id: string; slug: string; shopSlug?: string }) =>
   item.shopSlug && item.slug ? `/${item.shopSlug}/${item.slug}` : `/product/${item.id}`;
-
-function RailArrow({ side, onClick }: { side: "left" | "right"; onClick: () => void }) {
-  const Icon = side === "left" ? ChevronLeft : ChevronRight;
-  return (
-    <button
-      type="button"
-      onClick={onClick}
-      aria-label={side === "left" ? "Scroll history left" : "Scroll history right"}
-      className={cn(
-        "absolute top-1/2 z-10 hidden size-9 -translate-y-1/2 items-center justify-center rounded-full border border-line bg-card/90 text-ink shadow-soft backdrop-blur transition-colors hover:bg-card lg:flex",
-        side === "left" ? "-left-2" : "-right-2",
-      )}
-    >
-      <Icon className="size-4" aria-hidden />
-    </button>
-  );
-}

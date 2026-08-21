@@ -49,11 +49,13 @@ import { ProductImage } from "@/components/product/ProductImage";
 import { PriceRangeFilter } from "@/components/product/PriceRangeFilter";
 import { QueryError } from "@/components/common/QueryError";
 import { Sheet } from "@/components/ui/Modal";
+import { RailArrow, useRailScroll } from "@/components/ui/RailArrow";
 import { ProductCardSkeleton, Skeleton } from "@/components/ui/Skeleton";
 import { useDebounced } from "@/hooks/useDebounced";
 import { useProductAdd } from "@/hooks/useProductAdd";
 import { useSeo } from "@/hooks/useSeo";
 import { colorHex, sortSizes } from "@/lib/constants";
+import { HERO_SLOTS } from "@/lib/placements";
 import { formatKes, hasPriceRange, minVariantPrice } from "@/lib/currency";
 import { productHref } from "@/lib/productUrl";
 import { homeSeo } from "@/lib/seo";
@@ -68,7 +70,16 @@ import type { BannerProduct, Merchant, Product } from "@/types";
 type SortOrder = "newest" | "price-asc" | "price-desc";
 
 const PAGE_SIZE = 12;
-const GRID_CLASS = "grid grid-cols-2 gap-3 sm:grid-cols-3 xl:grid-cols-4";
+/**
+ * The catalogue grid.
+ *
+ * FIVE COLUMNS AT xl, NOT FOUR. The filter sidebar used to take a 13-rem column
+ * out of the left of this section, so the grid was drawing four tiles in the
+ * space of five and every product on the page was a little smaller than it
+ * needed to be. The filters are a rail above the grid now — the same rail a
+ * phone gets — and the column they vacated goes back to merchandise.
+ */
+const GRID_CLASS = "grid grid-cols-2 gap-3 sm:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5";
 const LIST_CLASS = "flex flex-col gap-3";
 
 /**
@@ -82,21 +93,6 @@ const LIST_CLASS = "flex flex-col gap-3";
  */
 const ROTATE_MS = 12_000;
 
-/**
- * How many bought slots the hero keeps before the rest go to the sponsored
- * panel beside it.
- *
- * THREE, which at a twelve-second dwell is a thirty-six-second round trip — the
- * outer limit of a rotation a shopper will actually see the end of. 0049
- * replaced a ranked strip with a rotation precisely so that the last slot was
- * worth the same as the first; a queue long enough that nobody reaches the back
- * of it quietly undoes that. The fix is a second unit, not a longer queue.
- *
- * Nobody appears in both. An advert shown twice on one screen is not two
- * impressions, it is one impression and a shopper who has learned to ignore the
- * smaller panel.
- */
-const HERO_SLOTS = 3;
 
 /**
  * The marketplace.
@@ -702,22 +698,17 @@ export function MarketplacePage() {
         </h2>
 
         {/* The categories and the filter sheet, on the line between the heading
-            and the results they change. Phone only — the sidebar below carries
-            both at lg. See CategoryRail. */}
+            and the results they change — at every width now. See CategoryRail. */}
         <CategoryRail
           categories={categories}
           value={category}
           onChange={setCategory}
           onOpenFilters={() => setFiltersOpen(true)}
           activeFilterCount={activeFilterCount}
-          className="mt-3 lg:hidden"
+          className="mt-3"
         />
 
-        <div className="mt-4 lg:flex lg:gap-6 xl:gap-8">
-          <aside className="hidden shrink-0 lg:block lg:w-52">
-            <div className="space-y-6">{filterControls}</div>
-          </aside>
-
+        <div className="mt-4">
           <section className="min-w-0 flex-1">
             {appliedFilters.length > 0 && (
               <div className="mb-3 flex flex-wrap items-center gap-1.5">
@@ -869,16 +860,23 @@ export function MarketplacePage() {
       <SiteFooter className="mt-4" />
 
       <Sheet open={filtersOpen} onOpenChange={setFiltersOpen} title="Filters">
-        <div className="space-y-6">
+        {/* Capped and scrollable. This was always taller than a phone screen —
+            a category list, sizes, colours, a price slider and ratings — and
+            the top of it was simply cut off; now that the desktop sidebar is
+            gone and this is the only way to reach any of it, an unreachable
+            control is not a cosmetic problem. */}
+        <div className="max-h-[60vh] space-y-6 overflow-y-auto overscroll-contain pr-1">
           {filterControls}
-          <button
-            type="button"
-            onClick={() => setFiltersOpen(false)}
-            className="w-full rounded-btn bg-primary px-6 py-3 text-sm font-bold text-on-accent"
-          >
-            Show {totalMatches} {totalMatches === 1 ? "product" : "products"}
-          </button>
         </div>
+        {/* Outside the scroller on purpose: it is the way out of this sheet,
+            and a way out that has to be scrolled to is one people miss. */}
+        <button
+          type="button"
+          onClick={() => setFiltersOpen(false)}
+          className="mt-4 w-full rounded-btn bg-primary px-6 py-3 text-sm font-bold text-on-accent"
+        >
+          Show {totalMatches} {totalMatches === 1 ? "product" : "products"}
+        </button>
       </Sheet>
     </MobileShell>
   );
@@ -1398,12 +1396,16 @@ function HeroSkeleton() {
  * its own. It is the same kind of thing as the chips beside it — one more way
  * to narrow the same grid — and it was previously a button sitting alone above
  * the results, spending a whole row of phone height to say one word. At the end
- * of the rail it costs nothing and it is where a thumb already is, having just
+ * of the rail it costs nothing and it is where a hand already is, having just
  * swiped through the categories looking for something that is not there.
  *
- * Phone only. Desktop has the same categories as a list in the sidebar beside
- * the grid, and drawing them twice on one screen is the failure this page has
- * already made once with the shop rails.
+ * IT IS THE ONLY FILTER CONTROL AT EVERY WIDTH NOW. Desktop used to carry a
+ * 13-rem sidebar holding the same categories as a list, plus size, colour,
+ * price and rating — a column of controls permanently open beside a grid that
+ * was one tile narrower for it. The sidebar and the rail were two designs for
+ * one job, kept in step by hand; this is the one that survives, because it is
+ * the one that costs the grid nothing when nobody is filtering. Everything the
+ * sidebar held is still there, behind the same chip, in the same sheet.
  *
  * Icons because this is a rail of eight-odd chips that has to be readable at a
  * glance in peripheral vision; the icon is what makes "Footwear" findable
@@ -1427,58 +1429,102 @@ function CategoryRail({
   activeFilterCount: number;
   className?: string;
 }) {
-  return (
-    <div
+  const rail = useRef<HTMLDivElement>(null);
+  const { canLeft, canRight, scrollBy } = useRailScroll(rail, categories.length);
+  const hasCategories = categories.length > 1;
+
+  const filtersChip = (
+    <button
+      type="button"
+      onClick={onOpenFilters}
+      aria-label={activeFilterCount > 0 ? `Filters, ${activeFilterCount} active` : "Filters"}
       className={cn(
-        // Full-bleed: the rail runs to both edges of the phone so the last chip
-        // is visibly cut off rather than sitting neatly inside the margin,
-        // which is the only thing that says "this scrolls".
-        "no-scrollbar -mx-4 flex gap-2 overflow-x-auto px-4 py-0.5",
-        className,
+        "flex min-h-10 shrink-0 items-center gap-1.5 rounded-full px-3.5 text-sm font-semibold transition-colors",
+        activeFilterCount > 0 ? "bg-primary text-on-accent" : "bg-card text-muted shadow-soft",
       )}
     >
-      {categories.length > 1 &&
-        categories.map((cat) => {
-          const Icon = categoryIcon(cat);
-          const active = cat === value;
-          return (
-            <button
-              key={cat}
-              type="button"
-              onClick={() => onChange(cat)}
-              aria-pressed={active}
-              className={cn(
-                "flex min-h-10 shrink-0 items-center gap-1.5 rounded-full px-3.5 text-sm font-semibold transition-colors",
-                active ? "bg-ink text-on-accent" : "bg-card text-muted shadow-soft hover:text-ink",
-              )}
-            >
-              <Icon className="size-4 shrink-0" aria-hidden />
-              {cat}
-            </button>
-          );
-        })}
+      <SlidersHorizontal className="size-4 shrink-0" aria-hidden />
+      Filters
+      {activeFilterCount > 0 && (
+        <span className="flex size-5 items-center justify-center rounded-full bg-on-accent/25 text-[11px] font-bold">
+          {activeFilterCount}
+        </span>
+      )}
+    </button>
+  );
 
-      {/* Divided from the categories, because it does something different from
-          all of them: it opens a panel rather than applying a filter. */}
-      {categories.length > 1 && <span className="my-2 w-px shrink-0 bg-line" aria-hidden />}
+  return (
+    <div className={cn("relative flex items-center gap-2", className)}>
+      <div className="relative min-w-0 flex-1">
+        {/* Desktop only, and only on the side that has somewhere to go. These
+            sit ON the strip rather than in the page margin — there is no margin
+            here at lg, the rail starts at the heading's left edge — so a left
+            arrow drawn at rest would cover the "All" chip, which is the one
+            chip a shopper needs to find to undo a filter. */}
+        {canLeft && (
+          <RailArrow
+            side="left"
+            label="categories"
+            onClick={() => scrollBy(-1)}
+            className="-left-1"
+          />
+        )}
+        {canRight && (
+          <RailArrow
+            side="right"
+            label="categories"
+            onClick={() => scrollBy(1)}
+            className="-right-1"
+          />
+        )}
 
-      <button
-        type="button"
-        onClick={onOpenFilters}
-        aria-label={activeFilterCount > 0 ? `Filters, ${activeFilterCount} active` : "Filters"}
-        className={cn(
-          "flex min-h-10 shrink-0 items-center gap-1.5 rounded-full px-3.5 text-sm font-semibold transition-colors",
-          activeFilterCount > 0 ? "bg-primary text-on-accent" : "bg-card text-muted shadow-soft",
-        )}
-      >
-        <SlidersHorizontal className="size-4 shrink-0" aria-hidden />
-        Filters
-        {activeFilterCount > 0 && (
-          <span className="flex size-5 items-center justify-center rounded-full bg-on-accent/25 text-[11px] font-bold">
-            {activeFilterCount}
-          </span>
-        )}
-      </button>
+        <div
+          ref={rail}
+          className={cn(
+            // Full-bleed on a phone: the rail runs to both edges so the last
+            // chip is visibly cut off rather than sitting neatly inside the
+            // margin, which is the only thing that says "this scrolls". At lg
+            // it stops at the pinned chip on its right instead, so the margins
+            // come back to nothing.
+            "no-scrollbar -mx-4 flex gap-2 overflow-x-auto px-4 py-0.5 lg:mx-0 lg:px-0",
+          )}
+        >
+          {hasCategories &&
+            categories.map((cat) => {
+              const Icon = categoryIcon(cat);
+              const active = cat === value;
+              return (
+                <button
+                  key={cat}
+                  type="button"
+                  onClick={() => onChange(cat)}
+                  aria-pressed={active}
+                  className={cn(
+                    "flex min-h-10 shrink-0 items-center gap-1.5 rounded-full px-3.5 text-sm font-semibold transition-colors",
+                    active
+                      ? "bg-ink text-on-accent"
+                      : "bg-card text-muted shadow-soft hover:text-ink",
+                  )}
+                >
+                  <Icon className="size-4 shrink-0" aria-hidden />
+                  {cat}
+                </button>
+              );
+            })}
+
+          {/* Divided from the categories, because it does something different
+              from all of them: it opens a panel rather than applying a filter. */}
+          {hasCategories && <span className="my-2 w-px shrink-0 bg-line lg:hidden" aria-hidden />}
+          <div className="shrink-0 lg:hidden">{filtersChip}</div>
+        </div>
+      </div>
+
+      {/* THE SAME CHIP, PINNED, PAST lg. On a phone it is the last thing in the
+          swipe, which is where a thumb ends up anyway. On a desktop the end of
+          a horizontal scroller is somewhere a mouse may never go, and the one
+          control that opens every remaining filter cannot be the one hidden
+          past the right edge. Same button, same sheet, held still. */}
+      <div className="hidden shrink-0 lg:block">{filtersChip}</div>
     </div>
   );
 }
@@ -2016,13 +2062,22 @@ function SearchField({ value, onChange }: { value: string; onChange: (v: string)
  * discount, so the shelf leads with the biggest saving rather than the newest
  * listing, and this component does not re-sort it.
  *
- * A GRID, NOT A RAIL. The two shelves above it — categories and shops — are
- * both about narrowing down, and a rail suits those because the shopper is
- * looking for one entry among many. This one is merchandise: every tile is a
- * thing to buy at a price that is lower today, so the shopper wants to compare
- * them, and comparing is what a grid is for. It also means the ordinary
- * ProductCard does the work, savings badge and all, instead of a second tile
- * design that would have to be kept in step with it.
+ * A RAIL, NOT A GRID, AT EVERY WIDTH. It was a grid on the argument that deals
+ * are merchandise and merchandise wants comparing. True, and it lost the
+ * argument to the page: a grid of every marked-down product grows downward
+ * without limit, so the more successful the shelf was the further it pushed the
+ * catalogue, the shops and the history rail below the fold. A rail spends one
+ * band of height whether there are four deals or forty, and horizontal is how
+ * every other "here is a set of things" band on this page already reads.
+ *
+ * ORDER SURVIVES THE CHANGE, and that is why the rail is the right shape here
+ * rather than a compromise: the RPC returns biggest saving first, and the first
+ * thing in a rail is the thing everybody sees. In a grid that ordering was
+ * spent on a row of four and then buried.
+ *
+ * FULL PRODUCT CARDS, not the thumbnails the history rail uses. The savings
+ * badge, the struck-through price and the add button are the entire point of
+ * this shelf, and they already exist on ProductCard.
  *
  * NOTHING ON OFFER MEANS NO SECTION. A heading that promises deals over an
  * empty row is worse than one fewer band on the page.
@@ -2036,13 +2091,18 @@ function DealsShelf({
   loading: boolean;
   className?: string;
 }) {
+  const rail = useRef<HTMLDivElement>(null);
+  const { canLeft, canRight, scrollBy } = useRailScroll(rail, items.length);
+
   if (loading) {
     return (
       <section className={className} aria-label="Deals of the day">
         <Skeleton className="mb-3 h-6 w-44 rounded" />
-        <div className={GRID_CLASS}>
+        <div className={DEALS_RAIL_CLASS}>
           {Array.from({ length: 4 }).map((_, i) => (
-            <ProductCardSkeleton key={i} />
+            <div key={i} className={DEALS_TILE_CLASS}>
+              <ProductCardSkeleton />
+            </div>
           ))}
         </div>
       </section>
@@ -2051,7 +2111,7 @@ function DealsShelf({
   if (items.length === 0) return null;
 
   return (
-    <section className={className} aria-label="Deals of the day">
+    <section className={cn("relative", className)} aria-label="Deals of the day">
       <div className="mb-3 flex flex-wrap items-baseline justify-between gap-2">
         <h2 className="flex items-center gap-2 text-lg font-extrabold text-ink lg:text-2xl">
           <Tag className="size-5 text-favorite" aria-hidden />
@@ -2061,14 +2121,37 @@ function DealsShelf({
           {items.length} {items.length === 1 ? "product is" : "products are"} marked down right now
         </p>
       </div>
-      <div className={GRID_CLASS}>
-        {items.map((p) => (
-          <ProductCard key={p.id} product={p} />
-        ))}
+
+      <div className="relative">
+        {/* Desktop only, like every other rail here: a touch device drags the
+            strip itself, and an arrow there would sit on top of the thing it
+            scrolls. Each side appears only while it has somewhere to go. */}
+        {canLeft && <RailArrow side="left" label="deals" onClick={() => scrollBy(-1)} />}
+        {canRight && <RailArrow side="right" label="deals" onClick={() => scrollBy(1)} />}
+
+        <div ref={rail} className={DEALS_RAIL_CLASS}>
+          {items.map((p) => (
+            <div key={p.id} className={DEALS_TILE_CLASS}>
+              <ProductCard product={p} />
+            </div>
+          ))}
+        </div>
       </div>
     </section>
   );
 }
+
+/* Full-bleed and snapping, matching the browsing history rail below. The
+   negative margins track the page's own padding so the last tile is visibly cut
+   by the edge of the screen rather than stopping neatly inside it — which is
+   the only thing that tells a shopper there is more to the right. */
+const DEALS_RAIL_CLASS =
+  "no-scrollbar -mx-4 flex snap-x snap-mandatory gap-3 overflow-x-auto px-4 pb-1 lg:-mx-6 lg:px-6";
+
+/* Wide enough to read a two-line product name, narrow enough that the next tile
+   always peeks past the edge on a phone. */
+const DEALS_TILE_CLASS = "w-[45%] shrink-0 snap-start sm:w-52 lg:w-56";
+
 
 function Chip({
   label,

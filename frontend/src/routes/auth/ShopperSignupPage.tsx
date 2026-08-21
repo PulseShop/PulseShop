@@ -49,7 +49,10 @@ export function ShopperSignupPage() {
       const user = await services.auth.signupShopper(data, captcha.token);
       setSession(user);
       push("Welcome to PulseShop 🎉", "success");
-      navigate("/shops");
+      // The marketplace, like every other way into a shopper session — see the
+      // note in LoginPage. A brand new account has even less reason than a
+      // returning one to start at the shop directory.
+      navigate("/");
     } catch (err) {
       if (err instanceof EmailConfirmationRequiredError) {
         push("Check your email to confirm your account, then log in", "success");

@@ -87,11 +87,16 @@ export function LoginPage() {
         } else {
           push(
             intended === "merchant"
-              ? "That's a shopper account — taking you to your shops"
+              ? "That's a shopper account — taking you to the marketplace"
               : "Welcome back",
             "success",
           );
-          navigate("/shops");
+          // The marketplace, not the shop directory. Signing in is not a
+          // decision to go shopping for a SHOP; it is the shopper picking up
+          // where the site left off, and the site's own front door is the page
+          // with the catalogue on it. /shops answers "who sells here", which is
+          // one of four ways in offered on that front page anyway.
+          navigate("/");
         }
       } catch (err) {
         push(authErrorMessage(err, "login"), "danger");

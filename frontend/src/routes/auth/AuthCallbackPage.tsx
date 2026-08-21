@@ -48,7 +48,8 @@ export function AuthCallbackPage() {
         navigate("/dashboard/inventory", { replace: true });
       } else {
         push("Welcome to PulseShop 🎉", "success");
-        navigate("/shops", { replace: true });
+        // Same destination as the password form — see LoginPage.
+        navigate("/", { replace: true });
       }
     };
 
