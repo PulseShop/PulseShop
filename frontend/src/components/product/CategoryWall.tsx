@@ -1,10 +1,11 @@
 import { useMemo } from "react";
 import { Link } from "react-router";
-import { Sparkles } from "lucide-react";
+import { ArrowRight, Sparkles } from "lucide-react";
 
 import { ProductImage } from "@/components/product/ProductImage";
 import { Skeleton } from "@/components/ui/Skeleton";
 import { CATEGORY_GROUPS } from "@/lib/constants";
+import { formatKes } from "@/lib/currency";
 import { categoryPath, categorySlug } from "@/lib/seo";
 import { cn } from "@/lib/utils";
 import type { CategoryShowcase } from "@/types";
@@ -28,10 +29,34 @@ function tileBudget(available: number): number {
  * better and in less space. */
 const MIN_TILES = 2;
 
+/**
+ * When one leaf category stops being a tile and becomes a card of its own.
+ *
+ * FIVE — "more than four". Four is a full row of tiles inside a group card, so
+ * a leaf that has outgrown that number has outgrown the box it was being drawn
+ * in: "Smartphones, 9 products" inside a Consumer Electronics card is a
+ * thumbnail with a name under it, exactly like "Smart Home Gadgets, 1 product"
+ * beside it, and the wall says nothing about which of the two is worth opening.
+ *
+ * The wall used to be a fixed shape — one card per taxonomy group, forever, and
+ * a lone leaf with thirty products in it disappeared into "More to explore".
+ * This is what makes it follow the catalogue instead: the shelves that fill up
+ * get their own card, in the taxonomy's order, at every width.
+ */
+const SOLO_CARD_MIN = 5;
+
 type Card = {
   title: string;
   tiles: CategoryShowcase[];
   productCount: number;
+  /**
+   * Set when the card IS a single leaf category rather than a group of them.
+   *
+   * It changes what the card is made of: one picture at card width instead of
+   * four tiles, and the whole card is a link, because unlike a group this title
+   * has a page behind it.
+   */
+  leaf?: CategoryShowcase;
 };
 
 /**
@@ -47,6 +72,11 @@ export type CuratedTile = {
   imageAlt?: string;
   /** Where the tile leads — the product it is a photograph of. */
   href: string;
+  name: string;
+  /** The cheapest reachable price, matching what a product card would quote. */
+  price: number;
+  /** True when variants make that figure a floor rather than the price. */
+  ranged?: boolean;
 };
 
 /**
@@ -59,20 +89,29 @@ export type CuratedTile = {
  * here". This is the second answer — the taxonomy drawn as merchandise, so the
  * shape of the marketplace is legible before any filter is touched.
  *
- * CARDS ARE GROUPS, TILES ARE LEAVES. The taxonomy in lib/constants.ts is two
- * levels, and it maps onto this layout exactly: "Consumer Electronics" is a
- * card, "Smartphones" is a tile inside it. Each tile is a real destination —
- * /category/:slug, the page migration 0056 added — so every link in the wall
- * leads somewhere that exists and says what the tile promised.
+ * CARDS ARE GROUPS, TILES ARE LEAVES — until a leaf outgrows that. The taxonomy
+ * in lib/constants.ts is two levels and maps onto this layout exactly:
+ * "Consumer Electronics" is a card, "Smartphones" is a tile inside it. Each
+ * tile is a real destination — /category/:slug, the page migration 0056 added —
+ * so every link in the wall leads somewhere that exists and says what the tile
+ * promised.
  *
- * THE CARD HEADING IS NOT A LINK, DELIBERATELY. A group has no page: the
+ * THE WALL FOLLOWS THE CATALOGUE, IT IS NOT A FIXED SHAPE. Any leaf carrying
+ * more than four products leaves its group and becomes a card in its own right
+ * (see SOLO_CARD_MIN), at every width. Without that rule the wall was frozen at
+ * one card per taxonomy group: a category with thirty products in it drew the
+ * same 80px thumbnail as one with a single item, and a lone big leaf whose
+ * siblings were empty vanished into "More to explore" entirely.
+ *
+ * A GROUP HEADING IS NOT A LINK, DELIBERATELY. A group has no page: the
  * category page resolves leaf names, and the product filter takes one category
  * at a time, so there is nothing behind "Consumer Electronics" to link to. The
  * options were to invent a group page, to point the heading at whichever leaf
  * is biggest, or to leave it as a label. The middle one is a link that lies
  * about where it goes, and the first is a page nobody asked for; so the heading
  * carries the group's product count instead, which is information the shopper
- * did not have and no link at all.
+ * did not have and no link at all. A SOLO card is the opposite case and is a
+ * link end to end — its title is a leaf, and that leaf has a page.
  *
  * EMPTY CATEGORIES NEVER APPEAR. Every tile comes from list_category_showcase()
  * (migration 0057), which only returns categories with something in stock and
@@ -154,9 +193,13 @@ export function CategoryWall({
         )}
       >
         {hasCurated && <CuratedCard tiles={curatedTiles} loading={curatedLoading} />}
-        {cards.map((card) => (
-          <CategoryCard key={card.title} card={card} />
-        ))}
+        {cards.map((card) =>
+          card.leaf ? (
+            <SoloCategoryCard key={card.title} card={card} leaf={card.leaf} />
+          ) : (
+            <CategoryCard key={card.title} card={card} />
+          ),
+        )}
       </div>
     </section>
   );
@@ -185,11 +228,14 @@ function WallHeading() {
 /**
  * The free hourly rotation, wearing a category card's clothes.
  *
- * NOTHING HERE IS BOUGHT, and the card says so in as many words. That sentence
- * is the whole reason this half of the page works: the banners above are paid
- * placement and labelled Promoted, and a shopper who cannot tell the two apart
- * makes both labels worthless. It sat beside the paid hero until now, which was
- * the worst possible place to make that distinction legible.
+ * NOTHING HERE IS BOUGHT. The card used to say so in two paragraphs — a
+ * subtitle over the pictures and a disclaimer under them — which between them
+ * took more of the card than the merchandise did. The pictures are the point;
+ * the tiles now carry a name and a price like every other product on the site,
+ * so what is on the shelf is legible without opening anything. The heading and
+ * the link to the shops are what is left of the words, and they are enough to
+ * place the card: it is the one in the wall that changes hour to hour, and the
+ * things above it in the paid row are the ones wearing a Promoted badge.
  *
  * The tiles are products and the heading leads to /shops, which is the honest
  * pair: the picture is a specific thing you can buy, and the card as a whole
@@ -198,47 +244,59 @@ function WallHeading() {
 function CuratedCard({ tiles, loading }: { tiles: CuratedTile[]; loading: boolean }) {
   return (
     <article className="flex flex-col rounded-bento bg-primary/5 p-3 shadow-soft ring-1 ring-primary/15 lg:p-4">
-      <div className="mb-2.5 min-w-0 lg:mb-3">
-        <h3 className="flex items-center gap-1.5 text-sm font-extrabold leading-snug text-ink lg:text-[15px]">
+      <div className="mb-2.5 flex items-center justify-between gap-2 lg:mb-3">
+        <h3 className="flex min-w-0 items-center gap-1.5 text-sm font-extrabold leading-snug text-ink lg:text-[15px]">
           <Sparkles className="size-4 shrink-0 text-primary" aria-hidden />
           Curated
         </h3>
-        <p className="mt-0.5 text-[11px] font-semibold text-muted">
-          One per shop, rotated hourly
-        </p>
+        <Link
+          to="/shops"
+          className="shrink-0 text-[11px] font-semibold text-primary hover:underline"
+        >
+          All shops
+        </Link>
       </div>
 
       <div className="grid grid-cols-2 gap-2">
         {loading
           ? Array.from({ length: 4 }).map((_, i) => (
-              <Skeleton key={i} className="aspect-square w-full rounded-xl" />
+              <div key={i}>
+                <Skeleton className="aspect-square w-full rounded-xl" />
+                <Skeleton className="mt-1.5 h-3 w-3/4 rounded" />
+                <Skeleton className="mt-1 h-3 w-1/2 rounded" />
+              </div>
             ))
           : tiles.map((tile) => (
               <Link
                 key={tile.id}
                 to={tile.href}
                 className={cn(
-                  "group min-w-0 overflow-hidden rounded-xl bg-fill focus-visible:outline-none",
+                  "group min-w-0 rounded-xl focus-visible:outline-none",
                   "focus-visible:ring-2 focus-visible:ring-primary",
                 )}
               >
-                <ProductImage
-                  src={tile.image}
-                  alt={tile.imageAlt ?? ""}
-                  loading="lazy"
-                  className="aspect-square w-full object-cover transition-transform duration-300 group-hover:scale-[1.05]"
-                />
+                <div className="overflow-hidden rounded-xl bg-fill">
+                  <ProductImage
+                    src={tile.image}
+                    alt={tile.imageAlt ?? ""}
+                    loading="lazy"
+                    className="aspect-square w-full object-cover transition-transform duration-300 group-hover:scale-[1.05]"
+                  />
+                </div>
+                {/* One line, not two. The price is the fact the shopper came
+                    for and it has to sit on a predictable baseline across the
+                    four tiles; a name allowed to wrap moves it on one tile and
+                    not the others. */}
+                <p className="mt-1.5 truncate text-[11px] font-semibold leading-tight text-muted transition-colors group-hover:text-primary">
+                  {tile.name}
+                </p>
+                <p className="text-[11px] font-extrabold text-ink lg:text-xs">
+                  {tile.ranged && <span className="font-semibold text-muted">from </span>}
+                  {formatKes(tile.price)}
+                </p>
               </Link>
             ))}
       </div>
-
-      {/* The disclaimer is the card's point, not its small print. */}
-      <p className="mt-2.5 text-[11px] leading-relaxed text-muted">
-        A product from every shop on PulseShop. Nobody pays for this.{" "}
-        <Link to="/shops" className="font-semibold text-primary hover:underline">
-          See all shops
-        </Link>
-      </p>
     </article>
   );
 }
@@ -248,20 +306,33 @@ function CuratedCard({ tiles, loading }: { tiles: CuratedTile[]; loading: boolea
 /**
  * Turns the flat per-category rows into cards.
  *
- * The taxonomy drives the grouping and the DATA drives what survives: a group
- * keeps only the leaves that came back with stock, and becomes a card only if
- * at least two did. Groups stay in the order lib/constants.ts declares them, so
- * the wall does not reshuffle itself between visits as counts move around;
- * within a card the biggest leaf leads.
+ * THE TAXONOMY DRIVES THE ORDER AND THE DATA DRIVES THE SHAPE. Groups stay in
+ * the order lib/constants.ts declares them, so the wall does not reshuffle
+ * itself between visits as counts move around. What each group produces depends
+ * on what is actually stocked behind it:
  *
- * NOTHING STOCKED IS DISCARDED. The last card is the catch-all, and two
+ *   - a leaf with more than four products becomes a CARD OF ITS OWN, emitted
+ *     just ahead of its group so it stays next to its family (SOLO_CARD_MIN);
+ *   - whatever is left of the group becomes a group card if two or more leaves
+ *     survive, with the biggest leading;
+ *   - anything still unclaimed falls to the catch-all at the end.
+ *
+ * Pulling a big leaf out can leave its group with one leaf and therefore no
+ * card. That is the right outcome rather than a regression: the group was only
+ * ever a container for the leaves worth showing, and a card labelled "Health,
+ * Beauty & Personal Care" holding one thumbnail says less than a card labelled
+ * with the shelf a shopper can actually walk down. The stranded sibling is not
+ * lost — it lands in the catch-all below with the rest.
+ *
+ * NOTHING STOCKED IS DISCARDED. That catch-all is the last card, and two
  * different kinds of leftover end up in it. `products.category` is a free-text
  * column and the fixed taxonomy is recent, so shops carry names ("Tops") that
  * belong to no group at all — see isLegacyCategory. And a group with a single
  * stocked leaf is not a card, which would otherwise delete that leaf from the
  * page; on a young catalogue spread thinly across 37 leaves, that is most of
  * the taxonomy. Both are real merchandise a shopper can buy, so both are
- * collected here rather than dropped.
+ * collected here rather than dropped — except where they are big enough to have
+ * earned a card of their own, which the same rule grants them.
  */
 function buildCards(entries: CategoryShowcase[]): Card[] {
   const byName = new Map(entries.map((e) => [e.category, e]));
@@ -274,7 +345,17 @@ function buildCards(entries: CategoryShowcase[]): Card[] {
       .filter((e): e is CategoryShowcase => Boolean(e))
       .sort((a, b) => b.productCount - a.productCount);
 
-    const budget = tileBudget(stocked.length);
+    // The big ones leave first, in the group's own declared order rather than
+    // by size, so their cards keep a stable place in the wall as counts move.
+    for (const leaf of items
+      .map((name) => byName.get(name))
+      .filter((e): e is CategoryShowcase => e != null && e.productCount >= SOLO_CARD_MIN)) {
+      claimed.add(leaf.category);
+      cards.push(soloCard(leaf));
+    }
+
+    const rest = stocked.filter((e) => !claimed.has(e.category));
+    const budget = tileBudget(rest.length);
     if (budget < MIN_TILES) continue;
 
     // Claimed only once the group has actually become a card. A group with a
@@ -284,14 +365,16 @@ function buildCards(entries: CategoryShowcase[]): Card[] {
     // the taxonomy. Overflow leaves of a group that DID become a card stay
     // claimed: the card stands for the whole group and its count already says
     // there is more behind it than the four tiles shown.
-    for (const entry of stocked) claimed.add(entry.category);
+    for (const entry of rest) claimed.add(entry.category);
 
     cards.push({
       title: group,
-      tiles: stocked.slice(0, budget),
-      // The count is the group's WHOLE stock, not the four tiles shown, so it
-      // stays honest when a group has more leaves than the card has room for.
-      productCount: stocked.reduce((n, e) => n + e.productCount, 0),
+      tiles: rest.slice(0, budget),
+      // The count is the group's whole REMAINING stock, not the four tiles
+      // shown, so it stays honest when a group has more leaves than the card
+      // has room for. Leaves that left for a card of their own are not counted
+      // here as well: the group no longer stands for them.
+      productCount: rest.reduce((n, e) => n + e.productCount, 0),
     });
   }
 
@@ -299,19 +382,86 @@ function buildCards(entries: CategoryShowcase[]): Card[] {
     .filter((e) => !claimed.has(e.category))
     .sort((a, b) => b.productCount - a.productCount);
 
-  const orphanBudget = tileBudget(orphans.length);
+  // A category the taxonomy has never heard of is still a shelf, and the same
+  // rule reaches it: past four products it gets a card rather than a tile in
+  // the catch-all.
+  for (const orphan of orphans.filter((e) => e.productCount >= SOLO_CARD_MIN)) {
+    claimed.add(orphan.category);
+    cards.push(soloCard(orphan));
+  }
+
+  const leftovers = orphans.filter((e) => !claimed.has(e.category));
+  const orphanBudget = tileBudget(leftovers.length);
   if (orphanBudget >= MIN_TILES) {
     cards.push({
       title: "More to explore",
-      tiles: orphans.slice(0, orphanBudget),
-      productCount: orphans.reduce((n, e) => n + e.productCount, 0),
+      tiles: leftovers.slice(0, orphanBudget),
+      productCount: leftovers.reduce((n, e) => n + e.productCount, 0),
     });
   }
 
   return cards;
 }
 
+/** A leaf that outgrew its group, as a card standing for itself. */
+function soloCard(leaf: CategoryShowcase): Card {
+  return { title: leaf.category, tiles: [leaf], productCount: leaf.productCount, leaf };
+}
+
 /* ------------------------------------------------------------------------- */
+
+/**
+ * A leaf category with enough behind it to be worth a card.
+ *
+ * ONE PICTURE AT CARD WIDTH, not four thumbnails, because there is only one
+ * category here to illustrate — the showcase returns a single rotating cover
+ * per category (migration 0057), and four copies of it would be a lie about
+ * variety. The square keeps this card roughly the height of the four-tile cards
+ * beside it, which is what stops the wall going ragged as categories cross the
+ * threshold in and out.
+ *
+ * A LINK END TO END, unlike a group card. Its title is a leaf, and a leaf has a
+ * page — /category/:slug, the one migration 0056 added — so there is no reason
+ * to make the shopper find the small print inside the card to get there.
+ */
+function SoloCategoryCard({ card, leaf }: { card: Card; leaf: CategoryShowcase }) {
+  return (
+    <Link
+      to={categoryPath(categorySlug(leaf.category))}
+      className={cn(
+        "group flex flex-col rounded-bento bg-card p-3 shadow-soft transition-shadow hover:shadow-md lg:p-4",
+        "focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary",
+      )}
+    >
+      <div className="mb-2.5 min-w-0 lg:mb-3">
+        <h3 className="line-clamp-2 text-sm font-extrabold leading-snug text-ink transition-colors group-hover:text-primary lg:text-[15px]">
+          {leaf.category}
+        </h3>
+        <p className="mt-0.5 text-[11px] font-semibold text-muted">
+          {card.productCount} {card.productCount === 1 ? "product" : "products"}
+        </p>
+      </div>
+
+      <div className="overflow-hidden rounded-xl bg-fill">
+        <ProductImage
+          src={leaf.image}
+          /* The picture stands for the CATEGORY, not for the product that
+             happens to be illustrating it this hour, so the seller's alt text
+             would describe the wrong thing. The heading above already names the
+             destination. */
+          alt=""
+          loading="lazy"
+          className="aspect-square w-full object-cover transition-transform duration-300 group-hover:scale-[1.05]"
+        />
+      </div>
+
+      <p className="mt-1.5 flex items-center gap-1 text-[11px] font-semibold text-primary lg:text-xs">
+        Shop all
+        <ArrowRight className="size-3.5 transition-transform group-hover:translate-x-0.5" aria-hidden />
+      </p>
+    </Link>
+  );
+}
 
 function CategoryCard({ card }: { card: Card }) {
   return (

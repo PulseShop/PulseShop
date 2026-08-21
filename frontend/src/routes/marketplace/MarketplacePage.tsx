@@ -51,6 +51,7 @@ import { QueryError } from "@/components/common/QueryError";
 import { Sheet } from "@/components/ui/Modal";
 import { ProductCardSkeleton, Skeleton } from "@/components/ui/Skeleton";
 import { useDebounced } from "@/hooks/useDebounced";
+import { useProductAdd } from "@/hooks/useProductAdd";
 import { useSeo } from "@/hooks/useSeo";
 import { colorHex, sortSizes } from "@/lib/constants";
 import { formatKes, hasPriceRange, minVariantPrice } from "@/lib/currency";
@@ -386,6 +387,11 @@ export function MarketplacePage() {
     image: p.images[0],
     imageAlt: p.imageAlts?.[0]?.trim() || undefined,
     href: productHref(p),
+    name: p.name,
+    // The same figure a product card would quote — the cheapest reachable
+    // variant, flagged as a floor when there is a range behind it.
+    price: minVariantPrice(p),
+    ranged: hasPriceRange(p),
   }));
 
   /**
@@ -494,55 +500,61 @@ export function MarketplacePage() {
   return (
     <MobileShell homeTo="/" wide>
       {/*
-        THE MASTHEAD, AND WHY THE TWO WIDTHS CARRY DIFFERENT SETS.
+        THE MASTHEAD, ON ONE LINE AT EVERY WIDTH.
 
-        On a phone the row is exactly four things: the logo (home), the search
-        field, wishlist, account. It is short because it can be — Home, Shops
-        and Cart are already permanent tabs in the bottom bar three inches
-        below, so putting them up here too spends the narrowest strip on the
-        site restating controls the shopper can already see.
+        It used to be two rows on a phone: logo and account avatar on top, then
+        search, wishlist and cart underneath. The top row was the weak one —
+        a 32px logo and a 40px avatar spending a whole line of the narrowest
+        screen on this site, and the avatar is the Account tab from the bar
+        three inches below, reached by a control that has no badge, no count and
+        nothing to say that the tab does not.
 
-        Wishlist is the exception that earns its place. It is a tab down there
-        as well, but it is the one control shoppers reach for mid-browse while
-        their thumb is at the top of a scrolled page, and its badge is the only
-        thing in the row that carries a changing number.
+        So the avatar goes (DesktopQuickNav is dropped below lg here, and only
+        here) and the second row moves up into the space it left. The logo and
+        the search field each come down a size to pay for the move, which is the
+        trade this makes: a slightly shorter search field, and a masthead that
+        is one storey tall instead of two.
 
-        On desktop the bottom bar does not exist (BottomNav is lg:hidden), so
-        the same trim would leave Cart with nowhere to live and strand a
-        shopper's basket. The full icon row stays there for that reason, not
-        for symmetry.
+        WISHLIST AND CART STAY. They are tabs in the bottom bar as well, but
+        they are the only controls on the page carrying a number that changes as
+        the shopper works — "did that save?" and "did that go in?" have to be
+        answerable without navigating and without scrolling. Home and Shops are
+        NOT here for exactly the opposite reason: they are destinations, the bar
+        already holds them, and neither ever changes.
+
+        Past lg there is no bottom bar (BottomNav is lg:hidden), so the full
+        icon row and the account menu come back and these two hide instead —
+        the same four destinations, drawn once, wherever they have to live.
       */}
-      <header className="glass-header sticky top-0 z-30 px-4 py-3 lg:px-6">
-        <div className="flex items-center justify-between gap-3">
-          <LogoLink size={32} wordmark />
-          <div className="hidden min-w-0 flex-1 lg:block lg:max-w-md">
+      <header className="glass-header sticky top-0 z-30 px-4 py-2.5 lg:px-6 lg:py-3">
+        <div className="flex items-center justify-between gap-2 lg:gap-3">
+          {/* The wordmark is the first thing to go when the row runs out of
+              room, and 440px is where the row runs out: below it the lettering
+              costs more than the search field can spare, and the field stops
+              being able to show its own placeholder. The mark alone is still
+              the brand — it carries the wordmark inside the icon — so what is
+              lost below 440px is a repetition, and what is bought is a search
+              box that reads as one. */}
+          <LogoLink
+            size={28}
+            wordmark
+            wordmarkClassName="hidden min-[440px]:inline text-[15px] lg:text-lg"
+          />
+
+          <div className="min-w-0 flex-1 lg:max-w-md">
             <SearchField value={search} onChange={setSearch} />
           </div>
+
+          <div className="flex items-center gap-1.5 lg:hidden">
+            <WishlistButton />
+            <CartButton />
+          </div>
+
           {/* Home is a no-op on this page and still sits in this row: it is the
               same control in the same place on every buyer route, and one that
               disappears on the page it points at is one people stop looking
               for. It renders active here rather than being hidden. */}
-          <DesktopQuickNav />
-        </div>
-
-        {/* Phone: search, wishlist and CART share the second line.
-            The cart is up here now. It was a tab at the bottom and nothing
-            else, which is the right place for a destination and the wrong one
-            for a running total: a shopper adds something from a card halfway
-            down the page, and the only confirmation that it landed is a badge
-            below the fold of their own thumb. At the top it is in view at the
-            moment of the add and reachable without scrolling back, which is
-            the same argument the wishlist won on. It stays a tab as well —
-            the bar is site-wide and every other route still needs it.
-            Home and Shops are NOT here: they are tabs three inches below, and
-            restating them would spend the narrowest strip on the site on
-            controls already in view. */}
-        <div className="mt-2.5 flex items-center gap-2 lg:hidden">
-          <div className="min-w-0 flex-1">
-            <SearchField value={search} onChange={setSearch} />
-          </div>
-          <WishlistButton />
-          <CartButton />
+          <DesktopQuickNav className="hidden lg:flex" />
         </div>
       </header>
 
@@ -552,42 +564,60 @@ export function MarketplacePage() {
             document outline that changes every twelve seconds is no outline. */}
         <h1 className="sr-only">PulseShop marketplace — every shop in one place</h1>
 
-        {/* THE BANNERS. Twelve columns past lg: the promoted hero takes seven
-            because it is the only panel carrying a photograph at display size,
-            and the sponsored panel takes the remaining five.
+        {/* THE PAID ROW, AS TWO UNITS RATHER THAN ONE.
 
-            BOTH HALVES OF THIS ROW ARE PAID, and that is new. The five columns
-            on the right used to hold the free hourly rotation, which put the
-            one unbuyable thing on the page inside the one row that is entirely
-            advertising — the worst possible place to make the distinction
-            legible. The rotation is a card in the category wall below now,
-            where it says in as many words that nobody paid for it, and this row
-            reads as what it is: the advertising strip, top of page, labelled
-            twice.
+            Past lg they sit side by side in twelve columns: the promoted hero
+            takes seven because it is the only panel carrying a photograph at
+            display size, and the sponsored panel takes the remaining five.
+
+            ON A PHONE THEY STACK, AND SPONSORED GOES ON TOP. The sponsored
+            panel used to be desktop-only, on the argument that one full-width
+            advert is enough for a phone. What that actually did was hide the
+            back half of the queue from most of the traffic — everything past
+            HERO_SLOTS simply did not exist below lg. Two panels of unequal size
+            is a better answer than one panel and a hole: the compact list
+            leads, because it shows three placements in the height the hero
+            spends on one, and the hero follows underneath at poster size.
+
+            BOTH HALVES OF THIS ROW ARE PAID. The five columns on the right used
+            to hold the free hourly rotation, which put the one unbuyable thing
+            on the page inside the one row that is entirely advertising — the
+            worst possible place to make the distinction legible. The rotation
+            is a card in the category wall below now, where it says in as many
+            words that nobody paid for it, and this row reads as what it is: the
+            advertising strip, top of page, labelled twice.
 
             IT DISAPPEARS THE MOMENT SOMEBODY SEARCHES. A shopper who typed a
             query has told you exactly what they want, and making them scroll
             past two banners to reach it is the site arguing with them. */}
         {!isSearching && (
           <div className="grid gap-3 lg:grid-cols-12 lg:gap-4">
+            {/* First in the DOM, so it is the panel a phone reads first and the
+                one a screen reader reaches first. The order classes put it back
+                on the right at lg, where reading order and column order stop
+                being the same question. */}
+            <SponsoredPanel
+              className={cn(
+                "lg:order-2 lg:col-span-5 lg:flex",
+                // Nothing booked past the hero means nothing to show, and on a
+                // phone the fallback pitch would be an advert for advertising
+                // sitting above the fold. No skeleton either: on a platform
+                // this young the tail is usually empty, so reserving three rows
+                // of it would mean the common case is a placeholder that
+                // collapses. Desktop keeps both the skeleton and the pitch —
+                // the panel is a fixed column there, and an empty one is a
+                // hole in the layout rather than a section that did not apply.
+                sponsoredPlacements.length > 0 ? "flex" : "hidden",
+              )}
+              items={sponsoredPlacements}
+              loading={placementsQ.isLoading}
+            />
+
             <PromotedHero
-              className="lg:col-span-7"
+              className="lg:order-1 lg:col-span-7"
               items={heroPlacements}
               loading={placementsQ.isLoading}
               fallbackImages={features.slice(0, 4)}
-              categories={categories}
-              category={category}
-              onCategory={setCategory}
-            />
-
-            {/* Desktop only, like the collage it replaces. A phone already
-                carries one full-width advert at the top of this page; a second
-                one directly under it is the whole first screenful spent on
-                things nobody asked to see. */}
-            <SponsoredPanel
-              className="hidden lg:col-span-5 lg:flex"
-              items={sponsoredPlacements}
-              loading={placementsQ.isLoading}
             />
           </div>
         )}
@@ -671,34 +701,24 @@ export function MarketplacePage() {
           {isSearching ? "Search results" : "Everything on PulseShop"}
         </h2>
 
+        {/* The categories and the filter sheet, on the line between the heading
+            and the results they change. Phone only — the sidebar below carries
+            both at lg. See CategoryRail. */}
+        <CategoryRail
+          categories={categories}
+          value={category}
+          onChange={setCategory}
+          onOpenFilters={() => setFiltersOpen(true)}
+          activeFilterCount={activeFilterCount}
+          className="mt-3 lg:hidden"
+        />
+
         <div className="mt-4 lg:flex lg:gap-6 xl:gap-8">
           <aside className="hidden shrink-0 lg:block lg:w-52">
             <div className="space-y-6">{filterControls}</div>
           </aside>
 
           <section className="min-w-0 flex-1">
-            {/* Categories are in the hero's rail now, at every width, so this
-                row carries the one control that has nowhere else to be. */}
-            <div className="mb-3 lg:hidden">
-              <button
-                type="button"
-                onClick={() => setFiltersOpen(true)}
-                aria-label={activeFilterCount > 0 ? `Filters, ${activeFilterCount} active` : "Filters"}
-                className={cn(
-                  "flex min-h-11 items-center gap-1.5 rounded-full px-4 text-sm font-semibold",
-                  activeFilterCount > 0 ? "bg-ink text-on-accent" : "bg-card text-muted shadow-soft",
-                )}
-              >
-                <SlidersHorizontal className="size-4" />
-                Filters
-                {activeFilterCount > 0 && (
-                  <span className="flex size-5 items-center justify-center rounded-full bg-on-accent/25 text-[11px] font-bold">
-                    {activeFilterCount}
-                  </span>
-                )}
-              </button>
-            </div>
-
             {appliedFilters.length > 0 && (
               <div className="mb-3 flex flex-wrap items-center gap-1.5">
                 {appliedFilters.map((f) => (
@@ -899,6 +919,16 @@ function priceChipLabel(min: number | null, max: number | null): string {
 function useHeroRotation(count: number) {
   const [index, setIndex] = useState(0);
   const [held, setHeld] = useState(false);
+  /**
+   * A fourth reason to stop, and the only one that is not about attention: the
+   * shopper is halfway through choosing a size in the slide's variant sheet.
+   *
+   * Deliberately NOT folded into `held`. Opening the sheet moves focus into a
+   * portal outside this section, which fires the panel's own onBlurCapture and
+   * would release the hold a moment after the sheet took it — the rotation
+   * would then unmount the slide, and the sheet with it, mid-choice.
+   */
+  const [choosing, setChoosing] = useState(false);
   const [tabHidden, setTabHidden] = useState(
     () => typeof document !== "undefined" && document.visibilityState === "hidden",
   );
@@ -915,7 +945,7 @@ function useHeroRotation(count: number) {
     return () => document.removeEventListener("visibilitychange", onVisibility);
   }, []);
 
-  const paused = held || tabHidden || reducedMotion;
+  const paused = held || choosing || tabHidden || reducedMotion;
 
   useEffect(() => {
     if (count < 2 || paused) return;
@@ -934,6 +964,7 @@ function useHeroRotation(count: number) {
     prev: () => setIndex((i) => (count > 0 ? (i - 1 + count) % count : 0)),
     hold: () => setHeld(true),
     release: () => setHeld(false),
+    setChoosing,
   };
 }
 
@@ -1021,18 +1052,17 @@ function usePrefersReducedMotion() {
  * here would put unpaid products under a Promoted badge or, worse, teach
  * shoppers that the badge is decoration.
  *
- * The category rail lives inside this panel rather than above the grid because
- * it is the same kind of control as the hero: a way in, not a way to narrow
- * something you are already looking at. Picking one still drives the same
- * `category` filter the sidebar does.
+ * THE CATEGORY RAIL USED TO LIVE IN HERE, on the argument that it is the same
+ * kind of control as the hero: a way in rather than a way to narrow. True, and
+ * beside the point — the thing it changes is the grid at the very bottom of the
+ * page, so tapping a category from up here filtered a section the shopper could
+ * not see and left them scrolling past four bands to find out what happened.
+ * It now sits directly above that grid. See CategoryRail.
  */
 function PromotedHero({
   items,
   loading,
   fallbackImages,
-  categories,
-  category,
-  onCategory,
   className,
 }: {
   items: BannerProduct[];
@@ -1040,12 +1070,11 @@ function PromotedHero({
   /** Shown beside the house copy when nothing is booked, so the panel is not a
    *  wall of text on the one day the platform has sold nothing. */
   fallbackImages: Product[];
-  categories: string[];
-  category: string;
-  onCategory: (c: string) => void;
   className?: string;
 }) {
-  const { index, paused, go, next, prev, hold, release } = useHeroRotation(items.length);
+  const { index, paused, go, next, prev, hold, release, setChoosing } = useHeroRotation(
+    items.length,
+  );
   const swipe = useSwipe({ onNext: next, onPrev: prev });
   const current = items[index];
   const navigable = items.length > 1;
@@ -1062,11 +1091,11 @@ function PromotedHero({
       className={cn(
         // PHONE PADDING IS 16px, NOT 20px. The banner was taking most of a
         // phone screen before the catalogue started; every measurement on it
-        // that only applies below sm has come down about 18% — the padding
-        // here, the arrow gutter, the picture, the headline and the two gaps
-        // under the slide. Nothing at sm and above moved: the panel was never
-        // too big on a laptop, and shrinking it there would just waste the
-        // seven columns it was given.
+        // that only applies below sm has come down — the padding here, the
+        // picture, the headline and the two gaps under the slide, and the arrow
+        // gutter all the way to nothing (HeroArrow is sm and up). Nothing at sm
+        // and above moved: the panel was never too big on a laptop, and
+        // shrinking it there would just waste the seven columns it was given.
         "hero-ink relative flex flex-col overflow-hidden rounded-bento p-4 sm:p-6 lg:min-h-104 lg:p-8",
         className,
       )}
@@ -1077,21 +1106,22 @@ function PromotedHero({
           <HeroArrow side="right" onClick={next} />
         </>
       )}
-      {/* Centred rather than top-aligned: the panel's height is set by whichever
-          bento column is tallest, not by this content, so anchoring the slide to
-          the top leaves a hole above the category rail on most screens.
+      {/* Centred rather than top-aligned: past lg the panel's height is set by
+          whichever bento column is tallest rather than by this content, so
+          anchoring the slide to the top would leave a hole under it.
 
-          The horizontal padding is the arrows' gutter, and only exists when
-          there are arrows. Without it they land on the vertical centre of the
-          slide, which is exactly where the CTA button sits — the one control on
+          The horizontal padding is the arrows' gutter. It exists only where
+          there are arrows to make room for — when there is one slide, and at
+          all on a phone. Without it they land on the vertical centre of the
+          slide, which is exactly where the add button sits: the one control on
           the panel that must never be covered. */}
-      <div className={cn("flex flex-1 items-center", navigable && "px-7 sm:px-9")}>
+      <div className={cn("flex flex-1 items-center", navigable && "sm:px-9")}>
         {loading ? (
           <HeroSkeleton />
         ) : current ? (
           // Keyed on the index so React mounts a fresh subtree per rotation and
           // the entry animation replays without any transition bookkeeping.
-          <HeroSlide key={index} product={current} />
+          <HeroSlide key={index} product={current} onChoosing={setChoosing} />
         ) : (
           <HouseSlide images={fallbackImages} />
         )}
@@ -1130,8 +1160,6 @@ function PromotedHero({
           ))}
         </div>
       )}
-
-      <CategoryRail categories={categories} value={category} onChange={onCategory} />
     </section>
   );
 }
@@ -1154,7 +1182,11 @@ function HeroArrow({ side, onClick }: { side: "left" | "right"; onClick: () => v
       onClick={onClick}
       aria-label={side === "left" ? "Previous promoted product" : "Next promoted product"}
       className={cn(
-        "absolute top-1/2 z-10 flex size-10 -translate-y-1/2 items-center justify-center rounded-full bg-white/10 text-white backdrop-blur-sm transition-colors hover:bg-white/25 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-white/70",
+        // Hidden on a phone. The slide is a 112px picture beside a 180px
+        // column there, so a 40px control floating over its middle covers one
+        // or the other; the swipe handler and the dots underneath are both
+        // still live, and both are bigger targets than the arrows ever were.
+        "absolute top-1/2 z-10 hidden size-10 -translate-y-1/2 items-center justify-center rounded-full bg-white/10 text-white backdrop-blur-sm transition-colors hover:bg-white/25 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-white/70 sm:flex",
         side === "left" ? "left-1 sm:left-2" : "right-1 sm:right-2",
       )}
     >
@@ -1163,57 +1195,103 @@ function HeroArrow({ side, onClick }: { side: "left" | "right"; onClick: () => v
   );
 }
 
-/** One promoted product, at poster size. */
-function HeroSlide({ product }: { product: BannerProduct }) {
+/**
+ * One promoted product.
+ *
+ * TWO ARRANGEMENTS OF THE SAME FIVE FACTS. On a phone the photograph sits on
+ * the left at thumbnail size and everything else stacks to the right of it;
+ * from sm up the copy leads and the picture takes the right-hand column at
+ * poster size. The phone version used to be the desktop one with the picture
+ * moved on top, which spent 390px of screen height on the image and pushed the
+ * price and the buttons — the two things the advertiser is paying to have seen
+ * — off the first screenful.
+ *
+ * THE PICTURE IS CONTAINED, NOT CROPPED, at thumbnail size. A square crop of a
+ * 16:9 product shot is a close-up of the middle of a phone; at 112px that is
+ * not a product, it is a texture. object-contain over a neutral plate shows the
+ * whole thing the advert is for, which is the entire job of the image here.
+ *
+ * TWO BUTTONS, AND THEY ARE THE TWO REAL DESTINATIONS. "Add" puts it in the
+ * cart from where the shopper already is (the variant sheet opens first when
+ * there is a size or a colour to choose — see useProductAdd), and the shop chip
+ * goes to the seller. The product page is reachable by the picture and the
+ * headline, both of which are links, so the row underneath does not need to
+ * spend a third button repeating them.
+ */
+function HeroSlide({
+  product,
+  onChoosing,
+}: {
+  product: BannerProduct;
+  /** Stops the rotation while the variant sheet is open — the slide is keyed on
+   *  the rotation index, so a tick here would unmount the sheet mid-choice. */
+  onChoosing: (choosing: boolean) => void;
+}) {
   const from = minVariantPrice(product);
   const ranged = hasPriceRange(product);
+  const { addLabel, onAddClick, variantSheet, sheetOpen } = useProductAdd(product);
+  const soldOut = product.status === "out";
+
+  // The cleanup matters as much as the call: it hands the clock back when the
+  // sheet closes AND when the slide is unmounted with the sheet still open.
+  useEffect(() => {
+    onChoosing(sheetOpen);
+    return () => onChoosing(false);
+  }, [sheetOpen, onChoosing]);
 
   return (
-    <div className="animate-hero-slide grid gap-4 sm:grid-cols-[1.1fr_0.9fr] sm:items-center sm:gap-6">
+    <div className="animate-hero-slide grid w-full grid-cols-[7rem_1fr] items-center gap-3 sm:grid-cols-[1.1fr_0.9fr] sm:gap-6">
       <div className="min-w-0 order-2 sm:order-1">
-        <span className="inline-flex items-center gap-1.5 rounded-full bg-warning/20 px-2.5 py-1 text-[11px] font-bold uppercase tracking-wide text-warning">
-          <Megaphone className="size-3.5" aria-hidden />
+        <span className="inline-flex items-center gap-1.5 rounded-full bg-warning/20 px-2 py-0.5 text-[10px] font-bold uppercase tracking-wide text-warning sm:px-2.5 sm:py-1 sm:text-[11px]">
+          <Megaphone className="size-3 sm:size-3.5" aria-hidden />
           Promoted
         </span>
 
         {/* The headline is the copy the seller paid for; without one the
             product's own name does the job, which is why null is a perfectly
             ordinary value here rather than missing data. */}
-        <p className="mt-3 line-clamp-3 text-[1.3rem] font-extrabold leading-[1.08] tracking-tight sm:text-[2rem] lg:text-[2.5rem]">
-          {product.headline?.trim() || product.name}
-        </p>
+        <Link to={productHref(product)} className="block">
+          <p className="mt-1.5 line-clamp-2 text-base font-extrabold leading-[1.12] tracking-tight sm:mt-3 sm:line-clamp-3 sm:text-[2rem] sm:leading-[1.08] lg:text-[2.5rem]">
+            {product.headline?.trim() || product.name}
+          </p>
+        </Link>
 
         {/* Only when the headline is the seller's own copy — repeating the
             product name under itself is noise. */}
         {product.headline?.trim() && (
-          <p className="mt-2 line-clamp-1 text-sm" style={{ color: "var(--hero-fg-dim)" }}>
+          <p
+            className="mt-1 line-clamp-1 text-xs sm:mt-2 sm:text-sm"
+            style={{ color: "var(--hero-fg-dim)" }}
+          >
             {product.name}
           </p>
         )}
 
-        <p className="mt-3 flex items-baseline gap-1.5">
+        <p className="mt-1.5 flex items-baseline gap-1.5 sm:mt-3">
           {ranged && (
-            <span className="text-sm" style={{ color: "var(--hero-fg-dim)" }}>
+            <span className="text-xs sm:text-sm" style={{ color: "var(--hero-fg-dim)" }}>
               from
             </span>
           )}
-          <span className="text-xl font-extrabold sm:text-2xl">{formatKes(from)}</span>
+          <span className="text-lg font-extrabold sm:text-2xl">{formatKes(from)}</span>
         </p>
 
-        <div className="mt-4 flex flex-wrap items-center gap-3 sm:mt-5">
-          <Link
-            to={productHref(product)}
-            className="group inline-flex items-center gap-2 rounded-full bg-primary py-1.5 pl-5 pr-1.5 text-sm font-bold text-on-accent transition-colors hover:bg-primary-deep"
-          >
-            Shop this
-            <span className="flex size-8 items-center justify-center rounded-full bg-black/20 transition-transform group-hover:rotate-45">
-              <ArrowUpRight className="size-4" aria-hidden />
-            </span>
-          </Link>
+        <div className="mt-2.5 flex flex-wrap items-center gap-2 sm:mt-5 sm:gap-3">
+          {!soldOut && (
+            <button
+              type="button"
+              onClick={onAddClick}
+              aria-label={addLabel}
+              className="inline-flex min-h-9 items-center gap-1.5 rounded-full bg-primary px-3.5 text-sm font-bold text-on-accent transition-colors hover:bg-primary-deep sm:min-h-10 sm:px-5"
+            >
+              <ShoppingBag className="size-4 shrink-0" aria-hidden />
+              Add
+            </button>
+          )}
           {product.shopSlug && product.shopName && (
             <Link
               to={`/${product.shopSlug}`}
-              className="inline-flex min-h-9 max-w-full items-center gap-1.5 rounded-full bg-white/10 px-3 text-sm font-semibold transition-colors hover:bg-white/20"
+              className="inline-flex min-h-9 max-w-full items-center gap-1.5 rounded-full bg-white/10 px-3 text-sm font-semibold transition-colors hover:bg-white/20 sm:min-h-10"
             >
               <Store className="size-3.5 shrink-0" aria-hidden />
               <span className="truncate">{product.shopName}</span>
@@ -1224,18 +1302,15 @@ function HeroSlide({ product }: { product: BannerProduct }) {
 
       <div className="order-1 sm:order-2">
         <Link to={productHref(product)} tabIndex={-1} aria-hidden className="block">
-          {/* Letterboxed on a phone, square from sm up. A square photo across
-              the full width of a 430px screen is 390px of picture before the
-              headline even starts, which pushes the price and the button off
-              the first screenful — the two things the advertiser is paying to
-              have seen. */}
           <ProductImage
             src={product.images[0]}
             alt={product.imageAlts?.[0]?.trim() || product.name}
-            className="aspect-[1.95/1] w-full rounded-[20px] object-cover shadow-float ring-1 ring-white/10 sm:aspect-square"
+            className="aspect-square w-full rounded-2xl bg-white/10 object-contain p-1.5 shadow-float ring-1 ring-white/10 sm:rounded-[20px] sm:object-cover sm:p-0"
           />
         </Link>
       </div>
+
+      {variantSheet}
     </div>
   );
 }
@@ -1308,7 +1383,27 @@ function HeroSkeleton() {
 }
 
 /**
- * The way in by category, drawn on the hero.
+ * The way in by category, sitting directly on top of the thing it changes.
+ *
+ * IT USED TO BE DRAWN ON THE HERO, four sections further up the page. The
+ * argument for that was that a category is a way IN rather than a way to
+ * narrow, which is true of the idea and false of the control: the only thing
+ * tapping one of these chips does is refilter the product grid at the bottom of
+ * the page. From the hero, that was a control which appeared to do nothing —
+ * the shopper pressed "Audio Equipment", the page did not visibly move, and the
+ * result was four bands of scrolling away. Here it is the line above the grid,
+ * so the answer is on screen the moment the chip is pressed.
+ *
+ * THE FILTERS BUTTON IS THE LAST CHIP, not a control of its own on a line of
+ * its own. It is the same kind of thing as the chips beside it — one more way
+ * to narrow the same grid — and it was previously a button sitting alone above
+ * the results, spending a whole row of phone height to say one word. At the end
+ * of the rail it costs nothing and it is where a thumb already is, having just
+ * swiped through the categories looking for something that is not there.
+ *
+ * Phone only. Desktop has the same categories as a list in the sidebar beside
+ * the grid, and drawing them twice on one screen is the failure this page has
+ * already made once with the shop rails.
  *
  * Icons because this is a rail of eight-odd chips that has to be readable at a
  * glance in peripheral vision; the icon is what makes "Footwear" findable
@@ -1319,38 +1414,71 @@ function CategoryRail({
   categories,
   value,
   onChange,
+  onOpenFilters,
+  activeFilterCount,
+  className,
 }: {
   categories: string[];
   value: string;
   onChange: (c: string) => void;
+  onOpenFilters: () => void;
+  /** Everything switched on, categories included — the same figure the sheet's
+   *  own badge shows, so the two never disagree. */
+  activeFilterCount: number;
+  className?: string;
 }) {
-  if (categories.length <= 1) return null;
-
   return (
     <div
-      className="no-scrollbar -mx-4 mt-4 flex gap-2 overflow-x-auto px-4 sm:-mx-6 sm:mt-6 sm:px-6 lg:-mx-8 lg:px-8"
+      className={cn(
+        // Full-bleed: the rail runs to both edges of the phone so the last chip
+        // is visibly cut off rather than sitting neatly inside the margin,
+        // which is the only thing that says "this scrolls".
+        "no-scrollbar -mx-4 flex gap-2 overflow-x-auto px-4 py-0.5",
+        className,
+      )}
     >
-      {categories.map((cat) => {
-        const Icon = categoryIcon(cat);
-        const active = cat === value;
-        return (
-          <button
-            key={cat}
-            type="button"
-            onClick={() => onChange(cat)}
-            aria-pressed={active}
-            className={cn(
-              "flex min-h-10 shrink-0 items-center gap-1.5 rounded-full px-3.5 text-sm font-semibold transition-colors",
-              active
-                ? "bg-white text-[#12100f]"
-                : "bg-white/10 text-(--hero-fg) hover:bg-white/20",
-            )}
-          >
-            <Icon className="size-4 shrink-0" aria-hidden />
-            {cat}
-          </button>
-        );
-      })}
+      {categories.length > 1 &&
+        categories.map((cat) => {
+          const Icon = categoryIcon(cat);
+          const active = cat === value;
+          return (
+            <button
+              key={cat}
+              type="button"
+              onClick={() => onChange(cat)}
+              aria-pressed={active}
+              className={cn(
+                "flex min-h-10 shrink-0 items-center gap-1.5 rounded-full px-3.5 text-sm font-semibold transition-colors",
+                active ? "bg-ink text-on-accent" : "bg-card text-muted shadow-soft hover:text-ink",
+              )}
+            >
+              <Icon className="size-4 shrink-0" aria-hidden />
+              {cat}
+            </button>
+          );
+        })}
+
+      {/* Divided from the categories, because it does something different from
+          all of them: it opens a panel rather than applying a filter. */}
+      {categories.length > 1 && <span className="my-2 w-px shrink-0 bg-line" aria-hidden />}
+
+      <button
+        type="button"
+        onClick={onOpenFilters}
+        aria-label={activeFilterCount > 0 ? `Filters, ${activeFilterCount} active` : "Filters"}
+        className={cn(
+          "flex min-h-10 shrink-0 items-center gap-1.5 rounded-full px-3.5 text-sm font-semibold transition-colors",
+          activeFilterCount > 0 ? "bg-primary text-on-accent" : "bg-card text-muted shadow-soft",
+        )}
+      >
+        <SlidersHorizontal className="size-4 shrink-0" aria-hidden />
+        Filters
+        {activeFilterCount > 0 && (
+          <span className="flex size-5 items-center justify-center rounded-full bg-on-accent/25 text-[11px] font-bold">
+            {activeFilterCount}
+          </span>
+        )}
+      </button>
     </div>
   );
 }
@@ -1437,7 +1565,7 @@ function SponsoredPanel({
       {loading ? (
         <div className="mt-3 flex-1 space-y-2">
           {Array.from({ length: 3 }).map((_, i) => (
-            <Skeleton key={i} className="h-24 w-full rounded-2xl" />
+            <Skeleton key={i} className="h-28 w-full rounded-2xl" />
           ))}
         </div>
       ) : items.length === 0 ? (
@@ -1461,19 +1589,39 @@ function SponsoredPanel({
   );
 }
 
-/** One bought slot, at list size rather than poster size. */
+/**
+ * One bought slot, at list size rather than poster size.
+ *
+ * NOT A LINK WRAPPING EVERYTHING ANY MORE. It carries an add-to-cart button and
+ * a link to the seller now, and a button inside an anchor is both invalid and
+ * unusable — the anchor swallows the tap on some browsers and a screen reader
+ * announces one control containing another. The picture and the headline are
+ * the links to the product instead, which is where a shopper aims anyway.
+ *
+ * SAME SHAPE AS THE HERO SLIDE ON A PHONE, deliberately: contained picture on
+ * the left at thumbnail size, then the label, the price and the two things you
+ * can actually do. The two paid units sit one above the other below lg, and
+ * having them disagree about where the price goes would read as two unrelated
+ * widgets rather than as one advertising band.
+ */
 function SponsoredCard({ product }: { product: BannerProduct }) {
+  const { addLabel, onAddClick, variantSheet } = useProductAdd(product);
+  const soldOut = product.status === "out";
+
   return (
-    <Link
-      to={productHref(product)}
-      className="group flex items-center gap-3 overflow-hidden rounded-2xl bg-fill/60 p-2 transition-colors hover:bg-fill"
-    >
-      <ProductImage
-        src={product.images[0]}
-        alt={product.imageAlts?.[0]?.trim() || product.name}
-        loading="lazy"
-        className="size-20 shrink-0 rounded-xl object-cover transition-transform duration-300 group-hover:scale-[1.04]"
-      />
+    <div className="group flex items-center gap-3 overflow-hidden rounded-2xl bg-fill/60 p-2 transition-colors hover:bg-fill">
+      <Link to={productHref(product)} tabIndex={-1} aria-hidden className="shrink-0">
+        {/* Contained rather than cropped, for the reason spelled out on
+            HeroSlide: an 80px square cut out of the middle of a wide product
+            shot is a texture, not a product. */}
+        <ProductImage
+          src={product.images[0]}
+          alt={product.imageAlts?.[0]?.trim() || product.name}
+          loading="lazy"
+          className="size-20 shrink-0 rounded-xl bg-card object-contain p-1 transition-transform duration-300 group-hover:scale-[1.04]"
+        />
+      </Link>
+
       <div className="flex min-w-0 flex-1 flex-col justify-center gap-0.5">
         <span className="flex w-fit items-center gap-1 rounded-full bg-warning/15 px-1.5 py-0.5 text-[10px] font-bold uppercase tracking-wide text-warning">
           <Megaphone className="size-2.5" aria-hidden />
@@ -1482,21 +1630,42 @@ function SponsoredCard({ product }: { product: BannerProduct }) {
         {/* The seller's own copy when they bought some, the product name when
             they did not — the same fallback the hero slide uses, so one
             placement reads the same in both units. */}
-        <p className="line-clamp-2 text-xs font-extrabold leading-snug text-ink">
-          {product.headline?.trim() || product.name}
-        </p>
+        <Link to={productHref(product)} className="min-w-0">
+          <p className="line-clamp-2 text-xs font-extrabold leading-snug text-ink hover:text-primary">
+            {product.headline?.trim() || product.name}
+          </p>
+        </Link>
         <p className="text-sm font-extrabold text-primary">
           {hasPriceRange(product) && <span className="text-[11px] text-muted">from </span>}
           {formatKes(minVariantPrice(product))}
         </p>
-        {product.shopName && (
-          <span className="flex items-center gap-1 text-[10px] font-semibold text-muted">
-            <Store className="size-3 shrink-0" aria-hidden />
-            <span className="truncate">{product.shopName}</span>
-          </span>
-        )}
+
+        <div className="mt-1 flex flex-wrap items-center gap-1.5">
+          {!soldOut && (
+            <button
+              type="button"
+              onClick={onAddClick}
+              aria-label={addLabel}
+              className="inline-flex min-h-8 items-center gap-1 rounded-full bg-primary px-2.5 text-[11px] font-bold text-on-accent transition-colors hover:bg-primary-deep"
+            >
+              <ShoppingBag className="size-3.5 shrink-0" aria-hidden />
+              Add
+            </button>
+          )}
+          {product.shopSlug && product.shopName && (
+            <Link
+              to={`/${product.shopSlug}`}
+              className="inline-flex min-h-8 min-w-0 max-w-full items-center gap-1 rounded-full bg-card px-2.5 text-[11px] font-semibold text-muted ring-1 ring-line transition-colors hover:text-ink"
+            >
+              <Store className="size-3 shrink-0" aria-hidden />
+              <span className="truncate">{product.shopName}</span>
+            </Link>
+          )}
+        </div>
       </div>
-    </Link>
+
+      {variantSheet}
+    </div>
   );
 }
 
@@ -1751,7 +1920,7 @@ function HeaderIconLink({
       aria-label={label}
       className={({ isActive }) =>
         cn(
-          "relative flex size-11 shrink-0 items-center justify-center rounded-full border transition-colors",
+          "relative flex size-10 shrink-0 items-center justify-center rounded-full border transition-colors",
           "focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary",
           isActive ? "border-primary/40 bg-primary/10 text-primary" : "border-line bg-card text-ink",
         )
@@ -1791,6 +1960,16 @@ function CartButton() {
   );
 }
 
+/**
+ * The search box, and the one control on the masthead that had to give up
+ * height for the row to fit on one line.
+ *
+ * 40px rather than 44px, and the right-hand padding is only reserved when the
+ * clear button is actually there — an empty field was holding forty pixels open
+ * for a control that had not appeared yet, on the width where forty pixels is
+ * the difference between a readable placeholder and a clipped one. The
+ * placeholder itself steps down a point below sm for the same reason.
+ */
 function SearchField({ value, onChange }: { value: string; onChange: (v: string) => void }) {
   return (
     <div className="relative">
@@ -1804,7 +1983,13 @@ function SearchField({ value, onChange }: { value: string; onChange: (v: string)
         onChange={(e) => onChange(e.target.value)}
         aria-label="Search every shop"
         placeholder="Search every shop…"
-        className="h-11 w-full rounded-full border border-line bg-card pl-9 pr-10 text-sm outline-none focus:border-primary focus:ring-2 focus:ring-primary/20 [&::-webkit-search-cancel-button]:appearance-none"
+        className={cn(
+          "h-10 w-full rounded-full border border-line bg-card pl-9 text-sm outline-none lg:h-11",
+          "placeholder:text-[13px] sm:placeholder:text-sm",
+          "focus:border-primary focus:ring-2 focus:ring-primary/20",
+          "[&::-webkit-search-cancel-button]:appearance-none",
+          value ? "pr-10" : "pr-3",
+        )}
       />
       {value && (
         <button

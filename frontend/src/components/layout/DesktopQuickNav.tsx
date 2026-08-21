@@ -16,7 +16,15 @@ import { ProfileMenu } from "./ProfileMenu";
  *
  * The four icons are desktop-only; phones get the same destinations from the
  * bottom tab bar. The account dropdown shows at every width, because signing in
- * is the one thing the tab bar's Account tab makes you navigate for.
+ * is the one thing the tab bar's Account tab makes you navigate for — and on the
+ * pages that hide the tab bar (a shared product link, a storefront) it is the
+ * only account control on the screen.
+ *
+ * The marketplace is the one caller that passes `hidden lg:flex` and drops the
+ * whole cluster on phones. Its masthead has to fit a logo, a search field, the
+ * wishlist and the cart on one line, its tab bar is right there with an Account
+ * tab in it, and an avatar in that corner is the only control in the row that
+ * duplicates a tab rather than shortcutting to a live count.
  */
 export function DesktopQuickNav({ className }: { className?: string }) {
   const { home, quickItems, badgeFor } = useBuyerNavItems();

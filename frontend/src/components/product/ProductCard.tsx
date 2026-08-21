@@ -1,30 +1,17 @@
 import { Heart, ShoppingBag } from "lucide-react";
-import { useState } from "react";
 import { Link } from "react-router";
 import type { Product } from "@/types";
 import { cn } from "@/lib/utils";
 import { productHref } from "@/lib/productUrl";
-import {
-  formatKes,
-  hasPriceRange,
-  minVariantPrice,
-  priceForSelection,
-  savingsFor,
-  variantPrice,
-} from "@/lib/currency";
+import { formatKes, hasPriceRange, minVariantPrice, savingsFor } from "@/lib/currency";
 import { showsSoldBadge, soldLabel } from "@/lib/socialProof";
-import { productImageSrc } from "@/lib/productImage";
 import { specSummary } from "@/lib/productSpecs";
 import { Button } from "@/components/ui/Button";
-import { Sheet } from "@/components/ui/Modal";
-import { useAddToCart } from "@/hooks/useCart";
 import { useFavoriteToggle } from "@/hooks/useFavorites";
+import { useProductAdd } from "@/hooks/useProductAdd";
 import { useFavorites } from "@/stores/favorites";
-import { useToasts } from "@/stores/toast";
-import { ColorSelector } from "./ColorSelector";
 import { ProductImage } from "./ProductImage";
 import { RatingRow } from "./RatingRow";
-import { SizeSelector } from "./SizeSelector";
 import { StockBadge } from "./StockBadge";
 
 /**
@@ -49,12 +36,10 @@ export function ProductCard({
 }) {
   const isFavorite = useFavorites((s) => s.isFavorite(product.id));
   const toggle = useFavoriteToggle();
-  const addToCart = useAddToCart();
-  const push = useToasts((s) => s.push);
-
-  const [variantSheetOpen, setVariantSheetOpen] = useState(false);
-  const [chosenSize, setChosenSize] = useState<string | null>(null);
-  const [chosenColor, setChosenColor] = useState<string | null>(null);
+  // The add button, the "cart is from another shop" guard and the variant sheet
+  // all come from one hook, shared with the marketplace banner cards — see
+  // hooks/useProductAdd.
+  const { addLabel, onAddClick, variantSheet } = useProductAdd(product);
 
   const soldOut = product.status === "out";
   // With variants a product has a range, not a price. The card shows the
@@ -62,48 +47,6 @@ export function ProductCard({
   // the price filter compares against, server-side.
   const fromPrice = minVariantPrice(product);
   const ranged = hasPriceRange(product);
-  // Inside the sheet the figure tracks what they've picked so far.
-  const sheetPrice = priceForSelection(product, chosenSize, chosenColor);
-  const hasSizes = !!product.sizes && product.sizes.length > 0;
-  const hasColors = !!product.colors && product.colors.length > 0;
-  /** A one-tap add is only honest when there's nothing left to choose. */
-  const needsChoice = hasSizes || hasColors;
-
-  const add = (size: string | null, color: string | null) => {
-    if (!product.shopSlug) {
-      push("Couldn't work out this product's shop — try again", "danger");
-      return;
-    }
-    const added = addToCart({
-      productId: product.id,
-      shopSlug: product.shopSlug,
-      name: product.name,
-      image: productImageSrc(product.images),
-      unitPrice: variantPrice(product, size, color),
-      size,
-      color,
-      stockQty: product.stockQty,
-    });
-    if (!added) {
-      push("Your cart has items from another shop — check out or clear it first", "danger");
-      return;
-    }
-    push("Added to cart", "success");
-  };
-
-  const onAddClick = () => {
-    if (needsChoice) {
-      setChosenSize(null);
-      setChosenColor(null);
-      setVariantSheetOpen(true);
-    } else {
-      add(null, null);
-    }
-  };
-
-  // Every choice the seller offers has to be made — a size-only product needs a
-  // size, a size-and-colour product needs both.
-  const choiceComplete = (!hasSizes || chosenSize) && (!hasColors || chosenColor);
 
   // --- pieces shared by both layouts ---------------------------------------
 
@@ -174,65 +117,6 @@ export function ProductCard({
         )}
       />
     </button>
-  );
-
-  const addLabel = needsChoice
-    ? `Choose options for ${product.name}`
-    : `Add ${product.name} to cart`;
-
-  const variantSheet = needsChoice && (
-    <Sheet
-      open={variantSheetOpen}
-      onOpenChange={setVariantSheetOpen}
-      title={hasSizes && hasColors ? "Choose size and colour" : hasSizes ? "Select a size" : "Select a colour"}
-    >
-      <div className="space-y-4">
-        <div className="flex items-center gap-3">
-          <ProductImage
-            src={product.images[0]}
-            alt={product.name}
-            className="size-14 rounded-xl object-cover"
-          />
-          <div>
-            <p className="text-sm font-bold text-ink">{product.name}</p>
-            <p className="text-sm font-extrabold text-primary">
-              {!choiceComplete && ranged && (
-                <span className="text-xs font-medium text-muted">from </span>
-              )}
-              {formatKes(sheetPrice)}
-            </p>
-          </div>
-        </div>
-        {hasSizes && (
-          <div className="space-y-2">
-            <p className="text-sm font-bold text-ink">Size</p>
-            <SizeSelector sizes={product.sizes ?? []} value={chosenSize} onChange={setChosenSize} />
-          </div>
-        )}
-        {hasColors && (
-          <div className="space-y-2">
-            <p className="text-sm font-bold text-ink">Colour</p>
-            <ColorSelector
-              colors={product.colors ?? []}
-              value={chosenColor}
-              onChange={setChosenColor}
-            />
-          </div>
-        )}
-        <Button
-          size="lg"
-          className="w-full"
-          disabled={!choiceComplete}
-          onClick={() => {
-            add(chosenSize, chosenColor);
-            setVariantSheetOpen(false);
-          }}
-        >
-          <ShoppingBag className="size-5" />
-          Add to Cart
-        </Button>
-      </div>
-    </Sheet>
   );
 
   // --- list row -------------------------------------------------------------
