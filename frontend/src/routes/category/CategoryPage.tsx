@@ -4,6 +4,7 @@ import { useMemo } from "react";
 import { Link, useParams } from "react-router";
 
 import { MobileShell } from "@/components/layout/MobileShell";
+import { DesktopBack } from "@/components/layout/DesktopBack";
 import { LogoLink } from "@/components/common/Logo";
 import { QueryError } from "@/components/common/QueryError";
 import { ProductCard } from "@/components/product/ProductCard";
@@ -111,6 +112,10 @@ export function CategoryPage() {
   return (
     <MobileShell wide>
       <header className="glass-header sticky top-0 z-30 flex items-center gap-3 px-4 py-4 lg:px-6">
+        {/* A category is almost always entered FROM somewhere — a homepage tile,
+            a search — so the way back out matters more here than on most pages.
+            Phones get the floating button from MobileShell instead. */}
+        <DesktopBack className="-ml-2" />
         <LogoLink size={40} />
         <div className="min-w-0">
           {/* Matches the server-rendered <h1> in api/_prerender.ts verbatim.

@@ -5,6 +5,7 @@ import { Link, useNavigate } from "react-router";
 import { type AppliedDiscount, DiscountCodeSection } from "@/components/cart/DiscountCodeSection";
 import { MobileShell } from "@/components/layout/MobileShell";
 import { DesktopQuickNav } from "@/components/layout/DesktopQuickNav";
+import { DesktopBack } from "@/components/layout/DesktopBack";
 import { ProductImage } from "@/components/product/ProductImage";
 import { RecommendedProducts } from "@/components/product/RecommendedProducts";
 import { Button } from "@/components/ui/Button";
@@ -43,7 +44,10 @@ export function CartPage() {
     return (
       <MobileShell homeTo={home} wide>
         <header className="glass-header sticky top-0 z-30 flex items-center justify-between px-4 py-4 lg:px-6">
-          <h1 className="text-lg font-extrabold text-ink lg:text-2xl">Your Cart</h1>
+          <div className="flex items-center gap-2">
+            <DesktopBack homeTo={home} className="-ml-2" />
+            <h1 className="text-lg font-extrabold text-ink lg:text-2xl">Your Cart</h1>
+          </div>
           <DesktopQuickNav />
         </header>
         <div className="flex flex-col items-center gap-3 px-6 py-12 text-center">
@@ -70,6 +74,9 @@ export function CartPage() {
     <MobileShell homeTo={home} wide>
       <header className="glass-header sticky top-0 z-30 flex items-center justify-between px-4 py-4 lg:px-6">
         <div className="flex items-center gap-3">
+          {/* The cart is a dead end past lg without this — the floating back
+              button is phone-only and nothing else here goes backwards. */}
+          <DesktopBack homeTo={home} className="-ml-2" />
           <h1 className="text-lg font-extrabold text-ink lg:text-2xl">Your Cart</h1>
           <span className="text-sm font-semibold text-muted">
             {items.length} {items.length === 1 ? "item" : "items"}

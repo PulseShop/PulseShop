@@ -387,6 +387,48 @@ export function ProductDetailPage() {
   const desktopChannelLabel = desktopChannel && CHANNELS.find((c) => c.id === desktopChannel)?.label;
   const desktopLinks = merchant ? merchantSocialLinks(merchant) : [];
 
+  /**
+   * Size and colour, defined once and rendered in two places.
+   *
+   * They used to sit at the very bottom of the details column, under the
+   * description bullets and the spec table — so on a product with a real
+   * description the buyer scrolled past a screen and a half of prose before
+   * discovering that a choice was even on offer, and the first they heard of
+   * it being mandatory was the "Please select a colour first" toast fired by
+   * the buy button. A required field must be next to the control it gates.
+   *
+   * Phone: immediately under the availability badges, so it is the first thing
+   * after "can I get this" and well above the fixed Buy bar.
+   * Desktop: inside the buy box itself, directly above Quantity and the two
+   * CTAs, which is the only place a shopper is looking when they decide.
+   */
+  const variantPickers = (hasSizes || hasColors) && !soldOut && (
+    <div className="space-y-3">
+      {hasSizes && (
+        <div className="space-y-2">
+          <h2 className="text-sm font-bold text-ink">
+            Select Size{" "}
+            <span className={cn("font-semibold", size ? "text-muted" : "text-danger")}>
+              {size ? `· ${size}` : "(required)"}
+            </span>
+          </h2>
+          <SizeSelector sizes={product.sizes ?? []} value={size} onChange={setLocalSize} />
+        </div>
+      )}
+      {hasColors && (
+        <div className="space-y-2">
+          <h2 className="text-sm font-bold text-ink">
+            Select Colour{" "}
+            <span className={cn("font-semibold", color ? "text-muted" : "text-danger")}>
+              {color ? `· ${color}` : "(required)"}
+            </span>
+          </h2>
+          <ColorSelector colors={product.colors ?? []} value={color} onChange={setLocalColor} />
+        </div>
+      )}
+    </div>
+  );
+
   return (
     <MobileShell nav={false} wide floatingBack={false}>
       {/* header */}
@@ -531,6 +573,11 @@ export function ProductDetailPage() {
                   much of a dead end as an out-of-stock item. */}
               {merchant && <FulfillmentBadge fulfillment={merchant.fulfillment} />}
             </div>
+            {/* Phone only — desktop renders the same pickers inside the buy box.
+                Directly under the availability badges: the choice is part of
+                "what am I actually buying", not an afterthought below the spec
+                sheet. */}
+            {variantPickers && <div className="lg:hidden">{variantPickers}</div>}
             {/* Renders nothing unless a group buy is actually running on this
                 product, which is the usual case — see GroupBuyBanner. */}
             <GroupBuyBanner productId={product.id} />
@@ -569,28 +616,6 @@ export function ProductDetailPage() {
             {/* Structured Phone/PC specs — the standardized half of the
                 description; renders nothing for a general product. */}
             <ProductSpecs product={product} />
-
-            {/* variant selectors — required before Add / Buy when present */}
-            {hasSizes && (
-              <div className="space-y-2">
-                <h2 className="text-sm font-bold text-ink">
-                  Select Size <span className="font-medium text-muted">(required)</span>
-                </h2>
-                <SizeSelector sizes={product.sizes ?? []} value={size} onChange={setLocalSize} />
-              </div>
-            )}
-            {hasColors && (
-              <div className="space-y-2">
-                <h2 className="text-sm font-bold text-ink">
-                  Select Colour <span className="font-medium text-muted">(required)</span>
-                </h2>
-                <ColorSelector
-                  colors={product.colors ?? []}
-                  value={color}
-                  onChange={setLocalColor}
-                />
-              </div>
-            )}
 
             {/* contact icons row — only channels the seller actually set up */}
             {links && links.length > 0 && (
@@ -652,6 +677,11 @@ export function ProductDetailPage() {
                 </p>
               ) : (
                 <>
+                  {/* Above Quantity and both CTAs, because it gates them. */}
+                  {variantPickers && (
+                    <div className="border-y border-line-soft py-3">{variantPickers}</div>
+                  )}
+
                   <div className="flex items-center gap-3">
                     <span className="text-sm font-bold text-ink">Quantity</span>
                     <div className="flex items-center gap-2">
@@ -766,9 +796,15 @@ export function ProductDetailPage() {
         {relatedProducts.length > 0 && (
           <div className="mt-3.5 space-y-2 lg:mt-10">
             <h2 className="text-sm font-bold text-ink lg:text-base">You might also like</h2>
-            <div className="no-scrollbar -mx-4 flex gap-3 overflow-x-auto px-4 pb-1 lg:mx-0 lg:grid lg:grid-cols-4 lg:overflow-visible lg:px-0">
+            {/* Six cards across a 1180px page, not four. At lg:grid-cols-4 each
+                related product rendered at ~275px wide — bigger than the main
+                product's own gallery — so a browsing rail read as the loudest
+                thing on the page and pushed the reviews a full screen down.
+                Six columns puts them back at thumbnail scale, which is what a
+                "you might also like" strip is for. */}
+            <div className="no-scrollbar -mx-4 flex gap-3 overflow-x-auto px-4 pb-1 lg:mx-0 lg:grid lg:grid-cols-5 lg:overflow-visible lg:px-0 xl:grid-cols-6">
               {relatedProducts.map((p) => (
-                <ProductCard key={p.id} product={p} className="w-40 shrink-0 lg:w-auto" />
+                <ProductCard key={p.id} product={p} className="w-36 shrink-0 lg:w-auto" />
               ))}
             </div>
           </div>

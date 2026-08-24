@@ -1,6 +1,6 @@
 import { zodResolver } from "@hookform/resolvers/zod";
 import { useQuery } from "@tanstack/react-query";
-import { AlertTriangle, ArrowLeft, Loader2, Truck } from "lucide-react";
+import { AlertTriangle, ArrowLeft, Loader2, ShieldCheck, Star, Truck } from "lucide-react";
 import { useEffect, useState } from "react";
 import { useForm } from "react-hook-form";
 import { Navigate, useNavigate } from "react-router";
@@ -303,82 +303,148 @@ export function CheckoutPage() {
 
       <div className="px-4 pb-10 pt-1 lg:px-6 lg:pb-14 lg:pt-4">
         {/*
-          Two columns past lg: what you're buying on the left, what we need from
-          you on the right.
+          Two columns past lg, and in this order: what we still need from you on
+          the LEFT, what you are buying on the right.
 
-          Stacked, this page was four full-height cards deep, so a desktop buyer
-          had to scroll past the summary, the form and the channel picker before
-          the order button existed on screen at all — the classic way to lose
-          someone who had already decided. Side by side, the form and the button
-          sit in the first viewport and the summary stays visible beside them
-          instead of scrolling away the moment they start typing.
+          The summary used to lead. It reads well enough, but it puts the one
+          part of the page the buyer cannot act on in the position their eye
+          lands on first, and pushes the fields — the only reason this page
+          exists — into the narrow column. Checkouts that convert do it the
+          other way round: the form is the main column, the summary is a narrow
+          receipt pinned beside it that stays legible while they type, and the
+          pay button sits at the bottom of the form where the reading ends.
 
-          Phones are untouched: single column, same order as before, because the
-          summary-then-details reading order is right when there's only one
-          column to read.
+          Phones are untouched in substance: one column, summary first, because
+          with a single column the buyer wants to confirm what they are paying
+          for before being asked for anything. `order-*` does that swap without
+          duplicating the markup.
         */}
-        <div className="lg:grid lg:grid-cols-[minmax(0,1fr)_minmax(0,480px)] lg:items-start lg:gap-6">
-          {/* order summary */}
-          <div className="space-y-3 rounded-card bg-card p-4 shadow-soft lg:sticky lg:top-24">
-            <h2 className="text-sm font-bold text-ink">Order summary</h2>
-            {items.map((item) => (
-              <div
-                key={`${item.productId}-${variantKey(item.size, item.color)}`}
-                className="flex items-center gap-3"
-              >
-                <ProductImage src={item.image} alt={item.name} className="size-12 rounded-lg object-cover" />
-                <div className="flex-1">
-                  <p className="text-sm font-semibold text-ink">{item.name}</p>
-                  <p className="text-xs text-muted">
-                    {variantLabel(item.size, item.color) ? `${variantLabel(item.size, item.color)} · ` : ""}
-                    Qty {item.qty}
-                  </p>
-                </div>
-                <p className="text-sm font-bold text-ink">{formatKes(item.unitPrice * item.qty)}</p>
-              </div>
-            ))}
-
-            {/* discount code */}
-            <div className="border-t border-line-soft pt-3">
-              <DiscountCodeSection
-                merchantId={merchant.id}
-                items={items.map((i) => ({ productId: i.productId, qty: i.qty }))}
-                getPhone={() => getValues("phone") || undefined}
-                applied={applied}
-                onApply={(a) => {
-                  setApplied(a);
-                  setStoredCode(a.code);
-                }}
-                onClear={clearDiscount}
-                initialCode={storedCode}
-              />
-            </div>
-
-            <div className="space-y-1.5 border-t border-line-soft pt-3">
-              {applied?.preview.valid && (
-                <>
-                  <div className="flex items-center justify-between text-sm">
-                    <span className="text-muted">Subtotal</span>
-                    <span className="text-ink">{formatKes(total)}</span>
+        <div className="lg:grid lg:grid-cols-[minmax(0,1fr)_minmax(0,380px)] lg:items-start lg:gap-8">
+          {/* ---------------- order summary (right on desktop) ---------------- */}
+          <aside className="lg:order-2 lg:sticky lg:top-24">
+            <div className="overflow-hidden rounded-card border border-line-soft bg-card shadow-soft">
+              {/* Who you are buying from. The cart is single-shop, so this is
+                  one named seller — and naming them here is what makes the
+                  receipt read as a deal with a person rather than a form. */}
+              <div className="flex items-center gap-3 border-b border-line-soft px-4 py-3.5">
+                <img
+                  src={merchant.avatarUrl}
+                  alt=""
+                  className="size-10 shrink-0 rounded-full object-cover"
+                />
+                <div className="min-w-0">
+                  <p className="truncate text-sm font-extrabold text-ink">{merchant.name}</p>
+                  <div className="flex items-center gap-1.5">
+                    {/* A shop with no ratings yet gets its handle and nothing
+                        else. Five empty stars beside a "0.0" reads as a badly
+                        rated seller, which is the opposite of true — and this
+                        is the last screen before someone pays. */}
+                    {merchant.stats.rating > 0 && (
+                      <>
+                        <div className="flex items-center gap-0.5" aria-hidden>
+                          {[1, 2, 3, 4, 5].map((n) => (
+                            <Star
+                              key={n}
+                              className={cn(
+                                "size-3",
+                                n <= Math.round(merchant.stats.rating)
+                                  ? "fill-amber-400 text-amber-400"
+                                  : "fill-line text-line",
+                              )}
+                            />
+                          ))}
+                        </div>
+                        <span className="text-xs font-semibold text-ink">
+                          {merchant.stats.rating.toFixed(1)}
+                        </span>
+                      </>
+                    )}
+                    <span className="text-xs font-medium text-muted">@{merchant.handle}</span>
                   </div>
+                </div>
+              </div>
+
+              {/* line items */}
+              <div className="space-y-3 px-4 py-3.5">
+                {items.map((item) => (
+                  <div
+                    key={`${item.productId}-${variantKey(item.size, item.color)}`}
+                    className="flex items-start gap-3"
+                  >
+                    <ProductImage
+                      src={item.image}
+                      alt={item.name}
+                      className="size-14 shrink-0 rounded-lg object-cover"
+                    />
+                    <div className="min-w-0 flex-1">
+                      <p className="line-clamp-2 text-sm font-semibold leading-snug text-ink">
+                        {item.name}
+                      </p>
+                      <p className="mt-0.5 text-xs text-muted">
+                        {variantLabel(item.size, item.color)
+                          ? `${variantLabel(item.size, item.color)} · `
+                          : ""}
+                        Qty {item.qty}
+                      </p>
+                    </div>
+                    <p className="shrink-0 text-sm font-bold text-ink">
+                      {formatKes(item.unitPrice * item.qty)}
+                    </p>
+                  </div>
+                ))}
+              </div>
+
+              {/* discount code */}
+              <div className="border-t border-line-soft px-4 py-3.5">
+                <DiscountCodeSection
+                  merchantId={merchant.id}
+                  items={items.map((i) => ({ productId: i.productId, qty: i.qty }))}
+                  getPhone={() => getValues("phone") || undefined}
+                  applied={applied}
+                  onApply={(a) => {
+                    setApplied(a);
+                    setStoredCode(a.code);
+                  }}
+                  onClear={clearDiscount}
+                  initialCode={storedCode}
+                />
+              </div>
+
+              {/* Itemised, always. A lone "Total" with nothing above it reads as
+                  a number the page made up; Subtotal shows even at full price so
+                  the arithmetic is visible either way. */}
+              <div className="space-y-2 border-t border-line-soft px-4 py-3.5">
+                <div className="flex items-center justify-between text-sm">
+                  <span className="text-muted">Subtotal</span>
+                  <span className="font-medium text-ink">{formatKes(total)}</span>
+                </div>
+                {applied?.preview.valid && (
                   <div className="flex items-center justify-between text-sm">
                     <span className="text-muted">Discount ({applied.code})</span>
                     <span className="font-semibold text-success">−{formatKes(discountKes)}</span>
                   </div>
-                </>
-              )}
-              <div className="flex items-center justify-between">
-                <span className="text-base font-bold text-ink">Total</span>
-                <span className="text-lg font-extrabold text-primary">{formatKes(displayTotal)}</span>
+                )}
+                <div className="flex items-center justify-between text-sm">
+                  <span className="text-muted">Delivery</span>
+                  {/* Sellers arrange and price delivery themselves over the
+                      chosen channel, so a figure here would be a number
+                      PulseShop cannot stand behind. Saying so beats omitting
+                      the line and letting the total look like it covers it. */}
+                  <span className="font-medium text-ink">Arranged with seller</span>
+                </div>
+                <div className="flex items-center justify-between border-t border-line-soft pt-2.5">
+                  <span className="text-base font-extrabold text-ink">Total to pay</span>
+                  <span className="text-lg font-extrabold text-ink">{formatKes(displayTotal)}</span>
+                </div>
               </div>
             </div>
-          </div>
+          </aside>
 
-          {/* everything the buyer still has to do, in one column */}
-          <div className="mt-4 space-y-4 lg:mt-0">
+          {/* ---------------- the form (left on desktop) ---------------- */}
+          <div className="mt-4 space-y-4 lg:order-1 lg:mt-0">
             {/* customer fields */}
-            <div className="space-y-3 rounded-card bg-card p-4 shadow-soft">
-              <h2 className="text-sm font-bold text-ink">Your details</h2>
+            <div className="space-y-3 rounded-card border border-line-soft bg-card p-4 shadow-soft">
+              <h2 className="text-[15px] font-extrabold text-ink">Delivery details</h2>
               <Input
                 label="Full Name"
                 placeholder="Jane Wanjiku"
@@ -393,15 +459,24 @@ export function CheckoutPage() {
                 {...register("phone")}
               />
               <Textarea
-                label="Notes (optional)"
-                placeholder="Delivery location, color preference…"
+                label="Delivery location & notes (optional)"
+                placeholder="Estate / building, landmark, preferred delivery time…"
                 error={errors.notes?.message}
                 {...register("notes")}
               />
+              <div className="flex items-center gap-2 rounded-btn bg-fill-soft px-3 py-2.5 text-xs">
+                <Truck className="size-4 shrink-0 text-primary" />
+                <span className="text-muted">
+                  This shop offers{" "}
+                  <span className="font-bold text-ink">{fulfillmentLabel(merchant.fulfillment)}</span>
+                  .
+                </span>
+              </div>
             </div>
 
-            {/* channel selector + context notice — only channels the seller set up are pickable */}
-            <div className="space-y-3 rounded-card bg-card p-4 shadow-soft">
+            {/* channel selector + context notice — only channels the seller set up */}
+            <div className="space-y-3 rounded-card border border-line-soft bg-card p-4 shadow-soft">
+              <h2 className="text-[15px] font-extrabold text-ink">Where the seller reaches you</h2>
               <div className="grid grid-cols-3 gap-2 rounded-btn bg-fill p-1">
                 {channels.map(({ id: ch, label, icon: Icon }) => {
                   const available = Boolean(merchant.contacts[ch]);
@@ -434,23 +509,17 @@ export function CheckoutPage() {
               <p className="text-xs leading-relaxed text-muted">
                 Once you pay, your order will be sent to{" "}
                 <span className="font-bold text-ink">{merchant.name}</span> via{" "}
-                <span className="font-bold text-ink capitalize">{channel}</span>. They'll confirm stock
-                and delivery.
+                <span className="font-bold text-ink capitalize">{channel}</span>. They'll confirm
+                stock and delivery.
               </p>
-              <div className="flex items-center gap-2 rounded-btn bg-fill-soft px-3 py-2 text-xs">
-                <Truck className="size-4 shrink-0 text-primary" />
-                <span className="text-muted">
-                  This shop offers{" "}
-                  <span className="font-bold text-ink">{fulfillmentLabel(merchant.fulfillment)}</span>.
-                </span>
-              </div>
             </div>
 
             {shopClosed && (
               <div className="flex items-center gap-2 rounded-card border border-warning/30 bg-warning/5 px-4 py-3 text-sm">
                 <AlertTriangle className="size-4 shrink-0 text-warning" />
                 <span className="text-ink">
-                  <span className="font-bold">{merchant.name}</span> isn't accepting orders right now.
+                  <span className="font-bold">{merchant.name}</span> isn't accepting orders right
+                  now.
                 </span>
               </div>
             )}
@@ -464,22 +533,35 @@ export function CheckoutPage() {
               onExpire={() => captcha.setToken(undefined)}
             />
 
+            {/* The pay button belongs at the end of the form, not floating beside
+                the receipt: this is where the reading stops. It carries the
+                figure so nobody has to look back across the page to check what
+                they are about to be charged. */}
             <Button
               variant="dark"
               size="lg"
-              className="w-full"
+              className="w-full text-[15px]"
               onClick={openPayment}
               disabled={placing || !captcha.ready || shopClosed}
             >
               {placing ? (
                 <>
                   <Loader2 className="size-5 animate-spin" />
-                  PLACING ORDER…
+                  Placing order…
                 </>
               ) : (
-                "COMPLETE ORDER, PAY NOW"
+                `Pay ${formatKes(displayTotal)} now`
               )}
             </Button>
+
+            <p className="flex items-center justify-center gap-1.5 px-2 text-center text-xs leading-relaxed text-muted">
+              <ShieldCheck className="size-4 shrink-0 text-success" />
+              <span>
+                Your order isn't complete until{" "}
+                <span className="font-semibold text-ink">{merchant.name}</span> confirms stock and
+                delivery with you.
+              </span>
+            </p>
           </div>
         </div>
 
@@ -487,7 +569,7 @@ export function CheckoutPage() {
             single-shop), minus what's already in the cart. Full width under both
             columns: it is a browsing rail, not part of the checkout flow, and it
             must not push the order button further down the page. */}
-        <div className="mt-4 lg:mt-10">
+        <div className="mt-4 lg:mt-12">
           <RecommendedProducts
             title="You may also like"
             shopId={merchant.id}

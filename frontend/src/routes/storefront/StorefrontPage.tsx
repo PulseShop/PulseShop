@@ -5,6 +5,7 @@ import { Link, useParams, useSearchParams } from "react-router";
 import { useAuth } from "@/stores/auth";
 import { useShop } from "@/stores/shop";
 import { MobileShell } from "@/components/layout/MobileShell";
+import { DesktopBack } from "@/components/layout/DesktopBack";
 import { DesktopQuickNav } from "@/components/layout/DesktopQuickNav";
 import { LogoLink } from "@/components/common/Logo";
 import { ProductCard } from "@/components/product/ProductCard";
@@ -563,7 +564,7 @@ export function StorefrontPage() {
           <div className="flex items-center gap-2">
             {/* Merchant previewing their own store via "View as buyer" — give
                 them a way back that isn't the browser back button. */}
-            {!isPublic && session?.accountType === "merchant" && (
+            {!isPublic && session?.accountType === "merchant" ? (
               <Link
                 to="/dashboard"
                 aria-label="Back to dashboard"
@@ -571,6 +572,12 @@ export function StorefrontPage() {
               >
                 <ArrowLeft className="size-5" />
               </Link>
+            ) : (
+              /* Shoppers get the same control past lg, where the floating back
+                 button is hidden. Without it a desktop buyer who opened a shop
+                 from the marketplace or a category had no way back to it: the
+                 wordmark goes to "/" and the nav cluster has no reverse. */
+              <DesktopBack homeTo={homeTo} className="-ml-2" />
             )}
             {/* The wordmark is the way back to the marketplace, which from
                 inside a storefront had no control at all. It goes to "/" and
@@ -616,15 +623,27 @@ export function StorefrontPage() {
         <div className="mt-2.5 lg:hidden">{searchField}</div>
       </header>
 
-      {/* store banner */}
+      {/* Store banner.
+          It was a flat h-28 strip at every width, which on a desktop shop front
+          is a 1180px-wide letterbox roughly one avatar tall — and the avatar
+          then sat on top of it, so a seller's uploaded artwork was both tiny
+          and half-hidden. It now scales with the viewport (a ~4:1 band on a
+          phone, ~5:1 on a desktop) and reserves the overlap at the bottom, so
+          the avatar covers dead space rather than the middle of the image. */}
       {merchant?.bannerUrl && (
-        <div className="h-28 w-full overflow-hidden">
-          <img src={merchant.bannerUrl} alt="" className="h-full w-full object-cover" />
+        <div className="h-36 w-full overflow-hidden sm:h-44 lg:h-56 xl:h-64">
+          <img
+            src={merchant.bannerUrl}
+            alt={`${merchant.name} store banner`}
+            className="h-full w-full object-cover object-center"
+          />
         </div>
       )}
 
       {/* merchant hero — centered stack on mobile, horizontal band on desktop */}
-      <section className={cn("px-4 lg:px-6", merchant?.bannerUrl ? "pt-0" : "pt-5 lg:pt-6")}>
+      <section
+        className={cn("px-4 lg:px-6", merchant?.bannerUrl ? "pt-0 lg:pt-4" : "pt-5 lg:pt-6")}
+      >
         {merchant ? (
           <div className="flex flex-col items-center text-center lg:flex-row lg:items-center lg:justify-between lg:text-left">
             <div className="flex flex-col items-center text-center lg:flex-row lg:items-center lg:gap-5 lg:text-left">

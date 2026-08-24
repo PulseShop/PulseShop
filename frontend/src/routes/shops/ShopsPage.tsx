@@ -5,6 +5,7 @@ import { Link } from "react-router";
 import type { Merchant } from "@/types";
 import { MobileShell } from "@/components/layout/MobileShell";
 import { DesktopQuickNav } from "@/components/layout/DesktopQuickNav";
+import { DesktopBack } from "@/components/layout/DesktopBack";
 import { LogoLink } from "@/components/common/Logo";
 import { FollowButton } from "@/components/shop/FollowButton";
 import { ProductCard } from "@/components/product/ProductCard";
@@ -95,6 +96,10 @@ export function ShopsPage() {
     <MobileShell wide>
       <header className="glass-header sticky top-0 z-30 flex items-center justify-between gap-3 px-4 py-4 lg:px-6">
         <div className="flex min-w-0 items-center gap-3">
+          {/* Desktop back, next to the mark rather than in place of it: the mark
+              always goes to the marketplace, this goes to wherever they came
+              from. Phones get the floating one from MobileShell. */}
+          <DesktopBack className="-ml-2" />
           {/* The masthead mark is the way back to the marketplace. */}
           <LogoLink size={40} />
           <div className="min-w-0">
