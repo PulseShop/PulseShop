@@ -16,9 +16,10 @@ import { formatKes } from "@/lib/currency";
 import { cn } from "@/lib/utils";
 import { services } from "@/services";
 
-/** The brand coral (DESIGN.md {colors.primary}). Single-series revenue line, so
- *  there is no adjacent-hue separation to preserve — it just carries the brand. */
-const REVENUE_HUE = "#cc785c";
+/** The brand teal. A single-series revenue line, so there's no adjacent-hue
+ *  separation to preserve — a step brighter than --color-primary reads as the
+ *  brand rather than grey at one line-width (see the SERIES note in AdminPage). */
+const REVENUE_HUE = "#0d9488";
 
 const RANGES = [
   { days: 7, label: "7d" },

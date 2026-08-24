@@ -70,7 +70,7 @@ export const InstagramStoryTemplate = forwardRef<HTMLDivElement, { product: Prod
                 {formatKes(product.priceKes)}
               </span>
             )}
-            <span style={{ fontSize: 64, fontWeight: 800, color: "#cc785c" }}>{formatKes(finalPrice)}</span>
+            <span style={{ fontSize: 64, fontWeight: 800, color: "#0d9488" }}>{formatKes(finalPrice)}</span>
           </div>
         </div>
 

@@ -13,11 +13,11 @@
      Loaded via the <link> in index.html. */
   --font-serif: "EB Garamond", "Cormorant Garamond", Georgia, "Times New Roman", serif;
 
-  /* Coral — the signature Anthropic accent (DESIGN.md {colors.primary}).
-     #cc785c on white text clears AA (~4.6:1) at the sizes it carries labels;
-     -deep is the pressed/active variant. */
-  --color-primary: #cc785c;
-  --color-primary-deep: #a9583e;
+  /* Brand green/teal — matches the platform logo, the shop's identity colour.
+     teal-700 (not teal-600) because teal-600 fails WCAG AA (~3.75:1) for white
+     button/badge text; teal-700 clears it (~5.47:1). -deep is the pressed state. */
+  --color-primary: #0f766e;
+  --color-primary-deep: #115e59;
   --color-whatsapp: #25d366;
   --color-instagram: #e4405f;
   --color-facebook: #1877f2;
@@ -62,7 +62,7 @@
 
      Dark inverts the same argument: teal-500 is right for a fill you read text
      off, but a hairline of it on stone-950 is dim, so charts take teal-400. */
-  --color-chart: #cc785c;
+  --color-chart: #0d9488;
 
   /* Foreground for anything sitting ON a filled accent — bg-primary and bg-ink.
      It has to invert with the theme: teal-700 wants white on it, but dark
@@ -165,10 +165,10 @@
 :root[data-theme="dark"] {
   color-scheme: dark;
 
-  /* Coral brightens a step on the dark navy so white labels stay legible and the
-     accent doesn't read as a muddy brown. -deep is the brighter hover, as before. */
-  --color-primary: #e0906f;
-  --color-primary-deep: #eba483;
+  /* Brand teal brightens a step on the dark navy: teal-500 clears ~7.7:1 there,
+     where teal-700 would fail. -deep is the brighter hover, as in light. */
+  --color-primary: #14b8a6;
+  --color-primary-deep: #2dd4bf;
   --color-success: #6fca84;
   --color-success-deep: #58b56d;
   --color-warning: #e8bb4a;
@@ -187,7 +187,7 @@
   --color-fill-soft: #1f1e1b;
   --color-faint: #57534e;
 
-  --color-chart: #e0906f;        /* coral, brightened for a thin stroke on navy */
+  --color-chart: #2dd4bf;        /* teal-400, brightened for a thin stroke on navy */
 
   --color-on-accent: #141413;    /* near-black label on the lighter coral */
   --color-edge: rgba(255, 255, 255, 0.1);
@@ -204,9 +204,9 @@
 :root[data-theme="dark"] .app-surface,
 :root[data-theme="dark"] body {
   background-image:
-    radial-gradient(72% 55% at 10% -6%, rgba(204, 120, 92, 0.14), transparent 60%),
-    radial-gradient(58% 46% at 108% 6%, rgba(232, 165, 90, 0.07), transparent 60%),
-    radial-gradient(85% 60% at 50% 110%, rgba(93, 184, 166, 0.08), transparent 62%);
+    radial-gradient(72% 55% at 10% -6%, rgba(13, 148, 136, 0.14), transparent 60%),
+    radial-gradient(58% 46% at 108% 6%, rgba(225, 29, 72, 0.08), transparent 60%),
+    radial-gradient(85% 60% at 50% 110%, rgba(13, 148, 136, 0.1), transparent 62%);
 }
 
 /* The no-backdrop-filter fallback leans opaque in both themes; the light rule
@@ -230,9 +230,9 @@
 .app-surface {
   background-color: var(--color-surface);
   background-image:
-    radial-gradient(72% 55% at 10% -6%, rgba(204, 120, 92, 0.12), transparent 60%),
-    radial-gradient(58% 46% at 108% 6%, rgba(232, 165, 90, 0.1), transparent 60%),
-    radial-gradient(85% 60% at 50% 110%, rgba(93, 184, 166, 0.09), transparent 62%);
+    radial-gradient(72% 55% at 10% -6%, rgba(13, 148, 136, 0.16), transparent 60%),
+    radial-gradient(58% 46% at 108% 6%, rgba(225, 29, 72, 0.11), transparent 60%),
+    radial-gradient(85% 60% at 50% 110%, rgba(13, 148, 136, 0.12), transparent 62%);
 }
 @media (min-width: 1024px) {
   .app-surface {
@@ -391,9 +391,9 @@ body {
      shouldn't have anyway. */
   /*overscroll-behavior: none; */
   background-image:
-    radial-gradient(72% 55% at 10% -6%, rgba(204, 120, 92, 0.12), transparent 60%),
-    radial-gradient(58% 46% at 108% 6%, rgba(232, 165, 90, 0.1), transparent 60%),
-    radial-gradient(85% 60% at 50% 110%, rgba(93, 184, 166, 0.09), transparent 62%);
+    radial-gradient(72% 55% at 10% -6%, rgba(13, 148, 136, 0.16), transparent 60%),
+    radial-gradient(58% 46% at 108% 6%, rgba(225, 29, 72, 0.11), transparent 60%),
+    radial-gradient(85% 60% at 50% 110%, rgba(13, 148, 136, 0.12), transparent 62%);
   background-attachment: fixed;
 
 }
@@ -463,8 +463,8 @@ input[type="radio"] {
   color: var(--hero-fg);
   background-color: #181715;
   background-image:
-    radial-gradient(78% 120% at 88% 8%, rgba(204, 120, 92, 0.3), transparent 62%),
-    radial-gradient(60% 100% at 6% 96%, rgba(232, 165, 90, 0.18), transparent 66%),
+    radial-gradient(78% 120% at 88% 8%, rgba(20, 184, 166, 0.26), transparent 62%),
+    radial-gradient(60% 100% at 6% 96%, rgba(13, 148, 136, 0.2), transparent 66%),
     radial-gradient(120% 90% at 50% -20%, rgba(255, 255, 255, 0.06), transparent 60%);
   box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.08), 0 18px 48px rgba(0, 0, 0, 0.28);
 }
@@ -484,8 +484,8 @@ input[type="radio"] {
   color: #faf9f5;
   background-color: #181715;
   background-image:
-    radial-gradient(70% 120% at 88% 0%, rgba(204, 120, 92, 0.16), transparent 60%),
-    radial-gradient(60% 120% at 6% 100%, rgba(232, 165, 90, 0.1), transparent 64%);
+    radial-gradient(70% 120% at 88% 0%, rgba(20, 184, 166, 0.18), transparent 60%),
+    radial-gradient(60% 120% at 6% 100%, rgba(13, 148, 136, 0.1), transparent 64%);
 }
 .band-ink h1,
 .band-ink h2,

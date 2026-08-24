@@ -149,7 +149,7 @@ export const StatusCardTemplate = forwardRef<
             fontWeight: 700,
             letterSpacing: 4,
             textTransform: "uppercase",
-            color: "#cc785c",
+            color: "#0f766e",
           }}
         >
           Order here
