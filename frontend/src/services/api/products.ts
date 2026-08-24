@@ -360,6 +360,25 @@ export const productsApi: ProductService = {
   },
 
   /**
+   * Every product a seller has flagged as clearance (migration 0061).
+   *
+   * Same shape and the same reasoning as listDeals above: a shelf that claims
+   * "everything being cleared" has to be a query over the whole table, not a
+   * page of search_products filtered in the browser. The two shelves overlap
+   * on purpose — a marked-down clearance item belongs on both.
+   */
+  async listClearance(limit = 24): Promise<Product[]> {
+    const { data, error } = await supabase.rpc("list_clearance", { p_limit: limit });
+    if (error) throw error;
+    return ((data ?? []) as FeatureRow[]).map((row) => {
+      const product = toProduct(row);
+      product.shopSlug = row.shop_handle ?? undefined;
+      product.shopName = row.shop_name ?? undefined;
+      return product;
+    });
+  },
+
+  /**
    * Bulk upsert keyed on (merchant_id, sku), the unique constraint the table
    * has carried since 0001. One round trip decides create-vs-update per row;
    * doing it in the client (read, diff, then insert some and update others)

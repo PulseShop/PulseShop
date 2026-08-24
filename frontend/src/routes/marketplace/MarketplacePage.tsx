@@ -30,6 +30,7 @@ import {
   Sparkles,
   SprayCan,
   Store,
+  PackageMinus,
   Tag,
   Tv,
   Utensils,
@@ -452,6 +453,20 @@ export function MarketplacePage() {
     queryFn: () => services.products.listDeals(),
   });
 
+  /**
+   * Everything a seller is clearing (migration 0061).
+   *
+   * Its own query for the same reason as the deals one beside it, and NOT a
+   * client-side filter over that result: clearance is a separate flag, not a
+   * discount threshold, so the two shelves are different sets that happen to
+   * overlap. Deriving one from the other would drop the full-price clearance
+   * stock entirely.
+   */
+  const clearanceQ = useQuery({
+    queryKey: ["clearance"],
+    queryFn: () => services.products.listClearance(),
+  });
+
   /* ----------------------------------------------------------------------- *
    * Search: the match first, then what surrounds it.
    *
@@ -863,6 +878,24 @@ export function MarketplacePage() {
             Hidden while searching for the same reason the banners are: a
             shopper who typed a query has already answered the question this
             section asks. */}
+        {/* CLEARANCE, directly above the categories.
+
+            Placed here rather than beside the deals shelf lower down because
+            clearance is the most perishable thing on the page: it is the last
+            few of a line, and the shopper who would have wanted it is the one
+            who never scrolled far enough to see it. The categories are the
+            page's main event, so sitting immediately above them is the last
+            position that is still unambiguously "before the browsing starts".
+
+            Hidden while searching, like every other browsing band. */}
+        {!isSearching && (
+          <ClearanceShelf
+            items={clearanceQ.data ?? []}
+            loading={clearanceQ.isLoading}
+            className="mt-7 lg:mt-10"
+          />
+        )}
+
         {!isSearching && (
           <CategoryWall
             entries={showcaseQ.data ?? []}
@@ -2602,9 +2635,9 @@ function DealsShelf({
     return (
       <section className={className} aria-label="Deals of the day">
         <Skeleton className="mb-3 h-6 w-44 rounded" />
-        <div className={DEALS_RAIL_CLASS}>
+        <div className={SHELF_RAIL_CLASS}>
           {Array.from({ length: 4 }).map((_, i) => (
-            <div key={i} className={DEALS_TILE_CLASS}>
+            <div key={i} className={SHELF_TILE_CLASS}>
               <ProductCardSkeleton />
             </div>
           ))}
@@ -2633,9 +2666,9 @@ function DealsShelf({
         {canLeft && <RailArrow side="left" label="deals" onClick={() => scrollBy(-1)} />}
         {canRight && <RailArrow side="right" label="deals" onClick={() => scrollBy(1)} />}
 
-        <div ref={rail} className={DEALS_RAIL_CLASS}>
+        <div ref={rail} className={SHELF_RAIL_CLASS}>
           {items.map((p) => (
-            <div key={p.id} className={DEALS_TILE_CLASS}>
+            <div key={p.id} className={SHELF_TILE_CLASS}>
               <ProductCard product={p} />
             </div>
           ))}
@@ -2649,12 +2682,91 @@ function DealsShelf({
    negative margins track the page's own padding so the last tile is visibly cut
    by the edge of the screen rather than stopping neatly inside it — which is
    the only thing that tells a shopper there is more to the right. */
-const DEALS_RAIL_CLASS =
+const SHELF_RAIL_CLASS =
   "no-scrollbar -mx-4 flex snap-x snap-mandatory gap-3 overflow-x-auto px-4 pb-1 lg:-mx-6 lg:px-6";
 
 /* Wide enough to read a two-line product name, narrow enough that the next tile
    always peeks past the edge on a phone. */
-const DEALS_TILE_CLASS = "w-[45%] shrink-0 snap-start sm:w-52 lg:w-56";
+const SHELF_TILE_CLASS = "w-[45%] shrink-0 snap-start sm:w-52 lg:w-56";
+
+
+/**
+ * Clearance: the stock sellers are clearing out.
+ *
+ * SAME SHAPE AS THE DEALS SHELF ON PURPOSE, and it reuses that rail's two
+ * constants — a shopper should not have to learn a second interaction to read
+ * the second shelf on the page. What differs is the SET, not the presentation.
+ *
+ * NOT "BIG DISCOUNTS" (migration 0061). Clearance is a flag the seller sets
+ * about stock they want gone, which is a fact only they hold. A shop clearing
+ * the last of a discontinued line at full price belongs here and carries no
+ * discount at all; a shop running 40% off a new arrival carries a big one and
+ * does not belong here. That is why this cannot be `deals.filter(...)`, and why
+ * the copy below counts products rather than advertising a saving the shelf
+ * cannot promise every row has.
+ *
+ * THE RPC'S ORDER SURVIVES: biggest markdown first, full-price clearance stock
+ * behind it. This component does not re-sort.
+ *
+ * NOTHING BEING CLEARED MEANS NO SECTION, exactly as with the deals shelf — and
+ * it matters more here, because clearance is empty far more often than
+ * discounts are.
+ */
+function ClearanceShelf({
+  items,
+  loading,
+  className,
+}: {
+  items: Product[];
+  loading: boolean;
+  className?: string;
+}) {
+  const rail = useRef<HTMLDivElement>(null);
+  const { canLeft, canRight, scrollBy } = useRailScroll(rail, items.length);
+
+  if (loading) {
+    return (
+      <section className={className} aria-label="Clearance">
+        <Skeleton className="mb-3 h-6 w-36 rounded" />
+        <div className={SHELF_RAIL_CLASS}>
+          {Array.from({ length: 4 }).map((_, i) => (
+            <div key={i} className={SHELF_TILE_CLASS}>
+              <ProductCardSkeleton />
+            </div>
+          ))}
+        </div>
+      </section>
+    );
+  }
+  if (items.length === 0) return null;
+
+  return (
+    <section className={cn("relative", className)} aria-label="Clearance">
+      <div className="mb-3 flex flex-wrap items-baseline justify-between gap-2">
+        <h2 className="flex items-center gap-2 text-lg font-extrabold text-ink lg:text-2xl">
+          <PackageMinus className="size-5 text-primary" aria-hidden />
+          Clearance
+        </h2>
+        <p className="text-xs font-semibold text-muted lg:text-sm">
+          {items.length} {items.length === 1 ? "product is" : "products are"} being cleared
+        </p>
+      </div>
+
+      <div className="relative">
+        {canLeft && <RailArrow side="left" label="clearance" onClick={() => scrollBy(-1)} />}
+        {canRight && <RailArrow side="right" label="clearance" onClick={() => scrollBy(1)} />}
+
+        <div ref={rail} className={SHELF_RAIL_CLASS}>
+          {items.map((p) => (
+            <div key={p.id} className={SHELF_TILE_CLASS}>
+              <ProductCard product={p} />
+            </div>
+          ))}
+        </div>
+      </div>
+    </section>
+  );
+}
 
 
 function Chip({

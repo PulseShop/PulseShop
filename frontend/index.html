@@ -10,14 +10,21 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover" />
     <meta name="theme-color" content="#faf9f5" />
 
-    <!-- Editorial display serif (DESIGN.md). EB Garamond is the documented
-         open-source substitute for the licensed Copernicus / Tiempos Headline.
-         Preconnect first so the headline face is available near first paint;
-         body text stays on the self-hosted Plus Jakarta Sans (see main.tsx). -->
+    <!-- App type system: Inter on phones, Roboto on desktop.
+
+         Both faces are requested in ONE stylesheet so the switch at 1024px
+         (see styles/tokens.css) never waits on a second network round trip —
+         a viewport-scoped @import would fetch Roboto only once a desktop
+         browser matched it, which is exactly when it is already needed. The
+         preconnects are what make that single request cheap.
+
+         Variable axes are requested as ranges rather than fixed weights so the
+         whole 100..900 scale is available to the type ramp without shipping a
+         file per weight. -->
     <link rel="preconnect" href="https://fonts.googleapis.com" />
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
     <link
-      href="https://fonts.googleapis.com/css2?family=EB+Garamond:wght@400;500;600&display=swap"
+      href="https://fonts.googleapis.com/css2?family=Inter:ital,opsz,wght@0,14..32,100..900;1,14..32,100..900&family=Roboto:ital,wght@0,100..900;1,100..900&display=swap"
       rel="stylesheet"
     />
 

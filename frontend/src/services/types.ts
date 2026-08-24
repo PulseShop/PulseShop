@@ -177,6 +177,8 @@ export interface ProductInput {
   brand?: string | null;
   priceKes: number;
   discountPct: number | null;
+  /** Put this product on the clearance shelf. See Product.clearance. */
+  clearance?: boolean;
   stockQty: number;
   images: string[];
   /** See Product.imageAlts. Sent positionally alongside `images`; omit to leave
@@ -379,6 +381,8 @@ export interface ProductService {
    * shelf leads with the biggest saving rather than the newest listing.
    */
   listDeals(limit?: number): Promise<Product[]>;
+  /** Every product a seller has flagged as clearance, biggest markdown first. */
+  listClearance(limit?: number): Promise<Product[]>;
   /**
    * Bulk create-or-update from an uploaded CSV, keyed on SKU: a row whose SKU
    * this shop already has updates that product, a new one creates it.

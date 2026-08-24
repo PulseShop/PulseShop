@@ -7,6 +7,7 @@ import {
   ChevronLeft,
   ChevronRight,
   Filter,
+  PackageMinus,
   Pencil,
   Plus,
   Search,
@@ -126,6 +127,32 @@ export function InventoryPage() {
     onError: (_e, _v, ctx) => {
       qc.setQueryData(productsKey, ctx?.prev);
       push("Couldn't update discount", "danger");
+    },
+    onSettled: refreshProducts,
+  });
+
+  /**
+   * Clearance is one boolean on the product, so it gets the same optimistic
+   * treatment as the discount beside it: a toggle that waits for a round trip
+   * before it moves reads as broken, and the rollback in onError is what makes
+   * moving first safe.
+   */
+  const clearanceMut = useMutation({
+    mutationFn: ({ id, on }: { id: string; on: boolean }) =>
+      services.products.updateProduct(id, { clearance: on }),
+    onMutate: async ({ id, on }) => {
+      await qc.cancelQueries({ queryKey: productsKey });
+      const prev = qc.getQueryData<Paged<Product>>(productsKey);
+      qc.setQueryData<Paged<Product>>(productsKey, (old) =>
+        old
+          ? { ...old, items: old.items.map((p) => (p.id === id ? { ...p, clearance: on } : p)) }
+          : old,
+      );
+      return { prev };
+    },
+    onError: (_e, _v, ctx) => {
+      qc.setQueryData(productsKey, ctx?.prev);
+      push("Couldn't update clearance", "danger");
     },
     onSettled: refreshProducts,
   });
@@ -344,6 +371,7 @@ export function InventoryPage() {
                 <th className="px-2 py-3">Category</th>
                 <th className="px-2 py-3">Price</th>
                 <th className="px-2 py-3">Discount</th>
+                <th className="px-2 py-3">Clearance</th>
                 <th className="px-2 py-3">Status</th>
                 <th className="px-2 py-3">Stock</th>
                 <th className="px-4 py-3 text-right">Actions</th>
@@ -400,6 +428,13 @@ export function InventoryPage() {
                     <DiscountCell
                       value={p.discountPct}
                       onSave={(pct) => discountMut.mutate({ id: p.id, pct })}
+                    />
+                  </td>
+                  <td className="px-2 py-3">
+                    <ClearanceToggle
+                      name={p.name}
+                      on={Boolean(p.clearance)}
+                      onToggle={(on) => clearanceMut.mutate({ id: p.id, on })}
                     />
                   </td>
                   <td className="px-2 py-3">
@@ -516,11 +551,18 @@ export function InventoryPage() {
               </div>
 
               <div className="mt-2 flex items-center justify-between">
-                <div className="flex items-center gap-1.5 text-xs font-semibold text-muted">
-                  <span>Discount</span>
-                  <DiscountCell
-                    value={p.discountPct}
-                    onSave={(pct) => discountMut.mutate({ id: p.id, pct })}
+                <div className="flex items-center gap-2 text-xs font-semibold text-muted">
+                  <span className="flex items-center gap-1.5">
+                    <span>Discount</span>
+                    <DiscountCell
+                      value={p.discountPct}
+                      onSave={(pct) => discountMut.mutate({ id: p.id, pct })}
+                    />
+                  </span>
+                  <ClearanceToggle
+                    name={p.name}
+                    on={Boolean(p.clearance)}
+                    onToggle={(on) => clearanceMut.mutate({ id: p.id, on })}
                   />
                 </div>
                 <div className="flex items-center gap-1">
@@ -714,6 +756,49 @@ function Pagination({
         </button>
       </div>
     </div>
+  );
+}
+
+/**
+ * The clearance switch, beside the discount control it deliberately does NOT
+ * resemble too closely.
+ *
+ * Discount is a number the seller types into a popover; clearance is a yes/no
+ * about stock, so it is one tap and no popover. Giving it the same
+ * click-to-open-a-field affordance would imply there is a value to enter.
+ *
+ * `role="switch"` rather than a checkbox or a button: it is a binary state that
+ * takes effect immediately, which is exactly what a switch announces to a
+ * screen reader. The label carries the product name because an inventory table
+ * renders one of these per row, and "Clearance" alone would read as forty
+ * identical controls.
+ */
+function ClearanceToggle({
+  name,
+  on,
+  onToggle,
+}: {
+  name: string;
+  on: boolean;
+  onToggle: (on: boolean) => void;
+}) {
+  return (
+    <button
+      type="button"
+      role="switch"
+      aria-checked={on}
+      aria-label={`Clearance for ${name}`}
+      onClick={() => onToggle(!on)}
+      className={cn(
+        "inline-flex h-7 shrink-0 items-center gap-1.5 rounded-btn border px-2 text-xs font-bold transition-all duration-200 active:scale-[0.97] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary focus-visible:ring-offset-2 focus-visible:ring-offset-card",
+        on
+          ? "border-primary bg-primary/10 text-primary"
+          : "border-line text-muted hover:border-primary/40 hover:text-ink",
+      )}
+    >
+      <PackageMinus className="size-3.5" aria-hidden />
+      {on ? "On" : "Off"}
+    </button>
   );
 }
 

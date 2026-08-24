@@ -5,9 +5,6 @@ import { createRoot } from "react-dom/client";
 import { BrowserRouter, Route, Routes } from "react-router";
 import { registerSW } from "virtual:pwa-register";
 
-import "@fontsource/plus-jakarta-sans/400.css";
-import "@fontsource/plus-jakarta-sans/600.css";
-import "@fontsource/plus-jakarta-sans/800.css";
 import "./styles/tokens.css";
 
 import { ErrorBoundary } from "@/components/ErrorBoundary";

@@ -1596,6 +1596,25 @@ export const mockServices: Services = {
     },
 
     /**
+     * Mirrors list_clearance (0061): the seller's flag, not a threshold on the
+     * discount. `nulls last` in SQL becomes the `?? -1` here — clearance stock
+     * with no markdown sorts behind the marked-down stock rather than ahead of
+     * it, which is what a plain `?? 0` would get wrong the moment a seller
+     * clears something at full price.
+     */
+    async listClearance(limit = 24): Promise<Product[]> {
+      await delay();
+      return products
+        .filter((p) => p.status !== "out" && p.images.length > 0 && p.clearance)
+        .sort(
+          (a, b) =>
+            (b.discountPct ?? -1) - (a.discountPct ?? -1) || b.priceKes - a.priceKes,
+        )
+        .slice(0, limit)
+        .map((p) => ({ ...p, shopSlug: merchant.handle, shopName: merchant.name }));
+    },
+
+    /**
      * Mirrors the real upsert: SKU is identity, and a rename keeps the existing
      * slug exactly as the products_set_slug trigger would.
      *

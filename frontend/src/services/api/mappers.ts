@@ -22,6 +22,8 @@ export interface ProductRow {
   brand?: string | null;
   price_kes: number;
   discount_pct: number | null;
+  /** Optional for the same reason brand is — see the note above. Added 0061. */
+  clearance?: boolean | null;
   stock_qty: number;
   status: StockStatus;
   images: string[] | null;
@@ -84,6 +86,9 @@ export function toProduct(row: ProductRow): Product {
     brand: row.brand,
     priceKes: row.price_kes,
     discountPct: row.discount_pct,
+    // Undefined stays undefined ("the read didn't carry it"); a null column on
+    // a row that DID carry it is a plain false.
+    clearance: row.clearance === undefined ? undefined : Boolean(row.clearance),
     stockQty: row.stock_qty,
     status: row.status,
     images: row.images ?? [],
@@ -157,6 +162,7 @@ export function productInputToRow(patch: Partial<ProductInput>): Record<string, 
   if (patch.brand !== undefined) row.brand = normalizeBrand(patch.brand);
   if (patch.priceKes !== undefined) row.price_kes = patch.priceKes;
   if (patch.discountPct !== undefined) row.discount_pct = patch.discountPct;
+  if (patch.clearance !== undefined) row.clearance = patch.clearance;
   if (patch.stockQty !== undefined) row.stock_qty = patch.stockQty;
   if (patch.images !== undefined) row.images = patch.images;
   // Trailing blanks are trimmed off rather than stored: an array of empty

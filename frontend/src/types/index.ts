@@ -85,6 +85,16 @@ export interface Product {
   brand?: string | null;
   priceKes: number;
   discountPct: number | null;
+  /**
+   * Seller-set: this stock is being cleared (migration 0061).
+   *
+   * A separate axis from `discountPct`, not a threshold on it — clearing a
+   * discontinued line at full price is still clearance, and 50% off a new
+   * arrival is not. Optional for the same reason `brand` is: not every
+   * projection carries it, and a client running against a database without
+   * 0061 never sees it.
+   */
+  clearance?: boolean;
   stockQty: number;
   status: StockStatus;
   images: string[];
