@@ -4,6 +4,8 @@ import {
   Baby,
   BookOpen,
   Camera,
+  Check,
+  ChevronDown,
   ChevronLeft,
   ChevronRight,
   Dumbbell,
@@ -54,7 +56,8 @@ import { ProductCardSkeleton, Skeleton } from "@/components/ui/Skeleton";
 import { useDebounced } from "@/hooks/useDebounced";
 import { useProductAdd } from "@/hooks/useProductAdd";
 import { useSeo } from "@/hooks/useSeo";
-import { colorHex, sortSizes } from "@/lib/constants";
+import { colorHex, groupLabel, sortSizes } from "@/lib/constants";
+import { ALL_GROUPS, useCategoryFilter } from "@/hooks/useCategoryFilter";
 import { HERO_SLOTS } from "@/lib/placements";
 import { formatKes, hasPriceRange, minVariantPrice } from "@/lib/currency";
 import { productHref } from "@/lib/productUrl";
@@ -160,7 +163,6 @@ export function MarketplacePage() {
   /** Searching is a different intent from browsing, and the page changes shape
    *  for it — see the note on the bento below. */
   const isSearching = term.length > 0;
-  const [category, setCategory] = useState("All");
   const [sort, setSort] = useState<SortOrder>("newest");
   const [availableOnly, setAvailableOnly] = useState(false);
   const [minPrice, setMinPrice] = useState<number | null>(null);
@@ -174,6 +176,22 @@ export function MarketplacePage() {
   const toggleIn = (setter: (fn: (v: string[]) => string[]) => void) => (value: string) =>
     setter((list) => (list.includes(value) ? list.filter((v) => v !== value) : [...list, value]));
 
+  // Explicit null = every shop. OMITTING the argument means "the signed-in
+  // merchant's own catalogue", which is what this used to pass by accident: the
+  // front page asked for one shop's facets, and for a guest, who has no id, the
+  // call threw outright and the whole filter panel rendered empty.
+  //
+  // It sits up here, above the filter derivations, because the category ribbon
+  // is now built FROM it: which generals exist at all is a fact about what is
+  // in stock, not about the taxonomy. See useCategoryFilter.
+  const facetsQ = useQuery({
+    queryKey: ["marketplace-facets"],
+    queryFn: () => services.products.getFacets(null),
+  });
+  const categories = facetsQ.data?.categories ?? [];
+  /** General -> specific, shared with the storefront. See useCategoryFilter. */
+  const cat = useCategoryFilter(categories);
+
   const activeFilterCount =
     sizes.length +
     colors.length +
@@ -183,7 +201,10 @@ export function MarketplacePage() {
     // much is switched on.
     (minPrice !== null || maxPrice !== null ? 1 : 0) +
     (minRating !== null ? 1 : 0) +
-    (category !== "All" ? 1 : 0);
+    // The general counts as one and each specific as one more, so the badge
+    // matches the chips: "Beauty & Health + Hair Care" reads as two decisions
+    // because the shopper made two.
+    cat.activeCount;
 
   const clearFilters = () => {
     setSizes([]);
@@ -192,13 +213,28 @@ export function MarketplacePage() {
     setMinPrice(null);
     setMaxPrice(null);
     setMinRating(null);
-    setCategory("All");
+    cat.reset();
   };
 
   const appliedFilters: { key: string; label: string; remove: () => void }[] = [
-    ...(category !== "All"
-      ? [{ key: "cat", label: category, remove: () => setCategory("All") }]
+    // The general first, then the specifics under it — the order they were
+    // chosen in, and the order they read in. Removing the general removes its
+    // specifics with it (cat.setGroup clears them), which is the only coherent
+    // meaning: "Hair Care" with no group above it is not a state the ribbon has.
+    ...(cat.group !== ALL_GROUPS
+      ? [
+          {
+            key: "cat",
+            label: groupLabel(cat.group),
+            remove: () => cat.setGroup(ALL_GROUPS),
+          },
+        ]
       : []),
+    ...cat.subs.map((c) => ({
+      key: `sub:${c}`,
+      label: c,
+      remove: () => cat.toggleSub(c),
+    })),
     ...sizes.map((s) => ({ key: `size:${s}`, label: s, remove: () => toggleIn(setSizes)(s) })),
     ...colors.map((c) => ({ key: `color:${c}`, label: c, remove: () => toggleIn(setColors)(c) })),
     ...(availableOnly
@@ -223,7 +259,10 @@ export function MarketplacePage() {
 
   const productQuery = {
     search: term,
-    category,
+    // A flat list of leaves; the group level never reaches the RPC. Undefined
+    // when nothing is picked, so an unfiltered grid sends no category argument
+    // at all. See useCategoryFilter and migration 0059.
+    categories: cat.queryCategories,
     status: availableOnly ? ("in-stock" as const) : ("all" as const),
     minPrice,
     maxPrice,
@@ -249,15 +288,6 @@ export function MarketplacePage() {
   const products = productsQ.data?.pages.flatMap((p) => p.items) ?? [];
   const totalMatches = productsQ.data?.pages[0]?.total ?? 0;
 
-  // Explicit null = every shop. OMITTING the argument means "the signed-in
-  // merchant's own catalogue", which is what this used to pass by accident: the
-  // front page asked for one shop's facets, and for a guest, who has no id, the
-  // call threw outright and the whole filter panel rendered empty.
-  const facetsQ = useQuery({
-    queryKey: ["marketplace-facets"],
-    queryFn: () => services.products.getFacets(null),
-  });
-  const categories = ["All", ...(facetsQ.data?.categories ?? [])];
   const priceFloor = facetsQ.data?.priceFloor ?? 0;
   const priceCeiling = facetsQ.data?.priceCeiling ?? 0;
   const sizeOptions = sortSizes(facetsQ.data?.sizes ?? []);
@@ -406,23 +436,89 @@ export function MarketplacePage() {
 
   const filterControls = (
     <>
+      {/* The same two levels the ribbon draws, as a list. The sheet holds every
+          filter there is, so a shopper who opens it must be able to reach the
+          same selection they could reach from the chips — a flat list here and
+          a tree out there would be two answers to one question. */}
       <div>
         <h2 className="text-sm font-bold text-ink">Category</h2>
         <ul className="mt-3 space-y-1">
-          {categories.map((cat) => (
-            <li key={cat}>
-              <button
-                type="button"
-                onClick={() => setCategory(cat)}
-                className={cn(
-                  "w-full rounded-btn px-2.5 py-1.5 text-left text-sm font-medium transition-colors",
-                  cat === category ? "bg-primary/10 text-primary" : "text-muted hover:text-ink",
+          <li>
+            <button
+              type="button"
+              onClick={() => cat.setGroup(ALL_GROUPS)}
+              className={cn(
+                "w-full rounded-btn px-2.5 py-1.5 text-left text-sm font-medium transition-colors",
+                cat.group === ALL_GROUPS
+                  ? "bg-primary/10 text-primary"
+                  : "text-muted hover:text-ink",
+              )}
+            >
+              All
+            </button>
+          </li>
+          {cat.tree.map((g) => {
+            const open = cat.group === g.group;
+            return (
+              <li key={g.group}>
+                <button
+                  type="button"
+                  onClick={() => cat.setGroup(open ? ALL_GROUPS : g.group)}
+                  aria-expanded={open}
+                  className={cn(
+                    "flex w-full items-center justify-between rounded-btn px-2.5 py-1.5 text-left text-sm font-medium transition-colors",
+                    open ? "bg-primary/10 text-primary" : "text-muted hover:text-ink",
+                  )}
+                >
+                  {g.label}
+                  <ChevronDown
+                    className={cn("size-4 shrink-0 transition-transform", open && "rotate-180")}
+                    aria-hidden
+                  />
+                </button>
+                {/* Only under the open general: a full tree of every leaf on the
+                    platform is a wall, and the second level only means anything
+                    once the first has been chosen. */}
+                {open && (
+                  <ul className="mb-1 ml-2.5 mt-1 space-y-0.5 border-l border-line pl-2.5">
+                    {g.items.map((leaf) => {
+                      const on = cat.subs.includes(leaf);
+                      return (
+                        <li key={leaf}>
+                          <button
+                            type="button"
+                            onClick={() => cat.toggleSub(leaf)}
+                            aria-pressed={on}
+                            className={cn(
+                              "flex w-full items-center gap-2 rounded-btn px-2 py-1.5 text-left text-sm transition-colors",
+                              on ? "font-semibold text-ink" : "text-muted hover:text-ink",
+                            )}
+                          >
+                            <span
+                              aria-hidden
+                              className={cn(
+                                "flex size-4 shrink-0 items-center justify-center rounded border",
+                                on ? "border-primary bg-primary text-on-accent" : "border-line",
+                              )}
+                            >
+                              {on && <Check className="size-3" />}
+                            </span>
+                            {leaf}
+                          </button>
+                        </li>
+                      );
+                    })}
+                    {/* Says what an empty selection MEANS. Without it, no ticks
+                        looks like nothing is filtered, when in fact the whole
+                        general is. */}
+                    {cat.subs.length === 0 && (
+                      <li className="px-2 py-1 text-xs text-muted">Showing all of {g.label}</li>
+                    )}
+                  </ul>
                 )}
-              >
-                {cat}
-              </button>
-            </li>
-          ))}
+              </li>
+            );
+          })}
         </ul>
       </div>
 
@@ -700,9 +796,12 @@ export function MarketplacePage() {
         {/* The categories and the filter sheet, on the line between the heading
             and the results they change — at every width now. See CategoryRail. */}
         <CategoryRail
-          categories={categories}
-          value={category}
-          onChange={setCategory}
+          tree={cat.tree}
+          group={cat.group}
+          onGroupChange={cat.setGroup}
+          groupLeaves={cat.groupLeaves}
+          subs={cat.subs}
+          onToggleSub={cat.toggleSub}
           onOpenFilters={() => setFiltersOpen(true)}
           activeFilterCount={activeFilterCount}
           className="mt-3"
@@ -1407,22 +1506,48 @@ function HeroSkeleton() {
  * the one that costs the grid nothing when nobody is filtering. Everything the
  * sidebar held is still there, behind the same chip, in the same sheet.
  *
- * Icons because this is a rail of eight-odd chips that has to be readable at a
- * glance in peripheral vision; the icon is what makes "Footwear" findable
- * without reading every label. Unknown categories fall back to a parcel, which
- * is honest — sellers name their own categories and the map cannot be complete.
+ * IT IS TWO ROWS NOW: GENERALS, THEN SPECIFICS. The first row used to hold
+ * every leaf category on the platform in one strip — Smartphones, Footwear,
+ * Hair Care, Mattresses, Board Games, thirty-odd chips deep. That is not a
+ * filter, it is a list to read, and the thing a shopper wants is almost always
+ * past the right edge. Worse, the one question it could not answer is the
+ * common one: "show me beauty" was six separate taps that could not be combined,
+ * because picking a chip replaced the last.
+ *
+ * So the top row is the generals (Tech, Fashion, Beauty & Health — seven, which
+ * fits), and picking one opens a second row holding only that general's
+ * specifics. Those are TOGGLES, not a radio: "Hair Care and Cosmetics, nothing
+ * else in beauty" is one selection made of two taps, which is exactly the thing
+ * the flat rail could not express. Picking none of them means the whole general,
+ * so the first tap is useful before any second one is made.
+ *
+ * The second row is absent, not empty, until a general is chosen — a permanently
+ * reserved strip of nothing would cost the grid a row of height on a phone to
+ * say what the row above already says.
+ *
+ * Icons because the top row has to be readable at a glance in peripheral
+ * vision; the icon is what makes "Fashion" findable without reading every
+ * label. The second row goes without: its chips are already scoped by the
+ * general above them, and seven parcels in a row would say nothing.
  */
 function CategoryRail({
-  categories,
-  value,
-  onChange,
+  tree,
+  group,
+  onGroupChange,
+  groupLeaves,
+  subs,
+  onToggleSub,
   onOpenFilters,
   activeFilterCount,
   className,
 }: {
-  categories: string[];
-  value: string;
-  onChange: (c: string) => void;
+  /** The generals this catalogue can offer, each with the specifics in stock. */
+  tree: { group: string; label: string; items: string[] }[];
+  group: string;
+  onGroupChange: (g: string) => void;
+  groupLeaves: string[];
+  subs: string[];
+  onToggleSub: (leaf: string) => void;
   onOpenFilters: () => void;
   /** Everything switched on, categories included — the same figure the sheet's
    *  own badge shows, so the two never disagree. */
@@ -1430,8 +1555,9 @@ function CategoryRail({
   className?: string;
 }) {
   const rail = useRef<HTMLDivElement>(null);
-  const { canLeft, canRight, scrollBy } = useRailScroll(rail, categories.length);
-  const hasCategories = categories.length > 1;
+  const { canLeft, canRight, scrollBy } = useRailScroll(rail, tree.length);
+  const hasCategories = tree.length > 0;
+  const openGroup = tree.find((g) => g.group === group);
 
   const filtersChip = (
     <button
@@ -1453,82 +1579,128 @@ function CategoryRail({
     </button>
   );
 
+  /** One chip in the top row. "All" is one of these, with no group behind it. */
+  const groupChip = (key: string, label: string, active: boolean, onClick: () => void) => {
+    const Icon = categoryIcon(label);
+    return (
+      <button
+        key={key}
+        type="button"
+        onClick={onClick}
+        aria-pressed={active}
+        className={cn(
+          "flex min-h-10 shrink-0 items-center gap-1.5 rounded-full px-3.5 text-sm font-semibold transition-colors",
+          active ? "bg-ink text-on-accent" : "bg-card text-muted shadow-soft hover:text-ink",
+        )}
+      >
+        <Icon className="size-4 shrink-0" aria-hidden />
+        {label}
+      </button>
+    );
+  };
+
   return (
-    <div className={cn("relative flex items-center gap-2", className)}>
-      <div className="relative min-w-0 flex-1">
-        {/* Desktop only, and only on the side that has somewhere to go. These
-            sit ON the strip rather than in the page margin — there is no margin
-            here at lg, the rail starts at the heading's left edge — so a left
-            arrow drawn at rest would cover the "All" chip, which is the one
-            chip a shopper needs to find to undo a filter. */}
-        {canLeft && (
-          <RailArrow
-            side="left"
-            label="categories"
-            onClick={() => scrollBy(-1)}
-            className="-left-1"
-          />
-        )}
-        {canRight && (
-          <RailArrow
-            side="right"
-            label="categories"
-            onClick={() => scrollBy(1)}
-            className="-right-1"
-          />
-        )}
-
-        <div
-          ref={rail}
-          className={cn(
-            // Full-bleed on a phone: the rail runs to both edges so the last
-            // chip is visibly cut off rather than sitting neatly inside the
-            // margin, which is the only thing that says "this scrolls". At lg
-            // it stops at the pinned chip on its right instead, so the margins
-            // come back to nothing.
-            "no-scrollbar -mx-4 flex gap-2 overflow-x-auto px-4 py-0.5 lg:mx-0 lg:px-0",
+    <div className={cn("space-y-2", className)}>
+      <div className="relative flex items-center gap-2">
+        <div className="relative min-w-0 flex-1">
+          {/* Desktop only, and only on the side that has somewhere to go. These
+              sit ON the strip rather than in the page margin — there is no margin
+              here at lg, the rail starts at the heading's left edge — so a left
+              arrow drawn at rest would cover the "All" chip, which is the one
+              chip a shopper needs to find to undo a filter. */}
+          {canLeft && (
+            <RailArrow
+              side="left"
+              label="categories"
+              onClick={() => scrollBy(-1)}
+              className="-left-1"
+            />
           )}
-        >
-          {hasCategories &&
-            categories.map((cat) => {
-              const Icon = categoryIcon(cat);
-              const active = cat === value;
-              return (
-                <button
-                  key={cat}
-                  type="button"
-                  onClick={() => onChange(cat)}
-                  aria-pressed={active}
-                  className={cn(
-                    "flex min-h-10 shrink-0 items-center gap-1.5 rounded-full px-3.5 text-sm font-semibold transition-colors",
-                    active
-                      ? "bg-ink text-on-accent"
-                      : "bg-card text-muted shadow-soft hover:text-ink",
-                  )}
-                >
-                  <Icon className="size-4 shrink-0" aria-hidden />
-                  {cat}
-                </button>
-              );
-            })}
+          {canRight && (
+            <RailArrow
+              side="right"
+              label="categories"
+              onClick={() => scrollBy(1)}
+              className="-right-1"
+            />
+          )}
 
-          {/* Divided from the categories, because it does something different
-              from all of them: it opens a panel rather than applying a filter. */}
-          {hasCategories && <span className="my-2 w-px shrink-0 bg-line lg:hidden" aria-hidden />}
-          <div className="shrink-0 lg:hidden">{filtersChip}</div>
+          <div
+            ref={rail}
+            className={cn(
+              // Full-bleed on a phone: the rail runs to both edges so the last
+              // chip is visibly cut off rather than sitting neatly inside the
+              // margin, which is the only thing that says "this scrolls". At lg
+              // it stops at the pinned chip on its right instead, so the margins
+              // come back to nothing.
+              "no-scrollbar -mx-4 flex gap-2 overflow-x-auto px-4 py-0.5 lg:mx-0 lg:px-0",
+            )}
+          >
+            {hasCategories && (
+              <>
+                {groupChip("All", "All", group === ALL_GROUPS, () => onGroupChange(ALL_GROUPS))}
+                {tree.map((g) =>
+                  groupChip(g.group, g.label, g.group === group, () =>
+                    // Tapping the open general again closes it. A chip that only
+                    // ever selects leaves the shopper hunting for "All" to undo
+                    // one tap.
+                    onGroupChange(g.group === group ? ALL_GROUPS : g.group),
+                  ),
+                )}
+              </>
+            )}
+
+            {/* Divided from the categories, because it does something different
+                from all of them: it opens a panel rather than applying a filter. */}
+            {hasCategories && <span className="my-2 w-px shrink-0 bg-line lg:hidden" aria-hidden />}
+            <div className="shrink-0 lg:hidden">{filtersChip}</div>
+          </div>
         </div>
+
+        {/* THE SAME CHIP, PINNED, PAST lg. On a phone it is the last thing in the
+            swipe, which is where a thumb ends up anyway. On a desktop the end of
+            a horizontal scroller is somewhere a mouse may never go, and the one
+            control that opens every remaining filter cannot be the one hidden
+            past the right edge. Same button, same sheet, held still. */}
+        <div className="hidden shrink-0 lg:block">{filtersChip}</div>
       </div>
 
-      {/* THE SAME CHIP, PINNED, PAST lg. On a phone it is the last thing in the
-          swipe, which is where a thumb ends up anyway. On a desktop the end of
-          a horizontal scroller is somewhere a mouse may never go, and the one
-          control that opens every remaining filter cannot be the one hidden
-          past the right edge. Same button, same sheet, held still. */}
-      <div className="hidden shrink-0 lg:block">{filtersChip}</div>
+      {/* THE SECOND LEVEL. Only under a chosen general, and only when that
+          general has more than one specific in stock — a lone chip that cannot
+          narrow anything is a control that does nothing. */}
+      {openGroup && groupLeaves.length > 1 && (
+        <div className="no-scrollbar -mx-4 flex items-center gap-2 overflow-x-auto px-4 pb-0.5 lg:mx-0 lg:px-0">
+          {/* Not a chip: it is the state the row falls back to, and drawing it
+              as one more selectable pill would imply "all" and "Hair Care" are
+              the same kind of choice. */}
+          <span className="shrink-0 text-xs font-semibold text-muted">
+            {subs.length === 0 ? `All of ${openGroup.label}` : `In ${openGroup.label}`}
+          </span>
+          {groupLeaves.map((leaf) => {
+            const on = subs.includes(leaf);
+            return (
+              <button
+                key={leaf}
+                type="button"
+                onClick={() => onToggleSub(leaf)}
+                aria-pressed={on}
+                className={cn(
+                  "flex min-h-9 shrink-0 items-center gap-1.5 rounded-full border px-3 text-[13px] font-semibold transition-colors",
+                  on
+                    ? "border-primary bg-primary text-on-accent"
+                    : "border-line bg-card text-muted hover:text-ink",
+                )}
+              >
+                {on && <Check className="size-3.5 shrink-0" aria-hidden />}
+                {leaf}
+              </button>
+            );
+          })}
+        </div>
+      )}
     </div>
   );
 }
-
 /**
  * A picture for a category name.
  *
@@ -1558,9 +1730,35 @@ const CATEGORY_ICONS: [RegExp, LucideIcon][] = [
   [/pet|dog|cat/i, PawPrint],
 ];
 
+/**
+ * The seven group labels, matched exactly rather than by keyword.
+ *
+ * The keyword table below is built for leaf names a seller typed, where a
+ * guess is the best available answer. A group label is not a guess — there are
+ * seven of them, they are ours, and they are the chips a shopper scans first,
+ * so "Tech" and "Media" landing on the generic parcel (neither contains a word
+ * the table knows) is a miss the ribbon cannot afford. Exact keys also mean a
+ * renamed label shows up here as a lookup that no longer matches, rather than
+ * silently degrading to a box.
+ */
+const GROUP_ICONS: Record<string, LucideIcon> = {
+  Tech: Laptop,
+  Fashion: Shirt,
+  "Beauty & Health": SprayCan,
+  Grocery: Utensils,
+  "Home & Garden": Sofa,
+  Media: BookOpen,
+  "Kids & Baby": Baby,
+  // The leftovers drawer (UNGROUPED): a parcel is the honest picture of "things
+  // the taxonomy has no name for".
+  More: Package,
+};
+
 function categoryIcon(name: string): LucideIcon {
   if (name === "All") return Sparkles;
-  return CATEGORY_ICONS.find(([pattern]) => pattern.test(name))?.[1] ?? Package;
+  return (
+    GROUP_ICONS[name] ?? CATEGORY_ICONS.find(([pattern]) => pattern.test(name))?.[1] ?? Package
+  );
 }
 
 /**

@@ -131,6 +131,12 @@ function queryProducts(all: Product[], q: ProductQuery = {}): Paged<Product> {
     );
   }
   if (q.category && q.category !== "All") list = list.filter((p) => p.category === q.category);
+  // The set form (migration 0059), and AND with the single one above — same
+  // composition the SQL does, so mock and live answer a query identically.
+  if (q.categories?.length) {
+    const wanted = new Set(q.categories);
+    list = list.filter((p) => wanted.has(p.category));
+  }
   if (q.status && q.status !== "all") {
     list =
       q.status === "in-stock"

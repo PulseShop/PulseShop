@@ -117,6 +117,19 @@ function searchArgs(merchantId: string | null, q: ProductQuery = {}) {
   const pageSize = q.pageSize ?? DEFAULT_PAGE_SIZE;
   const page = Math.max(1, q.page ?? 1);
   return {
+    // OMITTED, not null, when nothing is group-filtered (migration 0059).
+    //
+    // PostgREST resolves an RPC by the exact SET of argument names in the body,
+    // so sending `p_categories: null` is not a no-op — it is a request for a
+    // function signature that only exists after 0059 has run, and every call
+    // 404s with PGRST202 against a database that has not had it yet. That would
+    // mean the marketplace grid, the storefront grid and the product page's
+    // related items all going blank for the length of a deploy window.
+    //
+    // Spreading it in only when it is actually used keeps an unfiltered call
+    // byte-identical to the pre-0059 one, which resolves against either version
+    // of the function. Only the group filter itself needs the new signature.
+    ...(q.categories?.length ? { p_categories: q.categories } : {}),
     p_merchant_id: merchantId,
     p_search: q.search?.trim() ?? "",
     p_category: q.category && q.category !== "All" ? q.category : null,

@@ -207,6 +207,17 @@ export interface ProductQuery {
   search?: string;
   /** "All" (or omitted) = every category. */
   category?: string;
+  /**
+   * Match any leaf in this list (migration 0059) — what the two-level filter
+   * ribbon sends when a shopper picks a GROUP ("Beauty & Health") or a handful
+   * of leaves inside one ("Hair Care" and "Cosmetics", nothing else). The
+   * grouping itself lives in lib/constants.ts; by the time a query is built it
+   * has already been expanded to the leaves it covers.
+   *
+   * Composes with `category` as AND, so a caller must send one or the other,
+   * not both. Empty or omitted = no constraint.
+   */
+  categories?: string[];
   /** "in-stock" = anything not out of stock. */
   status?: "all" | "in-stock" | "available" | "low" | "out";
   /**

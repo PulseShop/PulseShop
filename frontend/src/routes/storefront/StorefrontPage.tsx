@@ -1,10 +1,11 @@
 import { keepPreviousData, useInfiniteQuery, useQuery } from "@tanstack/react-query";
-import { AlertTriangle, ArrowLeft, Check, LayoutGrid, List, Package, Search, SlidersHorizontal, Star, Store, Users, X } from "lucide-react";
+import { AlertTriangle, ArrowLeft, Check, ChevronDown, LayoutGrid, List, Package, Search, SlidersHorizontal, Star, Store, Users, X } from "lucide-react";
 import { useEffect, useMemo, useState } from "react";
 import { Link, useParams, useSearchParams } from "react-router";
 import { useAuth } from "@/stores/auth";
 import { useShop } from "@/stores/shop";
 import { MobileShell } from "@/components/layout/MobileShell";
+import { ALL_GROUPS, useCategoryFilter } from "@/hooks/useCategoryFilter";
 import { DesktopBack } from "@/components/layout/DesktopBack";
 import { DesktopQuickNav } from "@/components/layout/DesktopQuickNav";
 import { LogoLink } from "@/components/common/Logo";
@@ -18,7 +19,7 @@ import { ShopStatusDot } from "@/components/shop/ShopStatusDot";
 import { SocialLinks } from "@/components/shop/SocialLinks";
 import { Sheet } from "@/components/ui/Modal";
 import { ProductCardSkeleton, Skeleton } from "@/components/ui/Skeleton";
-import { colorHex, sortSizes } from "@/lib/constants";
+import { colorHex, groupLabel, sortSizes } from "@/lib/constants";
 import { capacityLabel, conditionLabel } from "@/lib/productSpecs";
 import { formatKes } from "@/lib/currency";
 import { merchantSocialLinks } from "@/lib/deeplinks";
@@ -57,7 +58,7 @@ export function StorefrontPage() {
   const [searchParams] = useSearchParams();
   const initialQuery = searchParams.get("q") ?? "";
 
-  const [category, setCategory] = useState("All");
+
   const [search, setSearch] = useState(initialQuery);
   /**
    * Debounced before it reaches the query, the same way /shops does it.
@@ -206,9 +207,26 @@ export function StorefrontPage() {
    * and rendered 3,000 cards on first paint. Filtering has to move server-side
    * along with the paging, or a filter would only ever search the loaded page.
    */
+  // Category pills and the price-slider ceiling are aggregates over the whole
+  // catalogue, so they can't be derived from a page of it.
+  //
+  // It sits above the product query now, because the query is built FROM it:
+  // choosing a general filters on the leaves this shop actually stocks under
+  // that general, which is a fact only the facets know.
+  const facetsQ = useQuery({
+    queryKey: ["shop-facets", shopSlug ?? "self"],
+    queryFn: () => services.products.getFacets(shopSlug ? merchant!.id : undefined),
+    enabled: shopSlug ? Boolean(merchant) : true,
+  });
+
+  /** This shop's own leaves, folded into generals. See useCategoryFilter. */
+  const categories = facetsQ.data?.categories ?? [];
+  const cat = useCategoryFilter(categories);
+
   const productQuery = {
     search: term,
-    category,
+    // A flat list of leaves; the general never reaches the RPC (migration 0059).
+    categories: cat.queryCategories,
     status: availableOnly ? ("in-stock" as const) : ("all" as const),
     minPrice,
     maxPrice,
@@ -244,15 +262,6 @@ export function StorefrontPage() {
   const filtered = productsQ.data?.pages.flatMap((p) => p.items) ?? [];
   const totalMatches = productsQ.data?.pages[0]?.total ?? 0;
 
-  // Category pills and the price-slider ceiling are aggregates over the whole
-  // catalogue, so they can't be derived from a page of it.
-  const facetsQ = useQuery({
-    queryKey: ["shop-facets", shopSlug ?? "self"],
-    queryFn: () => services.products.getFacets(shopSlug ? merchant!.id : undefined),
-    enabled: shopSlug ? Boolean(merchant) : true,
-  });
-
-  const categories = ["All", ...(facetsQ.data?.categories ?? [])];
   const priceFloor = facetsQ.data?.priceFloor ?? 0;
   const priceCeiling = facetsQ.data?.priceCeiling ?? 0;
   // Only what this shop actually stocks — offering a filter that can only ever
@@ -282,7 +291,7 @@ export function StorefrontPage() {
    * and the one the canonical points at, and it is the only one whose grid can
    * honestly stand in for the shop.
    */
-  const unfiltered = activeFilterCount === 0 && !search.trim() && category === "All";
+  const unfiltered = activeFilterCount === 0 && !search.trim() && cat.group === ALL_GROUPS;
 
   useSeo(
     useMemo(
@@ -706,70 +715,186 @@ export function StorefrontPage() {
         )}
       </section>
 
-      {/* category pills + filter entry — mobile only; desktop uses the sidebar */}
-      <div className="no-scrollbar mt-6 flex gap-2 overflow-x-auto px-4 pb-1 lg:hidden">
-        {(sizeOptions.length > 0 || colorOptions.length > 0 || priceCeiling > 0) && (
+      {/* Category pills + filter entry — mobile only; desktop uses the sidebar.
+          Two rows now, generals then specifics, matching the marketplace ribbon
+          (see CategoryRail). A shop with one general never sees a second row. */}
+      <div className="mt-6 space-y-2 lg:hidden">
+        <div className="no-scrollbar flex gap-2 overflow-x-auto px-4 pb-1">
+          {(sizeOptions.length > 0 || colorOptions.length > 0 || priceCeiling > 0) && (
+            <button
+              type="button"
+              onClick={() => setFiltersOpen(true)}
+              aria-label={
+                activeFilterCount > 0 ? `Filters, ${activeFilterCount} active` : "Filters"
+              }
+              className={cn(
+                "flex min-h-11 flex-shrink-0 items-center gap-1.5 rounded-full px-4 text-sm font-semibold transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary",
+                activeFilterCount > 0
+                  ? "bg-ink text-on-accent"
+                  : "bg-card text-muted shadow-soft hover:text-ink",
+              )}
+            >
+              <SlidersHorizontal className="size-4" />
+              Filters
+              {activeFilterCount > 0 && (
+                <span className="flex size-5 items-center justify-center rounded-full bg-card/25 text-[11px] font-bold">
+                  {activeFilterCount}
+                </span>
+              )}
+            </button>
+          )}
           <button
             type="button"
-            onClick={() => setFiltersOpen(true)}
-            aria-label={
-              activeFilterCount > 0 ? `Filters, ${activeFilterCount} active` : "Filters"
-            }
-            className={cn(
-              "flex min-h-11 flex-shrink-0 items-center gap-1.5 rounded-full px-4 text-sm font-semibold transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary",
-              activeFilterCount > 0
-                ? "bg-ink text-on-accent"
-                : "bg-card text-muted shadow-soft hover:text-ink",
-            )}
-          >
-            <SlidersHorizontal className="size-4" />
-            Filters
-            {activeFilterCount > 0 && (
-              <span className="flex size-5 items-center justify-center rounded-full bg-card/25 text-[11px] font-bold">
-                {activeFilterCount}
-              </span>
-            )}
-          </button>
-        )}
-        {categories.map((cat) => (
-          <button
-            key={cat}
-            type="button"
-            onClick={() => setCategory(cat)}
+            onClick={() => cat.setGroup(ALL_GROUPS)}
+            aria-pressed={cat.group === ALL_GROUPS}
             className={cn(
               "flex min-h-11 flex-shrink-0 items-center rounded-full px-4 text-sm font-semibold transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary",
-              cat === category
+              cat.group === ALL_GROUPS
                 ? "bg-primary text-on-accent"
                 : "bg-card text-muted shadow-soft hover:text-ink",
             )}
           >
-            {cat}
+            All
           </button>
-        ))}
-      </div>
+          {cat.tree.map((g) => (
+            <button
+              key={g.group}
+              type="button"
+              // Tapping the open general again closes it, so undoing one tap
+              // does not mean hunting back to "All".
+              onClick={() => cat.setGroup(g.group === cat.group ? ALL_GROUPS : g.group)}
+              aria-pressed={g.group === cat.group}
+              className={cn(
+                "flex min-h-11 flex-shrink-0 items-center rounded-full px-4 text-sm font-semibold transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary",
+                g.group === cat.group
+                  ? "bg-primary text-on-accent"
+                  : "bg-card text-muted shadow-soft hover:text-ink",
+              )}
+            >
+              {g.label}
+            </button>
+          ))}
+        </div>
 
+        {/* The specifics, only under a chosen general and only when there is
+            more than one to choose between. */}
+        {cat.group !== ALL_GROUPS && cat.groupLeaves.length > 1 && (
+          <div className="no-scrollbar flex items-center gap-2 overflow-x-auto px-4 pb-1">
+            <span className="shrink-0 text-xs font-semibold text-muted">
+              {cat.subs.length === 0 ? "All of" : "In"} {groupLabel(cat.group)}
+            </span>
+            {cat.groupLeaves.map((leaf) => {
+              const on = cat.subs.includes(leaf);
+              return (
+                <button
+                  key={leaf}
+                  type="button"
+                  onClick={() => cat.toggleSub(leaf)}
+                  aria-pressed={on}
+                  className={cn(
+                    "flex min-h-9 shrink-0 items-center gap-1.5 rounded-full border px-3 text-[13px] font-semibold transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary",
+                    on
+                      ? "border-primary bg-primary text-on-accent"
+                      : "border-line bg-card text-muted hover:text-ink",
+                  )}
+                >
+                  {on && <Check className="size-3.5 shrink-0" aria-hidden />}
+                  {leaf}
+                </button>
+              );
+            })}
+          </div>
+        )}
+      </div>
       <div className="px-4 pb-6 pt-4 lg:flex lg:gap-8 lg:px-6">
         {/* desktop sidebar — categories, price, availability */}
         <aside className="hidden shrink-0 lg:block lg:w-56">
           <div className="space-y-6">
+            {/* Generals, with the chosen one expanded to its specifics. The
+                sidebar has the vertical room the mobile pill row does not, so
+                the second level nests here rather than becoming another strip. */}
             <div>
               <h2 className="text-sm font-bold text-ink">Categories</h2>
               <ul className="mt-3 space-y-1">
-                {categories.map((cat) => (
-                  <li key={cat}>
-                    <button
-                      type="button"
-                      onClick={() => setCategory(cat)}
-                      className={cn(
-                        "flex w-full items-center justify-between rounded-btn px-2.5 py-1.5 text-left text-sm font-medium transition-colors",
-                        cat === category ? "text-primary" : "text-muted hover:text-ink",
+                <li>
+                  <button
+                    type="button"
+                    onClick={() => cat.setGroup(ALL_GROUPS)}
+                    className={cn(
+                      "flex w-full items-center justify-between rounded-btn px-2.5 py-1.5 text-left text-sm font-medium transition-colors",
+                      cat.group === ALL_GROUPS ? "text-primary" : "text-muted hover:text-ink",
+                    )}
+                  >
+                    All
+                    {cat.group === ALL_GROUPS && <Check className="size-4" />}
+                  </button>
+                </li>
+                {cat.tree.map((g) => {
+                  const open = g.group === cat.group;
+                  return (
+                    <li key={g.group}>
+                      <button
+                        type="button"
+                        onClick={() => cat.setGroup(open ? ALL_GROUPS : g.group)}
+                        aria-expanded={open}
+                        className={cn(
+                          "flex w-full items-center justify-between rounded-btn px-2.5 py-1.5 text-left text-sm font-medium transition-colors",
+                          open ? "text-primary" : "text-muted hover:text-ink",
+                        )}
+                      >
+                        {g.label}
+                        <ChevronDown
+                          className={cn(
+                            "size-4 shrink-0 transition-transform",
+                            open && "rotate-180",
+                          )}
+                          aria-hidden
+                        />
+                      </button>
+                      {open && g.items.length > 1 && (
+                        <ul className="mb-1 ml-2.5 mt-1 space-y-0.5 border-l border-line pl-2.5">
+                          {g.items.map((leaf) => {
+                            const on = cat.subs.includes(leaf);
+                            return (
+                              <li key={leaf}>
+                                <button
+                                  type="button"
+                                  onClick={() => cat.toggleSub(leaf)}
+                                  aria-pressed={on}
+                                  className={cn(
+                                    "flex w-full items-center gap-2 rounded-btn px-2 py-1.5 text-left text-sm transition-colors",
+                                    on ? "font-semibold text-ink" : "text-muted hover:text-ink",
+                                  )}
+                                >
+                                  <span
+                                    aria-hidden
+                                    className={cn(
+                                      "flex size-4 shrink-0 items-center justify-center rounded border",
+                                      on
+                                        ? "border-primary bg-primary text-on-accent"
+                                        : "border-line",
+                                    )}
+                                  >
+                                    {on && <Check className="size-3" />}
+                                  </span>
+                                  {leaf}
+                                </button>
+                              </li>
+                            );
+                          })}
+                          {/* Says what no ticks MEANS — otherwise an empty set
+                              reads as "nothing filtered" when the whole general
+                              is in fact applied. */}
+                          {cat.subs.length === 0 && (
+                            <li className="px-2 py-1 text-xs text-muted">
+                              Showing all of {g.label}
+                            </li>
+                          )}
+                        </ul>
                       )}
-                    >
-                      {cat}
-                      {cat === category && <Check className="size-4" />}
-                    </button>
-                  </li>
-                ))}
+                    </li>
+                  );
+                })}
               </ul>
             </div>
 
@@ -873,7 +998,7 @@ export function StorefrontPage() {
                 // `term`, not `search`: keyed on the raw field the grid would
                 // replay its fade-in on every keystroke, while the results
                 // underneath only change once the debounce settles.
-                key={`${category}-${term}-${sort}-${availableOnly}-${maxPrice}-${sizes}-${colors}-${minRating}`}
+                key={`${cat.queryCategories ?? "all"}-${term}-${sort}-${availableOnly}-${maxPrice}-${sizes}-${colors}-${minRating}`}
                 className={cn("animate-grid-fade", view === "grid" ? GRID_CLASS : LIST_CLASS)}
               >
                 {filtered.map((p) => (

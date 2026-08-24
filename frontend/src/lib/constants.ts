@@ -16,16 +16,37 @@ export function statusForQty(qty: number): StockStatus {
 }
 
 /**
- * Product taxonomy. `product.category` stores the leaf (e.g. "Smartphones");
- * the group is presentation only — it becomes an <optgroup> in the product form
- * so the list stays navigable as it grows.
+ * Product taxonomy. `product.category` stores the LEAF (e.g. "Smartphones");
+ * the group above it is never written to a product.
+ *
+ * The group used to be presentation only — an <optgroup> in the seller's
+ * product form, and nothing else. It is now also the top level of the shopper's
+ * filter ribbon (see CategoryRail), which is what the two names on each entry
+ * are for:
+ *
+ *   `group` is the long, unambiguous name. It labels the optgroup in the
+ *   seller's form, where the list is read once, carefully, by someone deciding
+ *   where their product belongs.
+ *
+ *   `label` is the short one, for the shopper's chip. A ribbon is read in
+ *   peripheral vision at a glance, and "Health, Beauty & Personal Care" is not
+ *   a chip — it is a sentence that pushes every group after it off the strip.
+ *
+ * Adding a leaf here is free: it is a new option in the form and a new chip
+ * under its group. RENAMING or MOVING one is not — `products.category` holds
+ * the old string, so a rename orphans every product filed under it (they fall
+ * through to isLegacyCategory below and lose their place in the ribbon) unless
+ * a data migration moves them at the same time.
  */
 export const CATEGORY_GROUPS = [
   {
     group: "Consumer Electronics",
+    label: "Tech",
     items: [
       "Smartphones",
       "Laptops & Computers",
+      "Monitors",
+      "Computer Accessories",
       "Gaming Consoles",
       "Smart Home Gadgets",
       "Audio Equipment",
@@ -33,6 +54,7 @@ export const CATEGORY_GROUPS = [
   },
   {
     group: "Apparel, Shoes & Accessories",
+    label: "Fashion",
     items: [
       "Men's Clothing",
       "Women's Clothing",
@@ -45,10 +67,12 @@ export const CATEGORY_GROUPS = [
   },
   {
     group: "Health, Beauty & Personal Care",
+    label: "Beauty & Health",
     items: ["Cosmetics", "Skincare", "Hair Care", "Vitamins & Supplements", "Pharmacy"],
   },
   {
     group: "Food, Beverage & Grocery",
+    label: "Grocery",
     items: [
       "Fresh Produce",
       "Meat & Seafood",
@@ -60,6 +84,7 @@ export const CATEGORY_GROUPS = [
   },
   {
     group: "Home, Garden & Furniture",
+    label: "Home & Garden",
     items: [
       "Mattresses",
       "Home Decor",
@@ -71,16 +96,80 @@ export const CATEGORY_GROUPS = [
   },
   {
     group: "Media, Books & Entertainment",
+    label: "Media",
     items: ["Books", "Movies & TV", "Music", "Video Games"],
   },
   {
     group: "Toys, Baby & Kids",
+    label: "Kids & Baby",
     items: ["Strollers & Car Seats", "Diapers & Baby Care", "Educational Toys", "Board Games"],
   },
 ] as const;
 
 /** Every selectable leaf category, flattened. */
 export const CATEGORIES: readonly string[] = CATEGORY_GROUPS.flatMap((g) => g.items);
+
+/** The short chip name for a group, e.g. "Consumer Electronics" -> "Tech". */
+export const groupLabel = (group: string): string =>
+  CATEGORY_GROUPS.find((g) => g.group === group)?.label ?? group;
+
+/** The leaves under one group, or [] for a name that isn't a group. */
+export const groupItems = (group: string): readonly string[] =>
+  CATEGORY_GROUPS.find((g) => g.group === group)?.items ?? [];
+
+/**
+ * Which group a leaf belongs to, or null for a legacy/seller-invented category.
+ * Null is a real answer, not a failure: sellers typed their own categories
+ * before this taxonomy existed, and those products still have to be findable.
+ * See UNGROUPED.
+ */
+export const groupForCategory = (category: string): string | null =>
+  CATEGORY_GROUPS.find((g) => (g.items as readonly string[]).includes(category))?.group ?? null;
+
+/**
+ * The bucket for leaves no group claims.
+ *
+ * A shopper filtering by group must never make a product unreachable. Any
+ * category the taxonomy doesn't know — a legacy "Tops", or whatever a seller
+ * types next — collects here instead of quietly vanishing from a ribbon that
+ * only knows seven groups. It is only rendered when something is actually in
+ * it, so a tidy catalogue never sees the chip.
+ */
+export const UNGROUPED = "More";
+
+/**
+ * Fold the leaf categories a catalogue actually uses into the ribbon's two
+ * levels, dropping groups nothing is filed under.
+ *
+ * Driven by what is IN STOCK rather than by the taxonomy, because a ribbon is a
+ * promise: a chip that leads to an empty grid is worse than no chip. The facets
+ * RPC returns the leaves in use; everything here is the arrangement of that
+ * list, so a group appears the day a seller lists something under it and goes
+ * when the last one sells out.
+ *
+ * Group order follows CATEGORY_GROUPS (a deliberate merchandising order, not
+ * alphabetical); leaves keep their order within a group for the same reason.
+ * UNGROUPED, if present, sorts last — it is the "everything else" drawer.
+ */
+export function groupCategories(
+  inUse: readonly string[],
+): { group: string; label: string; items: string[] }[] {
+  const used = new Set(inUse);
+  // Annotated, not inferred: CATEGORY_GROUPS is `as const`, so an inferred
+  // element type would be the literal union of the seven group names and the
+  // UNGROUPED bucket appended below would not be assignable to it.
+  const out: { group: string; label: string; items: string[] }[] = CATEGORY_GROUPS.map((g) => ({
+    group: g.group,
+    label: g.label,
+    items: (g.items as readonly string[]).filter((i) => used.has(i)),
+  })).filter((g) => g.items.length > 0);
+
+  const orphans = inUse.filter((c) => groupForCategory(c) === null);
+  if (orphans.length > 0) {
+    out.push({ group: UNGROUPED, label: UNGROUPED, items: [...orphans] });
+  }
+  return out;
+}
 
 /**
  * True for a category saved before this taxonomy existed (e.g. "Tops"). The
