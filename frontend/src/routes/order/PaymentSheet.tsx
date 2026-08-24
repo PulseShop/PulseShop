@@ -36,6 +36,7 @@ export function PaymentSheet({
   orderReference,
   notify,
   onPaid,
+  defaultMethod = "mpesa",
 }: {
   open: boolean;
   onOpenChange: (open: boolean) => void;
@@ -48,16 +49,26 @@ export function PaymentSheet({
    * channel the buyer picked in checkout (whichever the seller has set up). */
   notify: Notify | null;
   onPaid: (method: PaymentMethod) => void;
+  /** Method the buyer already picked on the checkout page. The sheet still
+   * shows its own toggle — this only decides which one starts selected, so
+   * nobody is asked the same question twice. */
+  defaultMethod?: PaymentMethod;
 }) {
   const push = useToasts((s) => s.push);
   const [stage, setStage] = useState<Stage>({ step: "choose" });
-  const [method, setMethod] = useState<PaymentMethod>("mpesa");
+  const [method, setMethod] = useState<PaymentMethod>(defaultMethod);
   const [phone, setPhone] = useState(defaultPhone);
 
   // prefill with the customer's phone from the order form each time the sheet opens
   useEffect(() => {
     if (open && defaultPhone) setPhone(defaultPhone);
   }, [open, defaultPhone]);
+
+  // Re-sync when the sheet reopens: the buyer may have changed the method on
+  // the checkout page between attempts.
+  useEffect(() => {
+    if (open) setMethod(defaultMethod);
+  }, [open, defaultMethod]);
 
   const reset = (next: boolean) => {
     onOpenChange(next);

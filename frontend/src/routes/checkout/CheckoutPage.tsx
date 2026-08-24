@@ -1,6 +1,16 @@
 import { zodResolver } from "@hookform/resolvers/zod";
 import { useQuery } from "@tanstack/react-query";
-import { AlertTriangle, ArrowLeft, Loader2, ShieldCheck, Star, Truck } from "lucide-react";
+import type { LucideIcon } from "lucide-react";
+import {
+  AlertTriangle,
+  ArrowLeft,
+  CircleCheck,
+  Loader2,
+  Lock,
+  Phone,
+  ShieldCheck,
+  Star,
+} from "lucide-react";
 import { useEffect, useState } from "react";
 import { useForm } from "react-hook-form";
 import { Navigate, useNavigate } from "react-router";
@@ -11,7 +21,7 @@ import { orderErrorMessage } from "@/lib/orderErrors";
 import { MobileShell } from "@/components/layout/MobileShell";
 import { ProductImage } from "@/components/product/ProductImage";
 import { RecommendedProducts } from "@/components/product/RecommendedProducts";
-import { FacebookIcon, InstagramIcon, WhatsAppIcon } from "@/components/ui/BrandIcons";
+import { FacebookIcon, InstagramIcon, PayPalIcon, WhatsAppIcon } from "@/components/ui/BrandIcons";
 import { Button } from "@/components/ui/Button";
 import { Input, Textarea } from "@/components/ui/Input";
 import { Skeleton } from "@/components/ui/Skeleton";
@@ -56,6 +66,47 @@ const channels: { id: Channel; label: string; icon: typeof WhatsAppIcon }[] = [
   { id: "facebook", label: "Facebook", icon: FacebookIcon },
 ];
 
+/**
+ * The payment methods offered on the page.
+ *
+ * Deliberately only the two the platform can actually charge (see
+ * PaymentMethod in @/types). A checkout that shows a wallet button it cannot
+ * complete costs more trust at this exact step than the extra logo buys.
+ * Brand marks keep their own colours — a teal PayPal mark is not PayPal — while
+ * every piece of UI chrome around them takes the brand accent.
+ */
+type AnyIcon = LucideIcon | typeof PayPalIcon;
+
+const payMethods: {
+  id: PaymentMethod;
+  label: string;
+  hint: string;
+  icon: AnyIcon;
+  iconClass: string;
+}[] = [
+  {
+    id: "mpesa",
+    label: "M-Pesa",
+    hint: "STK push to your phone",
+    icon: Phone,
+    iconClass: "text-success",
+  },
+  {
+    id: "paypal",
+    label: "PayPal",
+    hint: "Card or PayPal balance",
+    icon: PayPalIcon,
+    iconClass: "text-facebook",
+  },
+];
+
+/** Claims the platform can actually back, under the pay button. */
+const trustMarks: { label: string; icon: LucideIcon }[] = [
+  { label: "SSL encrypted", icon: Lock },
+  { label: "Secure payment", icon: ShieldCheck },
+  { label: "Seller confirms", icon: CircleCheck },
+];
+
 export function CheckoutPage() {
   const navigate = useNavigate();
   const push = useToasts((s) => s.push);
@@ -76,6 +127,9 @@ export function CheckoutPage() {
     enabled: Boolean(shopSlug),
   });
   const [channel, setChannel] = useState<Channel>("whatsapp");
+  // Chosen on the page (the summary panel) and handed to the sheet, so the
+  // buyer is not asked which method twice.
+  const [payMethod, setPayMethod] = useState<PaymentMethod>("mpesa");
   const [payOpen, setPayOpen] = useState(false);
   const [placing, setPlacing] = useState(false);
   const [pendingReference, setPendingReference] = useState<string | null>(null);
@@ -150,6 +204,9 @@ export function CheckoutPage() {
   const shopClosed = merchant.shopStatus !== "open";
 
   const total = cartSubtotal(items);
+  // Units, not lines: "3 items" beside a two-line list is what the shopper
+  // counts in their hands.
+  const itemCount = items.reduce((n, i) => n + i.qty, 0);
   // Subtracted from the cart's own total rather than trusting the preview's
   // `newTotal` directly — the preview ignores variant price adjustments, so
   // deriving the shown total from the number the cart already computed keeps
@@ -284,9 +341,9 @@ export function CheckoutPage() {
   };
 
   return (
-    // `wide` past lg: checkout used to be a 430px column on a 1440px screen, so
-    // a desktop buyer scrolled through four stacked cards to reach a button that
-    // could have been on the first screen. See the two-column grid below.
+    // `wide` past lg: two columns, mirroring a desktop checkout — order + form
+    // on the left, the payment receipt pinned on the right where the pay button
+    // sits at the end of the reading.
     <MobileShell nav={false} wide>
       <header className="glass-header sticky top-0 z-30 flex items-center gap-3 px-3 py-3 lg:px-6">
         {/* mobile's back lives in the floating button (MobileShell) */}
@@ -294,43 +351,51 @@ export function CheckoutPage() {
           type="button"
           aria-label="Go back"
           onClick={() => navigate(-1)}
-          className="hidden size-11 items-center justify-center rounded-full bg-card shadow-soft focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary lg:flex"
+          className="hidden size-11 items-center justify-center rounded-full bg-card shadow-soft transition-transform hover:-translate-x-0.5 active:scale-95 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary lg:flex"
         >
           <ArrowLeft className="size-5" />
         </button>
-        <h1 className="text-base font-extrabold text-ink">Checkout</h1>
+        <span className="text-base font-extrabold text-ink">Checkout</span>
+        {/* the desktop mark lives beside the page title instead */}
+        <span className="ml-auto flex items-center gap-1.5 text-xs font-semibold text-primary lg:hidden">
+          <Lock className="size-3.5" aria-hidden />
+          Secure
+        </span>
       </header>
 
-      <div className="px-4 pb-10 pt-1 lg:px-6 lg:pb-14 lg:pt-4">
-        {/*
-          Two columns past lg, and in this order: what we still need from you on
-          the LEFT, what you are buying on the right.
+      <div className="px-4 pb-10 pt-3 lg:px-6 lg:pb-14 lg:pt-6">
+        {/* The page's own title, centred, with the security mark held out to the
+            right — the buyer's eye lands on the words, not on the badge. */}
+        <div className="relative mb-6 flex items-center justify-center lg:mb-9">
+          <h1 className="text-center text-[26px] leading-tight text-ink lg:text-[34px]">
+            Secure checkout
+          </h1>
+          <span className="absolute right-0 hidden items-center gap-2 rounded-btn border border-primary/25 bg-primary/[0.07] px-3 py-1.5 text-sm font-semibold text-primary lg:flex">
+            <Lock className="size-4" aria-hidden />
+            Secure
+          </span>
+        </div>
 
-          The summary used to lead. It reads well enough, but it puts the one
-          part of the page the buyer cannot act on in the position their eye
-          lands on first, and pushes the fields — the only reason this page
-          exists — into the narrow column. Checkouts that convert do it the
-          other way round: the form is the main column, the summary is a narrow
-          receipt pinned beside it that stays legible while they type, and the
-          pay button sits at the bottom of the form where the reading ends.
+        <div className="lg:grid lg:grid-cols-[minmax(0,1fr)_minmax(0,392px)] lg:items-start lg:gap-7">
+          {/* ================= LEFT: order + shipping ================= */}
+          <div className="space-y-4 lg:order-1">
+            {/* ---------------- your order summary ---------------- */}
+            <section className="overflow-hidden rounded-card border border-line-soft bg-card shadow-soft">
+              <div className="flex items-baseline justify-between gap-3 border-b border-line-soft px-5 py-4">
+                <h2 className="text-xl text-ink">Your order summary</h2>
+                <span className="shrink-0 text-sm font-semibold tabular-nums text-muted">
+                  {itemCount} {itemCount === 1 ? "item" : "items"}
+                </span>
+              </div>
 
-          Phones are untouched in substance: one column, summary first, because
-          with a single column the buyer wants to confirm what they are paying
-          for before being asked for anything. `order-*` does that swap without
-          duplicating the markup.
-        */}
-        <div className="lg:grid lg:grid-cols-[minmax(0,1fr)_minmax(0,380px)] lg:items-start lg:gap-8">
-          {/* ---------------- order summary (right on desktop) ---------------- */}
-          <aside className="lg:order-2 lg:sticky lg:top-24">
-            <div className="overflow-hidden rounded-card border border-line-soft bg-card shadow-soft">
               {/* Who you are buying from. The cart is single-shop, so this is
                   one named seller — and naming them here is what makes the
                   receipt read as a deal with a person rather than a form. */}
-              <div className="flex items-center gap-3 border-b border-line-soft px-4 py-3.5">
+              <div className="flex items-center gap-3 border-b border-line-soft bg-fill-soft px-5 py-3">
                 <img
                   src={merchant.avatarUrl}
                   alt=""
-                  className="size-10 shrink-0 rounded-full object-cover"
+                  className="size-9 shrink-0 rounded-full object-cover"
                 />
                 <div className="min-w-0">
                   <p className="truncate text-sm font-extrabold text-ink">{merchant.name}</p>
@@ -354,7 +419,7 @@ export function CheckoutPage() {
                             />
                           ))}
                         </div>
-                        <span className="text-xs font-semibold text-ink">
+                        <span className="text-xs font-semibold tabular-nums text-ink">
                           {merchant.stats.rating.toFixed(1)}
                         </span>
                       </>
@@ -364,38 +429,189 @@ export function CheckoutPage() {
                 </div>
               </div>
 
-              {/* line items */}
-              <div className="space-y-3 px-4 py-3.5">
-                {items.map((item) => (
-                  <div
+              {/* Numbered lines — thumbnail / name+variant / qty / price. The
+                  four columns line up down the list so the eye can total it. */}
+              <ol className="divide-y divide-line-soft">
+                {items.map((item, i) => (
+                  <li
                     key={`${item.productId}-${variantKey(item.size, item.color)}`}
-                    className="flex items-start gap-3"
+                    className="flex items-center gap-2.5 px-4 py-3.5 sm:gap-4 sm:px-5 sm:py-4"
                   >
+                    <span className="w-4 shrink-0 text-sm font-semibold tabular-nums text-muted">
+                      {i + 1}.
+                    </span>
                     <ProductImage
                       src={item.image}
                       alt={item.name}
-                      className="size-14 shrink-0 rounded-lg object-cover"
+                      className="size-12 shrink-0 rounded-lg border border-line-soft object-cover sm:size-16"
                     />
                     <div className="min-w-0 flex-1">
-                      <p className="line-clamp-2 text-sm font-semibold leading-snug text-ink">
+                      <p className="line-clamp-2 text-[15px] font-semibold leading-snug text-ink">
                         {item.name}
                       </p>
-                      <p className="mt-0.5 text-xs text-muted">
-                        {variantLabel(item.size, item.color)
-                          ? `${variantLabel(item.size, item.color)} · `
-                          : ""}
-                        Qty {item.qty}
+                      <p className="mt-1 text-sm text-muted">
+                        {variantLabel(item.size, item.color) || "Standard"}
+                        {/* qty rides along on phones, where its own column
+                            would squeeze the name down to two words */}
+                        <span className="tabular-nums sm:hidden"> · Qty {item.qty}</span>
                       </p>
                     </div>
-                    <p className="shrink-0 text-sm font-bold text-ink">
+                    <span className="hidden w-16 shrink-0 text-sm tabular-nums text-muted sm:block">
+                      Qty: {item.qty}
+                    </span>
+                    <span className="min-w-[76px] shrink-0 text-right text-sm font-bold tabular-nums text-ink sm:w-24 sm:text-[15px]">
                       {formatKes(item.unitPrice * item.qty)}
-                    </p>
-                  </div>
+                    </span>
+                  </li>
                 ))}
+              </ol>
+            </section>
+
+            {/* ---------------- shipping & contact information ---------------- */}
+            <section className="overflow-hidden rounded-card border border-line-soft bg-card shadow-soft">
+              <div className="border-b border-line-soft px-5 py-4">
+                <h2 className="text-xl text-ink">Shipping &amp; contact information</h2>
+              </div>
+
+              <div className="grid gap-6 px-5 py-5 md:grid-cols-2 md:gap-7">
+                {/* left half — the fields */}
+                <div className="space-y-3.5">
+                  <p className="text-sm font-bold text-ink">Your details</p>
+                  <Input
+                    label="Full name"
+                    placeholder="Jane Wanjiku"
+                    error={errors.name?.message}
+                    {...register("name")}
+                  />
+                  <Input
+                    label="Phone"
+                    placeholder="+254 712 345 678"
+                    inputMode="tel"
+                    error={errors.phone?.message}
+                    {...register("phone")}
+                  />
+                </div>
+
+                {/* right half — delivery, then the channel the seller replies on */}
+                <div className="space-y-3.5">
+                  <p className="text-sm font-bold text-ink">Delivery options</p>
+                  {/* Sellers arrange and price delivery themselves over the
+                      chosen channel, so this names the options the shop offers
+                      rather than quoting a figure PulseShop cannot stand
+                      behind. */}
+                  <div className="flex items-start gap-3 rounded-btn border border-primary/30 bg-primary/[0.06] px-3.5 py-3">
+                    <span
+                      className="mt-0.5 flex size-[18px] shrink-0 items-center justify-center rounded-full border-2 border-primary"
+                      aria-hidden
+                    >
+                      <span className="size-2 rounded-full bg-primary" />
+                    </span>
+                    <div className="min-w-0">
+                      <p className="text-sm font-semibold capitalize text-ink">
+                        {fulfillmentLabel(merchant.fulfillment)}
+                      </p>
+                      <p className="mt-0.5 text-xs leading-relaxed text-muted">
+                        Cost and timing are agreed with the seller once they confirm your order.
+                      </p>
+                    </div>
+                  </div>
+
+                  <p className="pt-1 text-sm font-bold text-ink">Where the seller reaches you</p>
+                  <div className="grid grid-cols-3 gap-2 rounded-btn bg-fill p-1">
+                    {channels.map(({ id: ch, label, icon: Icon }) => {
+                      const available = Boolean(merchant.contacts[ch]);
+                      return (
+                        <button
+                          key={ch}
+                          type="button"
+                          onClick={() => available && setChannel(ch)}
+                          disabled={!available}
+                          aria-label={available ? label : `${label}, not set up by this seller`}
+                          className={cn(
+                            "flex h-11 items-center justify-center gap-1.5 rounded-[10px] text-xs font-bold transition-all duration-200 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary",
+                            !available && "cursor-not-allowed opacity-35",
+                            available && channel === ch
+                              ? "bg-card text-ink shadow-soft"
+                              : "text-muted hover:text-ink",
+                          )}
+                        >
+                          <Icon
+                            className={cn(
+                              "size-4",
+                              available && ch === "whatsapp" && "text-whatsapp",
+                              available && ch === "instagram" && "text-instagram",
+                              available && ch === "facebook" && "text-facebook",
+                            )}
+                          />
+                          {label}
+                        </button>
+                      );
+                    })}
+                  </div>
+                  <p className="text-xs leading-relaxed text-muted">
+                    Once you pay, your order goes to{" "}
+                    <span className="font-bold text-ink">{merchant.name}</span> via{" "}
+                    <span className="font-bold text-ink">{CHANNEL_LABEL[channel]}</span>. They
+                    confirm
+                    stock and delivery with you.
+                  </p>
+                </div>
+              </div>
+
+              {/* order notes — full width beneath both halves */}
+              <div className="border-t border-line-soft px-5 py-5">
+                <Textarea
+                  label="Order notes / special instructions"
+                  placeholder="Estate or building, landmark, preferred delivery time, gift message…"
+                  error={errors.notes?.message}
+                  {...register("notes")}
+                />
+              </div>
+            </section>
+          </div>
+
+          {/* ================= RIGHT: payment summary ================= */}
+          <aside className="mt-4 space-y-3 lg:sticky lg:top-24 lg:order-2 lg:mt-0">
+            <div className="overflow-hidden rounded-card border border-line-soft bg-card shadow-soft">
+              <div className="border-b border-line-soft px-5 py-4">
+                <h2 className="text-xl text-ink">Payment summary</h2>
+              </div>
+
+              {/* Itemised, always. A lone "Total" with nothing above it reads as
+                  a number the page made up; Subtotal shows even at full price so
+                  the arithmetic is visible either way. */}
+              <div className="space-y-2.5 px-5 py-4">
+                <div className="flex items-baseline justify-between gap-3 text-sm">
+                  <span className="text-muted">
+                    Subtotal{" "}
+                    <span className="tabular-nums">
+                      ({itemCount} {itemCount === 1 ? "item" : "items"})
+                    </span>
+                  </span>
+                  <span className="font-medium tabular-nums text-ink">{formatKes(total)}</span>
+                </div>
+                <div className="flex items-baseline justify-between gap-3 text-sm">
+                  <span className="text-muted">Delivery</span>
+                  <span className="text-right font-medium text-ink">Arranged with seller</span>
+                </div>
+                {applied?.preview.valid && (
+                  <div className="flex items-baseline justify-between gap-3 text-sm">
+                    <span className="truncate text-muted">Promo code ({applied.code})</span>
+                    <span className="shrink-0 font-semibold tabular-nums text-primary">
+                      −{formatKes(discountKes)}
+                    </span>
+                  </div>
+                )}
+                <div className="mt-1 flex items-baseline justify-between gap-3 border-t border-line-soft pt-3">
+                  <span className="text-base font-extrabold text-ink">Order total</span>
+                  <span className="text-xl font-extrabold tabular-nums text-ink">
+                    {formatKes(displayTotal)}
+                  </span>
+                </div>
               </div>
 
               {/* discount code */}
-              <div className="border-t border-line-soft px-4 py-3.5">
+              <div className="border-t border-line-soft px-5 py-4">
                 <DiscountCodeSection
                   merchantId={merchant.id}
                   items={items.map((i) => ({ productId: i.productId, qty: i.qty }))}
@@ -410,108 +626,91 @@ export function CheckoutPage() {
                 />
               </div>
 
-              {/* Itemised, always. A lone "Total" with nothing above it reads as
-                  a number the page made up; Subtotal shows even at full price so
-                  the arithmetic is visible either way. */}
-              <div className="space-y-2 border-t border-line-soft px-4 py-3.5">
-                <div className="flex items-center justify-between text-sm">
-                  <span className="text-muted">Subtotal</span>
-                  <span className="font-medium text-ink">{formatKes(total)}</span>
-                </div>
-                {applied?.preview.valid && (
-                  <div className="flex items-center justify-between text-sm">
-                    <span className="text-muted">Discount ({applied.code})</span>
-                    <span className="font-semibold text-success">−{formatKes(discountKes)}</span>
-                  </div>
-                )}
-                <div className="flex items-center justify-between text-sm">
-                  <span className="text-muted">Delivery</span>
-                  {/* Sellers arrange and price delivery themselves over the
-                      chosen channel, so a figure here would be a number
-                      PulseShop cannot stand behind. Saying so beats omitting
-                      the line and letting the total look like it covers it. */}
-                  <span className="font-medium text-ink">Arranged with seller</span>
-                </div>
-                <div className="flex items-center justify-between border-t border-line-soft pt-2.5">
-                  <span className="text-base font-extrabold text-ink">Total to pay</span>
-                  <span className="text-lg font-extrabold text-ink">{formatKes(displayTotal)}</span>
-                </div>
-              </div>
-            </div>
-          </aside>
-
-          {/* ---------------- the form (left on desktop) ---------------- */}
-          <div className="mt-4 space-y-4 lg:order-1 lg:mt-0">
-            {/* customer fields */}
-            <div className="space-y-3 rounded-card border border-line-soft bg-card p-4 shadow-soft">
-              <h2 className="text-[15px] font-extrabold text-ink">Delivery details</h2>
-              <Input
-                label="Full Name"
-                placeholder="Jane Wanjiku"
-                error={errors.name?.message}
-                {...register("name")}
-              />
-              <Input
-                label="Phone"
-                placeholder="+254 712 345 678"
-                inputMode="tel"
-                error={errors.phone?.message}
-                {...register("phone")}
-              />
-              <Textarea
-                label="Delivery location & notes (optional)"
-                placeholder="Estate / building, landmark, preferred delivery time…"
-                error={errors.notes?.message}
-                {...register("notes")}
-              />
-              <div className="flex items-center gap-2 rounded-btn bg-fill-soft px-3 py-2.5 text-xs">
-                <Truck className="size-4 shrink-0 text-primary" />
-                <span className="text-muted">
-                  This shop offers{" "}
-                  <span className="font-bold text-ink">{fulfillmentLabel(merchant.fulfillment)}</span>
-                  .
-                </span>
-              </div>
-            </div>
-
-            {/* channel selector + context notice — only channels the seller set up */}
-            <div className="space-y-3 rounded-card border border-line-soft bg-card p-4 shadow-soft">
-              <h2 className="text-[15px] font-extrabold text-ink">Where the seller reaches you</h2>
-              <div className="grid grid-cols-3 gap-2 rounded-btn bg-fill p-1">
-                {channels.map(({ id: ch, label, icon: Icon }) => {
-                  const available = Boolean(merchant.contacts[ch]);
-                  return (
-                    <button
-                      key={ch}
-                      type="button"
-                      onClick={() => available && setChannel(ch)}
-                      disabled={!available}
-                      aria-label={available ? label : `${label} — not set up by this seller`}
-                      className={cn(
-                        "flex h-11 items-center justify-center gap-1.5 rounded-[10px] text-xs font-bold transition-all focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary",
-                        !available && "cursor-not-allowed opacity-35",
-                        available && channel === ch ? "bg-card text-ink shadow-soft" : "text-muted",
-                      )}
-                    >
-                      <Icon
+              {/* ---------------- payment method ---------------- */}
+              <div className="border-t border-line-soft px-5 py-4">
+                <h3 className="font-sans-force mb-3 text-sm font-bold text-ink">Payment method</h3>
+                {/* Picked here so the sheet opens straight onto the buyer's
+                    choice instead of asking the same question twice. Only the
+                    two methods the platform can actually charge are offered — a
+                    dead wallet button on the pay screen is worse than none. */}
+                <div role="radiogroup" aria-label="Payment method" className="space-y-2">
+                  {payMethods.map(({ id, label, hint, icon: Icon, iconClass }) => {
+                    const selected = payMethod === id;
+                    return (
+                      <button
+                        key={id}
+                        type="button"
+                        role="radio"
+                        aria-checked={selected}
+                        onClick={() => setPayMethod(id)}
                         className={cn(
-                          "size-4",
-                          available && ch === "whatsapp" && "text-whatsapp",
-                          available && ch === "instagram" && "text-instagram",
-                          available && ch === "facebook" && "text-facebook",
+                          "flex w-full items-center gap-3 rounded-btn border px-3.5 py-3 text-left transition-all duration-200 active:scale-[0.99] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary focus-visible:ring-offset-2 focus-visible:ring-offset-card",
+                          selected
+                            ? "border-primary bg-primary/[0.06]"
+                            : "border-line bg-card hover:border-primary/45",
                         )}
-                      />
-                      {label}
-                    </button>
-                  );
-                })}
+                      >
+                        <span
+                          className={cn(
+                            "flex size-[18px] shrink-0 items-center justify-center rounded-full border-2 transition-colors",
+                            selected ? "border-primary" : "border-faint",
+                          )}
+                          aria-hidden
+                        >
+                          {selected && <span className="size-2 rounded-full bg-primary" />}
+                        </span>
+                        <Icon className={cn("size-5 shrink-0", iconClass)} aria-hidden />
+                        <span className="min-w-0 flex-1">
+                          <span className="block text-sm font-bold text-ink">{label}</span>
+                          <span className="block text-xs text-muted">{hint}</span>
+                        </span>
+                      </button>
+                    );
+                  })}
+                </div>
               </div>
-              <p className="text-xs leading-relaxed text-muted">
-                Once you pay, your order will be sent to{" "}
-                <span className="font-bold text-ink">{merchant.name}</span> via{" "}
-                <span className="font-bold text-ink capitalize">{channel}</span>. They'll confirm
-                stock and delivery.
-              </p>
+
+              {/* ---------------- place order ---------------- */}
+              <div className="space-y-3 border-t border-line-soft px-5 py-4">
+                {/* Order placement decrements stock before anyone has paid, so it is
+                    captcha-gated like the auth forms. Renders nothing when no site key
+                    is set (dev/mock), and the button stays enabled in that case. */}
+                <Captcha
+                  key={captcha.nonce}
+                  onToken={captcha.setToken}
+                  onExpire={() => captcha.setToken(undefined)}
+                />
+
+                {/* Carries the figure so nobody has to look back up the panel to
+                    check what they are about to be charged. */}
+                <Button
+                  size="lg"
+                  className="w-full text-[15px]"
+                  onClick={openPayment}
+                  disabled={placing || !captcha.ready || shopClosed}
+                >
+                  {placing ? (
+                    <>
+                      <Loader2 className="size-5 animate-spin" />
+                      Placing order…
+                    </>
+                  ) : (
+                    <>Place order · {formatKes(displayTotal)}</>
+                  )}
+                </Button>
+
+                <ul className="flex flex-wrap items-center justify-center gap-x-4 gap-y-1.5 pt-0.5">
+                  {trustMarks.map(({ label, icon: Icon }) => (
+                    <li
+                      key={label}
+                      className="flex items-center gap-1.5 text-[11px] font-semibold text-muted"
+                    >
+                      <Icon className="size-3.5 shrink-0 text-primary" aria-hidden />
+                      {label}
+                    </li>
+                  ))}
+                </ul>
+              </div>
             </div>
 
             {shopClosed && (
@@ -524,52 +723,22 @@ export function CheckoutPage() {
               </div>
             )}
 
-            {/* Order placement decrements stock before anyone has paid, so it is
-                captcha-gated like the auth forms. Renders nothing when no site key
-                is set (dev/mock), and the button stays enabled in that case. */}
-            <Captcha
-              key={captcha.nonce}
-              onToken={captcha.setToken}
-              onExpire={() => captcha.setToken(undefined)}
-            />
-
-            {/* The pay button belongs at the end of the form, not floating beside
-                the receipt: this is where the reading stops. It carries the
-                figure so nobody has to look back across the page to check what
-                they are about to be charged. */}
-            <Button
-              variant="dark"
-              size="lg"
-              className="w-full text-[15px]"
-              onClick={openPayment}
-              disabled={placing || !captcha.ready || shopClosed}
-            >
-              {placing ? (
-                <>
-                  <Loader2 className="size-5 animate-spin" />
-                  Placing order…
-                </>
-              ) : (
-                `Pay ${formatKes(displayTotal)} now`
-              )}
-            </Button>
-
-            <p className="flex items-center justify-center gap-1.5 px-2 text-center text-xs leading-relaxed text-muted">
-              <ShieldCheck className="size-4 shrink-0 text-success" />
+            <p className="flex items-start justify-center gap-1.5 px-2 text-center text-xs leading-relaxed text-muted">
+              <ShieldCheck className="mt-0.5 size-4 shrink-0 text-primary" />
               <span>
                 Your order isn't complete until{" "}
                 <span className="font-semibold text-ink">{merchant.name}</span> confirms stock and
                 delivery with you.
               </span>
             </p>
-          </div>
+          </aside>
         </div>
 
         {/* One more nudge before they pay — more from the same shop (the cart is
             single-shop), minus what's already in the cart. Full width under both
             columns: it is a browsing rail, not part of the checkout flow, and it
             must not push the order button further down the page. */}
-        <div className="mt-4 lg:mt-12">
+        <div className="mt-6 lg:mt-12">
           <RecommendedProducts
             title="You may also like"
             shopId={merchant.id}
@@ -585,6 +754,7 @@ export function CheckoutPage() {
         onOpenChange={setPayOpen}
         amount={displayTotal}
         defaultPhone={getValues("phone") || customer.phone}
+        defaultMethod={payMethod}
         merchantName={merchant.name}
         orderReference={pendingReference ?? ""}
         notify={pendingNotify}
