@@ -53,8 +53,8 @@ export default defineConfig({
         name: "PulseShop",
         short_name: "PulseShop",
         description: "Social-commerce storefront — browse, favorite, and order in one tap.",
-        theme_color: "#0D9488",
-        background_color: "#FAFAF9",
+        theme_color: "#faf9f5",
+        background_color: "#faf9f5",
         display: "standalone",
         start_url: "/",
         icons: [

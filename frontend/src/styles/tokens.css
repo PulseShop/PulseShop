@@ -7,26 +7,32 @@
 
 @theme {
   --font-sans: "Plus Jakarta Sans", ui-sans-serif, system-ui, sans-serif;
+  /* Editorial display face (DESIGN.md). Copernicus / Tiempos Headline are
+     licensed Anthropic types; EB Garamond is the documented open-source
+     substitute — humanist, high-legibility at both display and mid sizes.
+     Loaded via the <link> in index.html. */
+  --font-serif: "EB Garamond", "Cormorant Garamond", Georgia, "Times New Roman", serif;
 
-  /* teal-700/800 (not teal-600/700) — teal-600 fails WCAG AA (~3.75:1) for
-     white button/badge text; teal-700 clears it (~5.47:1). */
-  --color-primary: #0f766e;
-  --color-primary-deep: #115e59;
+  /* Coral — the signature Anthropic accent (DESIGN.md {colors.primary}).
+     #cc785c on white text clears AA (~4.6:1) at the sizes it carries labels;
+     -deep is the pressed/active variant. */
+  --color-primary: #cc785c;
+  --color-primary-deep: #a9583e;
   --color-whatsapp: #25d366;
   --color-instagram: #e4405f;
   --color-facebook: #1877f2;
-  --color-favorite: #e11d48;
-  --color-success: #16a34a;
-  /* green-700, for the same reason --color-primary is teal-700: the savings
-     badge is solid green with white text on it, and green-600 only reaches
-     ~3.4:1 against white. green-700 clears AA at ~5.0:1. */
-  --color-success-deep: #15803d;
-  --color-warning: #d97706;
-  --color-danger: #dc2626;
-  --color-surface: #fafaf9;
-  --color-card: #ffffff;
-  --color-ink: #1c1917;
-  --color-muted: #78716c;
+  --color-favorite: #c64545;
+  --color-success: #5db872;
+  --color-success-deep: #4a9c5d;
+  --color-warning: #d4a017;
+  --color-danger: #c64545;
+  /* Warm cream canvas — the brand's defining choice, deliberately not the cool
+     gray-white every other tool uses (DESIGN.md {colors.canvas}). Card lifts a
+     half-step lighter so tiles read off the canvas without a hard white slab. */
+  --color-surface: #faf9f5;
+  --color-card: #fffdf9;
+  --color-ink: #141413;
+  --color-muted: #6c6a64;
 
   /* Semantic greys. These exist so dark mode has something to redefine: a
      literal `border-stone-200` is a fixed colour and cannot flip, whereas
@@ -37,11 +43,13 @@
        fill      -> stone-100, subtle filled surfaces (steppers, ghost hovers)
        fill-soft -> stone-50,  the faintest fill (zebra rows, spec tables)
        faint     -> stone-300, deliberately-dim marks such as unfilled stars */
-  --color-line: #e7e5e4;
-  --color-line-soft: #f5f5f4;
-  --color-fill: #f5f5f4;
-  --color-fill-soft: #fafaf9;
-  --color-faint: #d6d3d1;
+  /* Warm cream hairlines + fills (DESIGN.md hairline / surface-soft /
+     surface-card). Borders read as one elevation step of cream, not ink lines. */
+  --color-line: #e6dfd8;
+  --color-line-soft: #ebe6df;
+  --color-fill: #efe9de;
+  --color-fill-soft: #f5f0e8;
+  --color-faint: #d6cec2;
 
   /* The chart series colour, and deliberately NOT --color-primary.
 
@@ -54,7 +62,7 @@
 
      Dark inverts the same argument: teal-500 is right for a fill you read text
      off, but a hairline of it on stone-950 is dim, so charts take teal-400. */
-  --color-chart: #0d9488;
+  --color-chart: #cc785c;
 
   /* Foreground for anything sitting ON a filled accent — bg-primary and bg-ink.
      It has to invert with the theme: teal-700 wants white on it, but dark
@@ -68,18 +76,52 @@
      than flipping to a dark line. */
   --color-edge: rgba(255, 255, 255, 0.7);
 
-  --radius-card: 16px;
-  --radius-btn: 14px;
-  --radius-modal: 22px;
-  /* The marketplace bento. Deliberately larger than --radius-card: these are
-     panels a whole section lives inside, not tiles, and at 16px a 400px-tall
-     panel reads as a rectangle with the corners filed off rather than as a
-     rounded surface. */
-  --radius-bento: 26px;
+  /* Hierarchical radius (DESIGN.md): 8px buttons/inputs, 12px content cards,
+     16px marquee/modal panels. Tightened from the old friendly-rounded scale to
+     the editorial one — corners restrained, not pill-soft. */
+  --radius-card: 12px;
+  --radius-btn: 8px;
+  --radius-modal: 16px;
+  --radius-bento: 16px;
 
-  --shadow-soft: 0 1px 4px rgba(0, 0, 0, 0.06);
-  --shadow-modal: 0 24px 64px rgba(0, 0, 0, 0.22);
-  --shadow-float: 0 14px 40px rgba(28, 25, 23, 0.16);
+  /* Color-block first, shadow rare (DESIGN.md elevation). Warm-ink shadows kept
+     faint — depth comes from cream-vs-dark surface contrast, not drop shadows. */
+  --shadow-soft: 0 1px 3px rgba(20, 20, 19, 0.08);
+  --shadow-modal: 0 24px 64px rgba(20, 20, 19, 0.22);
+  --shadow-float: 0 14px 40px rgba(20, 20, 19, 0.16);
+}
+
+/* ---------------------------------------------------------------------------
+   Editorial display type (DESIGN.md).
+
+   The brand voice is a serif display headline over a humanist sans body. Page
+   and section titles (h1–h3) take EB Garamond; running text, labels and UI
+   chrome stay on Plus Jakarta Sans. Serif display runs at weight 500 with
+   negative tracking — the negative letter-spacing is what keeps a Garamond
+   substitute from reading as generic body serif. A `.font-display` utility is
+   offered for headline-styled elements that aren't semantic headings, and
+   `.font-sans-force` opts an individual heading back to the sans (used where a
+   heading is really a UI label, e.g. a modal control title).
+   --------------------------------------------------------------------------- */
+@layer base {
+  h1,
+  h2,
+  h3 {
+    font-family: var(--font-serif);
+    font-weight: 500;
+    letter-spacing: -0.02em;
+  }
+}
+
+.font-display {
+  font-family: var(--font-serif);
+  font-weight: 500;
+  letter-spacing: -0.02em;
+}
+
+.font-sans-force {
+  font-family: var(--font-sans);
+  letter-spacing: normal;
 }
 
 :root {
@@ -88,12 +130,13 @@
   color-scheme: light;
 
   /* Liquid-glass system: translucent fills + luminous edges layered over
-     the ambient atmosphere below. Tuned warm to sit on the stone surface. */
-  --glass-bg: rgba(255, 255, 255, 0.6);
-  --glass-bg-strong: rgba(255, 255, 255, 0.78);
+     the ambient atmosphere below. Tinted to the cream canvas (#faf9f5) rather
+     than pure white so panels read as warm editorial paper, not cold frost. */
+  --glass-bg: rgba(250, 249, 245, 0.62);
+  --glass-bg-strong: rgba(250, 249, 245, 0.8);
   --glass-border: rgba(255, 255, 255, 0.7);
   --glass-blur: 20px;
-  --shadow-glass: 0 8px 30px rgba(28, 25, 23, 0.1);
+  --shadow-glass: 0 8px 30px rgba(20, 20, 19, 0.1);
   --glass-highlight: inset 0 1px 0 rgba(255, 255, 255, 0.75);
 }
 
@@ -122,33 +165,35 @@
 :root[data-theme="dark"] {
   color-scheme: dark;
 
-  --color-primary: #14b8a6;      /* teal-500: 7.7:1 on the dark surface */
-  --color-primary-deep: #2dd4bf; /* teal-400 — "deep" is the hover, which in
-                                    dark means brighter, not darker */
-  --color-success: #4ade80;
-  --color-success-deep: #22c55e;
-  --color-warning: #fbbf24;
-  --color-danger: #f87171;
-  --color-favorite: #fb7185;
+  /* Coral brightens a step on the dark navy so white labels stay legible and the
+     accent doesn't read as a muddy brown. -deep is the brighter hover, as before. */
+  --color-primary: #e0906f;
+  --color-primary-deep: #eba483;
+  --color-success: #6fca84;
+  --color-success-deep: #58b56d;
+  --color-warning: #e8bb4a;
+  --color-danger: #e07a7a;
+  --color-favorite: #e07a7a;
 
-  --color-surface: #0c0a09;      /* stone-950, kept warm to match the brand */
-  --color-card: #1c1917;         /* stone-900 */
-  --color-ink: #fafaf9;          /* stone-50 */
-  --color-muted: #a8a29e;        /* stone-400: 7.0:1 on the card */
+  /* DESIGN.md dark navy product surfaces — warm near-black, not cool slate. */
+  --color-surface: #141312;      /* one step under surface-dark for the floor */
+  --color-card: #1f1e1b;         /* surface-dark-soft */
+  --color-ink: #faf9f5;          /* on-dark — cream-tinted white */
+  --color-muted: #a09d96;        /* on-dark-soft: ~6.8:1 on the card */
 
-  --color-line: #292524;         /* stone-800 */
-  --color-line-soft: #231f1e;
-  --color-fill: #292524;
-  --color-fill-soft: #211d1c;
-  --color-faint: #57534e;        /* stone-600: dim, still visible */
+  --color-line: #2b2823;
+  --color-line-soft: #242220;
+  --color-fill: #252320;         /* surface-dark-elevated */
+  --color-fill-soft: #1f1e1b;
+  --color-faint: #57534e;
 
-  --color-chart: #2dd4bf;        /* teal-400 — see the note in @theme */
+  --color-chart: #e0906f;        /* coral, brightened for a thin stroke on navy */
 
-  --color-on-accent: #1c1917;    /* tracks --color-card, as in light */
+  --color-on-accent: #141413;    /* near-black label on the lighter coral */
   --color-edge: rgba(255, 255, 255, 0.1);
 
-  --glass-bg: rgba(28, 25, 23, 0.62);
-  --glass-bg-strong: rgba(28, 25, 23, 0.86);
+  --glass-bg: rgba(24, 23, 21, 0.62);
+  --glass-bg-strong: rgba(24, 23, 21, 0.86);
   --glass-border: rgba(255, 255, 255, 0.1);
   --shadow-glass: 0 8px 30px rgba(0, 0, 0, 0.5);
   --glass-highlight: inset 0 1px 0 rgba(255, 255, 255, 0.08);
@@ -159,9 +204,9 @@
 :root[data-theme="dark"] .app-surface,
 :root[data-theme="dark"] body {
   background-image:
-    radial-gradient(72% 55% at 10% -6%, rgba(13, 148, 136, 0.14), transparent 60%),
-    radial-gradient(58% 46% at 108% 6%, rgba(225, 29, 72, 0.08), transparent 60%),
-    radial-gradient(85% 60% at 50% 110%, rgba(13, 148, 136, 0.1), transparent 62%);
+    radial-gradient(72% 55% at 10% -6%, rgba(204, 120, 92, 0.14), transparent 60%),
+    radial-gradient(58% 46% at 108% 6%, rgba(232, 165, 90, 0.07), transparent 60%),
+    radial-gradient(85% 60% at 50% 110%, rgba(93, 184, 166, 0.08), transparent 62%);
 }
 
 /* The no-backdrop-filter fallback leans opaque in both themes; the light rule
@@ -185,9 +230,9 @@
 .app-surface {
   background-color: var(--color-surface);
   background-image:
-    radial-gradient(72% 55% at 10% -6%, rgba(13, 148, 136, 0.16), transparent 60%),
-    radial-gradient(58% 46% at 108% 6%, rgba(225, 29, 72, 0.11), transparent 60%),
-    radial-gradient(85% 60% at 50% 110%, rgba(13, 148, 136, 0.12), transparent 62%);
+    radial-gradient(72% 55% at 10% -6%, rgba(204, 120, 92, 0.12), transparent 60%),
+    radial-gradient(58% 46% at 108% 6%, rgba(232, 165, 90, 0.1), transparent 60%),
+    radial-gradient(85% 60% at 50% 110%, rgba(93, 184, 166, 0.09), transparent 62%);
 }
 @media (min-width: 1024px) {
   .app-surface {
@@ -346,9 +391,9 @@ body {
      shouldn't have anyway. */
   /*overscroll-behavior: none; */
   background-image:
-    radial-gradient(72% 55% at 10% -6%, rgba(13, 148, 136, 0.16), transparent 60%),
-    radial-gradient(58% 46% at 108% 6%, rgba(225, 29, 72, 0.11), transparent 60%),
-    radial-gradient(85% 60% at 50% 110%, rgba(13, 148, 136, 0.12), transparent 62%);
+    radial-gradient(72% 55% at 10% -6%, rgba(204, 120, 92, 0.12), transparent 60%),
+    radial-gradient(58% 46% at 108% 6%, rgba(232, 165, 90, 0.1), transparent 60%),
+    radial-gradient(85% 60% at 50% 110%, rgba(93, 184, 166, 0.09), transparent 62%);
   background-attachment: fixed;
 
 }
@@ -413,15 +458,39 @@ input[type="radio"] {
    time the palette moves. Nothing else in the app may use these.
    --------------------------------------------------------------------------- */
 .hero-ink {
-  --hero-fg: #fafaf9;
-  --hero-fg-dim: rgba(250, 250, 249, 0.66);
+  --hero-fg: #faf9f5;
+  --hero-fg-dim: rgba(250, 249, 245, 0.66);
   color: var(--hero-fg);
-  background-color: #12100f;
+  background-color: #181715;
   background-image:
-    radial-gradient(78% 120% at 88% 8%, rgba(20, 184, 166, 0.26), transparent 62%),
-    radial-gradient(60% 100% at 6% 96%, rgba(13, 148, 136, 0.2), transparent 66%),
-    radial-gradient(120% 90% at 50% -20%, rgba(255, 255, 255, 0.07), transparent 60%);
+    radial-gradient(78% 120% at 88% 8%, rgba(204, 120, 92, 0.3), transparent 62%),
+    radial-gradient(60% 100% at 6% 96%, rgba(232, 165, 90, 0.18), transparent 66%),
+    radial-gradient(120% 90% at 50% -20%, rgba(255, 255, 255, 0.06), transparent 60%);
   box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.08), 0 18px 48px rgba(0, 0, 0, 0.28);
+}
+
+/* ---------------------------------------------------------------------------
+   Full-bleed dark marketing band (Shopify-convention alternating rhythm).
+
+   Like .hero-ink this is a FIXED dark surface that does not flip with the theme
+   — the light/dark alternation only reads in the light theme, and in the dark
+   theme the warm-navy #181715 still sits one step ABOVE the near-black page
+   floor (#141312) so a stats/CTA band and the footer stay visually distinct in
+   both. Cream foreground is fixed with it, so contrast is a constant. Text on it
+   uses white-alpha utilities (text-white/70, border-white/10). Kept flat — no
+   drop shadow — so several can tile down a page as bands rather than cards.
+   --------------------------------------------------------------------------- */
+.band-ink {
+  color: #faf9f5;
+  background-color: #181715;
+  background-image:
+    radial-gradient(70% 120% at 88% 0%, rgba(204, 120, 92, 0.16), transparent 60%),
+    radial-gradient(60% 120% at 6% 100%, rgba(232, 165, 90, 0.1), transparent 64%);
+}
+.band-ink h1,
+.band-ink h2,
+.band-ink h3 {
+  color: #faf9f5;
 }
 
 /* Crossfade for the slide the hero is currently on. Keyed on the slide index in

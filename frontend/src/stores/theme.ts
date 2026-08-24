@@ -20,7 +20,7 @@ export const resolveTheme = (mode: ThemeMode): "light" | "dark" =>
  * rendering bug rather than a theme. Values are the two surface colours from
  * tokens.css.
  */
-const THEME_COLOR = { light: "#0D9488", dark: "#0C0A09" } as const;
+const THEME_COLOR = { light: "#faf9f5", dark: "#141312" } as const;
 
 /**
  * Paint the resolved theme onto the document.

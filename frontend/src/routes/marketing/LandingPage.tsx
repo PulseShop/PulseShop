@@ -8,8 +8,8 @@ import {
   Star,
   Wallet,
 } from "lucide-react";
-import { useMemo } from "react";
-import { Link } from "react-router";
+import { useMemo, useState } from "react";
+import { Link, useNavigate } from "react-router";
 import { Button } from "@/components/ui/Button";
 import {
   FacebookIcon,
@@ -38,27 +38,13 @@ const steps = [
   },
 ];
 
-const features = [
-  {
-    icon: MessageCircle,
-    title: "Orders on the apps you already use",
-    body: "Advertise and connect with your customers through their socials and build a community.",
-  },
-  {
-    icon: Boxes,
-    title: "One HQ for your whole catalog",
-    body: "Add products, set prices and discounts, and track stock from a single dashboard.",
-  },
-  {
-    icon: Wallet,
-    title: "Get paid your way",
-    body: "Take M-Pesa and PayPal when you're ready, or keep it simple with pay-on-delivery.",
-  },
-  {
-    icon: Link2,
-    title: "Links that look the part",
-    body: "Your shop shows a rich preview everywhere you paste it.",
-  },
+/* Truthful, product-derived figures rather than invented metrics — the Shopify
+   stats-band convention without fabricating traction the product can't claim. */
+const stats = [
+  { value: "KES 0", label: "to open your shop" },
+  { value: "3", label: "social channels built in" },
+  { value: "5 min", label: "to a live shop link" },
+  { value: "∞", label: "room to grow your catalog" },
 ];
 
 export function LandingPage() {
@@ -67,38 +53,34 @@ export function LandingPage() {
   return (
     <MarketingShell>
       {/* hero */}
-      <section className="mx-auto grid max-w-5xl items-center gap-10 px-5 pb-8 pt-10 md:grid-cols-2 md:pt-16">
+      <section className="mx-auto grid max-w-6xl items-center gap-12 px-5 pb-14 pt-10 md:grid-cols-2 md:pt-20">
         <div>
           <span className="inline-flex items-center gap-1.5 rounded-full glass px-3 py-1.5 text-xs font-bold text-primary">
             <Sparkles className="size-3.5" />
             Your Store. Your Link. Your Sales.
           </span>
-          <h1 className="mt-4 text-4xl font-extrabold leading-[1.05] tracking-tight text-ink md:text-5xl">
+          <h1 className="mt-5 text-5xl leading-[1.02] tracking-tight text-ink md:text-6xl">
             Turn your bio link into a real store.
           </h1>
-          <p className="mt-4 max-w-md text-base leading-relaxed text-ink/70">
+          <p className="mt-5 max-w-md text-lg leading-relaxed text-ink/70">
             PulseShop gives sellers a hosted shop that lives behind their daily
-            posts. Shoppers browse your catalog through Instagram, Facebook or
-            WhatsApp feed that act as your advertisment.
+            posts — shoppers browse your catalog straight from Instagram,
+            Facebook or WhatsApp.
           </p>
-          <div className="mt-7 flex flex-wrap gap-3">
-            <Link to="/signup">
-              <Button size="lg" className="rounded-full">
-                Open your Shop <ArrowRight className="size-5" />
-              </Button>
-            </Link>
-            <Link to="/login">
-              <Button
-                variant="outline"
-                size="lg"
-                className="rounded-full border-edge bg-card/70"
-              >
-                I already have a shop
-              </Button>
-            </Link>
-          </div>
-          <p className="mt-4 text-xs font-medium text-muted">
+
+          <EmailCapture />
+
+          <p className="mt-3 text-xs font-medium text-muted">
             Free to start · No card needed · Live in minutes
+          </p>
+          <p className="mt-4 text-sm text-ink/70">
+            Already selling with us?{" "}
+            <Link
+              to="/login"
+              className="font-bold text-primary underline underline-offset-2"
+            >
+              Log in
+            </Link>
           </p>
         </div>
 
@@ -106,60 +88,138 @@ export function LandingPage() {
         <ShopPreview />
       </section>
 
+      {/* channel strip — the apps the whole pitch rests on */}
+      <section className="mx-auto max-w-6xl px-5 pb-6">
+        <div className="flex flex-col items-center gap-4 border-y border-line py-6 text-center sm:flex-row sm:justify-center sm:gap-8">
+          <p className="font-sans-force text-xs font-bold uppercase tracking-widest text-muted">
+            Sells where your customers already are
+          </p>
+          <div className="flex items-center gap-3">
+            <span className="flex size-9 items-center justify-center rounded-full bg-whatsapp text-white">
+              <WhatsAppIcon className="size-5" />
+            </span>
+            <span className="flex size-9 items-center justify-center rounded-full bg-instagram text-white">
+              <InstagramIcon className="size-5" />
+            </span>
+            <span className="flex size-9 items-center justify-center rounded-full bg-facebook text-white">
+              <FacebookIcon className="size-5" />
+            </span>
+          </div>
+        </div>
+      </section>
+
+      {/* stats band — full-bleed dark, the Shopify pacing break */}
+      <section className="band-ink mt-8">
+        <div className="mx-auto grid max-w-6xl grid-cols-2 gap-8 px-5 py-16 md:grid-cols-4">
+          {stats.map((stat) => (
+            <div key={stat.label} className="text-center">
+              <p className="text-4xl tracking-tight md:text-5xl">{stat.value}</p>
+              <p className="mt-2 text-sm text-white/60">{stat.label}</p>
+            </div>
+          ))}
+        </div>
+      </section>
+
       {/* how it works */}
-      <section className="mx-auto max-w-5xl px-5 py-12">
-        <h2 className="text-center text-2xl font-extrabold text-ink">
-          Live in three steps
-        </h2>
-        <div className="mt-8 grid gap-4 md:grid-cols-3">
+      <section className="mx-auto max-w-6xl px-5 py-20">
+        <div className="mx-auto max-w-2xl text-center">
+          <h2 className="text-3xl text-ink md:text-4xl">Live in three steps</h2>
+          <p className="mt-3 text-base text-ink/70">
+            No warehouse, no card machine, no setup marathon — just your shop,
+            behind your link.
+          </p>
+        </div>
+        <div className="mt-12 grid gap-5 md:grid-cols-3">
           {steps.map(({ icon: Icon, title, body }, i) => (
-            <div key={title} className="glass rounded-card p-5">
+            <div
+              key={title}
+              className="rounded-card border border-line bg-card p-7 shadow-soft"
+            >
               <div className="flex items-center gap-3">
-                <span className="flex size-10 items-center justify-center rounded-full bg-primary/12 text-primary">
+                <span className="flex size-11 items-center justify-center rounded-full bg-primary/12 text-primary">
                   <Icon className="size-5" />
                 </span>
-                <span className="text-xs font-bold text-muted">
+                <span className="font-sans-force text-xs font-bold uppercase tracking-widest text-muted">
                   Step {i + 1}
                 </span>
               </div>
-              <h3 className="mt-4 text-base font-bold text-ink">{title}</h3>
-              <p className="mt-1.5 text-sm leading-relaxed text-ink/70">
-                {body}
-              </p>
+              <h3 className="mt-5 text-xl text-ink">{title}</h3>
+              <p className="mt-2 text-sm leading-relaxed text-ink/70">{body}</p>
             </div>
           ))}
         </div>
       </section>
 
-      {/* features */}
-      <section className="mx-auto max-w-5xl px-5 pb-4">
-        <div className="grid gap-4 md:grid-cols-2">
-          {features.map(({ icon: Icon, title, body }) => (
-            <div key={title} className="glass rounded-card p-5">
-              <span className="flex size-10 items-center justify-center rounded-full bg-primary/12 text-primary">
-                <Icon className="size-5" />
+      {/* features — a bento of one lead tile and three supporting ones */}
+      <section className="bg-fill-soft">
+        <div className="mx-auto max-w-6xl px-5 py-20">
+          <div className="mx-auto max-w-2xl text-center">
+            <h2 className="text-3xl text-ink md:text-4xl">
+              Everything to run your shop
+            </h2>
+            <p className="mt-3 text-base text-ink/70">
+              One dashboard for your catalog, your orders and the links that
+              bring buyers in.
+            </p>
+          </div>
+
+          <div className="mt-12 grid gap-5 md:grid-cols-3 md:grid-rows-2">
+            {/* lead tile — coral, spans two columns */}
+            <article className="flex flex-col justify-between rounded-bento bg-primary p-8 text-on-accent md:col-span-2 md:row-span-2">
+              <span className="flex size-12 items-center justify-center rounded-full bg-white/20">
+                <MessageCircle className="size-6" />
               </span>
-              <h3 className="mt-4 text-base font-bold text-ink">{title}</h3>
-              <p className="mt-1.5 text-sm leading-relaxed text-ink/70">
-                {body}
-              </p>
-            </div>
-          ))}
+              <div className="mt-8">
+                <h3 className="text-2xl text-on-accent md:text-3xl">
+                  Orders on the apps you already use
+                </h3>
+                <p className="mt-3 max-w-md text-base leading-relaxed text-on-accent/85">
+                  Advertise and connect with customers through their socials,
+                  build a community, and take orders straight into WhatsApp,
+                  Instagram and Facebook.
+                </p>
+              </div>
+            </article>
+
+            <FeatureTile
+              icon={Boxes}
+              title="One HQ for your catalog"
+              body="Add products, set prices and discounts, and track stock from a single dashboard."
+            />
+            <FeatureTile
+              icon={Wallet}
+              title="Get paid your way"
+              body="Take M-Pesa and PayPal when you're ready, or keep it simple with pay-on-delivery."
+            />
+          </div>
+
+          <div className="mt-5 grid gap-5 md:grid-cols-2">
+            <FeatureTile
+              icon={Link2}
+              title="Links that look the part"
+              body="Your shop shows a rich preview everywhere you paste it — bio, story, DM or search."
+            />
+            <FeatureTile
+              icon={ShoppingBag}
+              title="A storefront, not a link list"
+              body="Buyers land on a real catalog with photos, variants and prices — then order in a tap."
+            />
+          </div>
         </div>
       </section>
 
-      {/* closing CTA */}
-      <section className="mx-auto max-w-5xl px-5 py-12">
-        <div className="glass-strong flex flex-col items-center gap-5 rounded-modal px-6 py-12 text-center">
-          <h2 className="max-w-md text-2xl font-extrabold text-ink md:text-3xl">
+      {/* closing CTA — full-bleed dark */}
+      <section className="band-ink">
+        <div className="mx-auto flex max-w-3xl flex-col items-center gap-6 px-5 py-24 text-center">
+          <h2 className="max-w-xl text-4xl md:text-5xl">
             Ready to open your shop?
           </h2>
-          <p className="max-w-sm text-sm text-ink/70">
+          <p className="max-w-md text-lg text-white/70">
             Set it up today and share your link before the day is out.
           </p>
-          <div className="flex flex-wrap items-center justify-center gap-3">
+          <div className="mt-2 flex flex-wrap items-center justify-center gap-3">
             <Link to="/signup">
-              <Button size="lg" className="rounded-full">
+              <Button size="lg">
                 Open your Shop <ArrowRight className="size-5" />
               </Button>
             </Link>
@@ -167,7 +227,7 @@ export function LandingPage() {
               <Button
                 variant="outline"
                 size="lg"
-                className="rounded-full border-edge bg-card/70"
+                className="border-white/25 bg-white/5 text-white hover:border-white hover:text-white"
               >
                 See pricing
               </Button>
@@ -176,6 +236,58 @@ export function LandingPage() {
         </div>
       </section>
     </MarketingShell>
+  );
+}
+
+/** The Shopify hero convention: an inline email field + primary CTA. The email
+ *  is carried through to signup so the field isn't a dead end. */
+function EmailCapture() {
+  const [email, setEmail] = useState("");
+  const navigate = useNavigate();
+
+  function start(e: React.FormEvent) {
+    e.preventDefault();
+    navigate(email ? `/signup?email=${encodeURIComponent(email)}` : "/signup");
+  }
+
+  return (
+    <form
+      onSubmit={start}
+      className="mt-8 flex w-full max-w-md flex-col gap-3 sm:flex-row"
+    >
+      <input
+        type="email"
+        name="email"
+        value={email}
+        onChange={(e) => setEmail(e.target.value)}
+        placeholder="Enter your email"
+        aria-label="Email address"
+        className="h-13 flex-1 rounded-btn border border-line bg-card px-4 text-base text-ink placeholder:text-muted/70 outline-none transition-colors focus:border-primary focus:ring-2 focus:ring-primary/20"
+      />
+      <Button type="submit" size="lg" className="shrink-0">
+        Start free <ArrowRight className="size-5" />
+      </Button>
+    </form>
+  );
+}
+
+function FeatureTile({
+  icon: Icon,
+  title,
+  body,
+}: {
+  icon: typeof Boxes;
+  title: string;
+  body: string;
+}) {
+  return (
+    <article className="rounded-bento border border-line bg-card p-7 shadow-soft">
+      <span className="flex size-11 items-center justify-center rounded-full bg-primary/12 text-primary">
+        <Icon className="size-5" />
+      </span>
+      <h3 className="mt-5 text-xl text-ink">{title}</h3>
+      <p className="mt-2 text-sm leading-relaxed text-ink/70">{body}</p>
+    </article>
   );
 }
 
@@ -195,13 +307,13 @@ function ShopPreview() {
           <div className="flex size-16 items-center justify-center rounded-full bg-primary/15 text-xl font-extrabold text-primary">
             ZS
           </div>
-          <h3 className="mt-3 text-base font-extrabold text-ink">
-            Zawadi Styles
-          </h3>
-          <p className="text-xs text-muted">@zawadistyles · Nairobi, KE</p>
+          <h3 className="mt-3 text-lg font-extrabold text-ink">Zawadi Styles</h3>
+          <p className="font-sans-force text-xs text-muted">
+            @zawadistyles · Nairobi, KE
+          </p>
           <div className="mt-1 flex items-center gap-1 text-xs font-bold text-ink">
-            <Star className="size-3.5 fill-amber-400 text-amber-400" /> 4.8 ·
-            348 orders
+            <Star className="size-3.5 fill-amber-400 text-amber-400" /> 4.8 · 348
+            orders
           </div>
         </div>
 

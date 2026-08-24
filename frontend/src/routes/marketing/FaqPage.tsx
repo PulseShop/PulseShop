@@ -1,4 +1,4 @@
-import { ArrowRight, ChevronDown } from "lucide-react";
+import { ArrowRight, ChevronDown, Sparkles } from "lucide-react";
 import { useMemo } from "react";
 import { Link } from "react-router";
 import { Button } from "@/components/ui/Button";
@@ -16,45 +16,73 @@ export function FaqPage() {
 
   return (
     <MarketingShell>
-      <section className="mx-auto max-w-3xl px-5 pb-4 pt-10 text-center md:pt-14">
-        <h1 className="text-3xl font-extrabold tracking-tight text-ink md:text-5xl">
+      {/* hero */}
+      <section className="mx-auto max-w-3xl px-5 pb-4 pt-12 text-center md:pt-20">
+        <span className="inline-flex items-center gap-1.5 rounded-full glass px-3 py-1.5 text-xs font-bold text-primary">
+          <Sparkles className="size-3.5" />
+          Help center
+        </span>
+        <h1 className="mt-5 text-4xl tracking-tight text-ink md:text-6xl">
           Frequently asked questions
         </h1>
-        <p className="mt-3 text-base text-ink/70">
+        <p className="mt-4 text-lg text-ink/70">
           Everything sellers and shoppers ask us, answered in one place.
         </p>
       </section>
 
-      <section className="mx-auto max-w-3xl px-5 py-8">
+      {/* accordion */}
+      <section className="mx-auto max-w-3xl px-5 py-10">
         <div className="space-y-3">
           {FAQ_ITEMS.map(({ q, a }) => (
-            <details key={q} className="group rounded-card bg-card shadow-soft">
-              <summary className="flex cursor-pointer list-none items-center justify-between gap-4 px-5 py-4 text-left [&::-webkit-details-marker]:hidden">
-                <span className="text-sm font-bold text-ink md:text-base">{q}</span>
-                <ChevronDown className="size-5 shrink-0 text-muted transition-transform group-open:rotate-180" />
+            <details
+              key={q}
+              className="group rounded-card border border-line bg-card shadow-soft transition-colors open:border-primary/40"
+            >
+              <summary className="flex cursor-pointer list-none items-center justify-between gap-4 px-6 py-5 text-left [&::-webkit-details-marker]:hidden">
+                <span className="font-sans-force text-base font-bold text-ink">
+                  {q}
+                </span>
+                <ChevronDown className="size-5 shrink-0 text-muted transition-transform group-open:rotate-180 group-open:text-primary" />
               </summary>
-              <p className="px-5 pb-5 text-sm leading-relaxed text-ink/70">{a}</p>
+              <p className="px-6 pb-6 text-sm leading-relaxed text-ink/70">
+                {a}
+              </p>
             </details>
           ))}
         </div>
+
+        <p className="mt-8 text-center text-sm text-ink/70">
+          Still have a question?{" "}
+          <Link
+            to="/about"
+            className="font-bold text-primary underline underline-offset-2"
+          >
+            Meet the team behind PulseShop
+          </Link>
+        </p>
       </section>
 
-      <section className="mx-auto max-w-5xl px-5 py-10">
-        <div className="glass-strong flex flex-col items-center gap-5 rounded-modal px-6 py-12 text-center">
-          <h2 className="max-w-md text-2xl font-extrabold text-ink md:text-3xl">
+      {/* closing CTA — full-bleed dark */}
+      <section className="band-ink">
+        <div className="mx-auto flex max-w-3xl flex-col items-center gap-6 px-5 py-24 text-center">
+          <h2 className="max-w-xl text-4xl md:text-5xl">
             Question answered? Open your shop.
           </h2>
-          <p className="max-w-sm text-sm text-ink/70">
-            It's free to start, five products, your own link, live in minutes.
+          <p className="max-w-md text-lg text-white/70">
+            It's free to start — five products, your own link, live in minutes.
           </p>
-          <div className="flex flex-wrap items-center justify-center gap-3">
+          <div className="mt-2 flex flex-wrap items-center justify-center gap-3">
             <Link to="/signup">
-              <Button size="lg" className="rounded-full">
+              <Button size="lg">
                 Open your Shop <ArrowRight className="size-5" />
               </Button>
             </Link>
             <Link to="/prices">
-              <Button variant="outline" size="lg" className="rounded-full border-edge bg-card/70">
+              <Button
+                variant="outline"
+                size="lg"
+                className="border-white/25 bg-white/5 text-white hover:border-white hover:text-white"
+              >
                 See pricing
               </Button>
             </Link>

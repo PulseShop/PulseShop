@@ -85,14 +85,86 @@ export function MarketingShell({ children }: { children: ReactNode }) {
 
       {children}
 
-      <footer className="mx-auto max-w-6xl px-5 pb-10 pt-4">
-        <div className="flex flex-col items-center gap-4 border-t border-ink/10 pt-6 text-center">
-          <NavLinks className="flex flex-wrap items-center justify-center gap-1" />
-          <p className="text-xs font-medium text-muted">
-            © {new Date().getFullYear()} PulseShop · Built for sellers who sell on social.
+      <SiteFooter />
+    </div>
+  );
+}
+
+/* Shopify convention: a tall, full-bleed dark footer that closes every page —
+   a wordmark + tagline column beside grouped link columns, a rule, then a fine
+   legal row. It anchors the alternating light/dark band rhythm the pages run. */
+const FOOTER_GROUPS = [
+  {
+    heading: "Product",
+    links: [
+      { to: "/prices", label: "Prices" },
+      { to: "/faq", label: "FAQ" },
+      { to: "/", label: "Browse shops" },
+    ],
+  },
+  {
+    heading: "Company",
+    links: [
+      { to: "/about", label: "About" },
+      { to: "/welcome", label: "Home" },
+    ],
+  },
+  {
+    heading: "Get started",
+    links: [
+      { to: "/signup", label: "Open your Shop" },
+      { to: "/login", label: "Log in" },
+    ],
+  },
+] as const;
+
+function SiteFooter() {
+  return (
+    <footer className="band-ink mt-16">
+      <div className="mx-auto max-w-6xl px-5 py-14">
+        <div className="grid gap-10 md:grid-cols-[1.4fr_1fr_1fr_1fr]">
+          <div className="max-w-xs">
+            <img
+              src="/icons/wordmark-on-dark.png"
+              alt="PulseShop"
+              width={1760}
+              height={560}
+              className="h-8 w-auto"
+            />
+            <p className="mt-4 text-sm leading-relaxed text-white/60">
+              The storefront that lives behind your bio link. Built for sellers
+              who sell on social.
+            </p>
+          </div>
+          {FOOTER_GROUPS.map((group) => (
+            <div key={group.heading}>
+              <h3 className="font-sans-force text-xs font-bold uppercase tracking-widest text-white/50">
+                {group.heading}
+              </h3>
+              <ul className="mt-4 space-y-3">
+                {group.links.map((link) => (
+                  <li key={link.to + link.label}>
+                    <Link
+                      to={link.to}
+                      className="text-sm font-medium text-white/75 transition-colors hover:text-white"
+                    >
+                      {link.label}
+                    </Link>
+                  </li>
+                ))}
+              </ul>
+            </div>
+          ))}
+        </div>
+        <div className="mt-12 flex flex-col items-center justify-between gap-3 border-t border-white/10 pt-6 sm:flex-row">
+          <p className="text-xs font-medium text-white/50">
+            © {new Date().getFullYear()} PulseShop · Nairobi, Kenya
+          </p>
+          <p className="text-xs font-medium text-white/50">
+            Made for sellers who sell on social.
           </p>
         </div>
-      </footer>
-    </div>
+      </div>
+    </footer>
   );
 }

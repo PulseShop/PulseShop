@@ -16,9 +16,9 @@ import { formatKes } from "@/lib/currency";
 import { cn } from "@/lib/utils";
 import { services } from "@/services";
 
-/** Same teal as the growth chart's sellers series, and for the same reason —
- *  see the SERIES note in AdminPage. The brand token reads grey as a thin mark. */
-const REVENUE_HUE = "#0d9488";
+/** The brand coral (DESIGN.md {colors.primary}). Single-series revenue line, so
+ *  there is no adjacent-hue separation to preserve — it just carries the brand. */
+const REVENUE_HUE = "#cc785c";
 
 const RANGES = [
   { days: 7, label: "7d" },
