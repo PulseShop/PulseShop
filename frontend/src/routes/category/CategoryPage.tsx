@@ -11,7 +11,7 @@ import { ProductCard } from "@/components/product/ProductCard";
 import { ProductCardSkeleton } from "@/components/ui/Skeleton";
 import { useSeo } from "@/hooks/useSeo";
 import { CATEGORIES } from "@/lib/constants";
-import { categoryPath, categorySeo, categorySlug, privateSeo } from "@/lib/seo";
+import { categoryCopy, categoryPath, categorySeo, categorySlug, privateSeo } from "@/lib/seo";
 import { seoCategoryFrom } from "@/lib/seoFrom";
 import { services } from "@/services";
 
@@ -41,6 +41,11 @@ export function CategoryPage() {
     () => CATEGORIES.find((c) => categorySlug(c) === slug) ?? "",
     [slug],
   );
+
+  // Resolved from the slug, not from `name`: CATEGORY_COPY is keyed the way the
+  // renderer reads it, so both halves of this page look the copy up by the same
+  // string. Null for the categories that have none, which is most of them.
+  const copy = useMemo(() => categoryCopy(slug), [slug]);
 
   const productsQ = useInfiniteQuery({
     queryKey: ["category-products", name],
@@ -191,6 +196,43 @@ export function CategoryPage() {
               ? "Loading…"
               : `Load more (${total - products.length} left)`}
           </button>
+        )}
+
+        {/* THE HAND-WRITTEN COPY, UNDER THE GRID.
+            Below the products, never above them, and that placement is the
+            whole design: prose over a category page pushes the merchandise off
+            the first screen to serve a crawler at the shopper's expense, which
+            is what makes so many category pages unreadable. Down here it is
+            read by whoever wants it and stepped over by everyone else, and a
+            crawler does not care which end of the document it is in.
+
+            Only two categories have copy today (see CATEGORY_COPY); the other
+            thirty-eight render nothing at all rather than a generated
+            paragraph, because a paragraph that says "we stock various brands"
+            is worth less than the whitespace it occupies. The same block is
+            emitted server-side by renderCategoryBody, so the two versions of
+            this page say the same thing. */}
+        {copy && (
+          <section aria-labelledby="category-copy" className="mt-10 max-w-3xl">
+            <h2 id="category-copy" className="text-base font-extrabold text-ink lg:text-lg">
+              {copy.heading}
+            </h2>
+            <p className="mt-2 text-sm leading-relaxed text-muted">{copy.intro}</p>
+
+            <h3 className="mt-5 text-sm font-bold text-ink">{copy.pointsHeading}</h3>
+            {/* A description list, not a bulleted <ul>: every entry is a term
+                and its explanation, which is what <dl> is for, and it gives the
+                bolded lead-in a real element instead of a <strong> pretending
+                to be one. */}
+            <dl className="mt-2 space-y-2">
+              {copy.points.map((point) => (
+                <div key={point.term} className="text-sm leading-relaxed">
+                  <dt className="inline font-bold text-ink">{point.term}</dt>{" "}
+                  <dd className="inline text-muted">{point.detail}</dd>
+                </div>
+              ))}
+            </dl>
+          </section>
         )}
 
         {/* Sideways links to the rest of the taxonomy. A category page that only

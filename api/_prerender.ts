@@ -43,6 +43,7 @@ import {
   type SeoCategory,
   type SeoProduct,
   type SeoShop,
+  categoryCopy,
   categoryPath,
   categoryProducts,
   categorySlug,
@@ -110,6 +111,10 @@ const STYLE = `<style>
 #ps-pre .ps-desc{font-size:.9rem;line-height:1.6;max-width:70ch}
 #ps-pre .ps-tags{list-style:none;padding:0;margin:10px 0 0;display:flex;flex-wrap:wrap;gap:8px}
 #ps-pre .ps-tags a{display:inline-block;background:var(--color-fill,#f5f5f4);border-radius:9999px;padding:6px 12px;font-size:.78rem;font-weight:600}
+#ps-pre .ps-copy{margin:0;max-width:70ch;font-size:.9rem;line-height:1.6}
+#ps-pre .ps-copy dt{display:inline;font-weight:700}
+#ps-pre .ps-copy dd{display:inline;margin:0;color:var(--color-muted,#78716c)}
+#ps-pre .ps-copy dd::after{content:"";display:block;height:8px}
 </style>`;
 
 const wrap = (body: string) => `${STYLE}<div id="ps-pre">${body}</div>`;
@@ -244,8 +249,27 @@ export function renderCategoryBody(category: SeoCategory): string {
       `<ul class="ps-grid">${products.map((p, i) => card(p.shopHandle, p, i === 0)).join("")}</ul>`
     : "";
 
+  /* The hand-written copy, AFTER the grid.
+     Same order the React page puts it in (see CategoryPage), because that is
+     the whole requirement: a crawler that renders this response and one that
+     renders the app must see the same document. Two categories have copy and
+     the rest emit nothing; see CATEGORY_COPY in _seo.ts for why prose is
+     authored rather than generated. */
+  const copy = categoryCopy(category.slug);
+  const prose = copy
+    ? `<h2>${escapeHtml(copy.heading)}</h2>` +
+      `<p class="ps-bio">${escapeHtml(copy.intro)}</p>` +
+      `<h2>${escapeHtml(copy.pointsHeading)}</h2>` +
+      `<dl class="ps-copy">${copy.points
+        .map(
+          (point) =>
+            `<dt>${escapeHtml(point.term)}</dt><dd>${escapeHtml(point.detail)}</dd>`,
+        )
+        .join("")}</dl>`
+    : "";
+
   return wrap(
-    head + (shops ? `<h2>Shops stocking ${escapeHtml(name)}</h2>${shops}` : "") + grid,
+    head + (shops ? `<h2>Shops stocking ${escapeHtml(name)}</h2>${shops}` : "") + grid + prose,
   );
 }
 

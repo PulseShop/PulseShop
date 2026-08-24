@@ -73,6 +73,7 @@ const COLUMNS = [
   "sku",
   "name",
   "category",
+  "brand",
   "price_kes",
   "discount_pct",
   "stock_qty",
@@ -89,6 +90,7 @@ interface ProductRow {
   sku: string;
   name: string;
   category: string;
+  brand: string | null;
   price_kes: number;
   discount_pct: number | null;
   stock_qty: number;
@@ -115,6 +117,7 @@ function toCsv(products: ProductRow[]): string {
       p.sku ?? "",
       p.name ?? "",
       p.category ?? "",
+      p.brand ?? "",
       String(p.price_kes ?? 0),
       p.discount_pct == null ? "" : String(p.discount_pct),
       String(p.stock_qty ?? 0),
@@ -171,7 +174,7 @@ Deno.serve(async (req) => {
   const { data, error, count } = await admin
     .from("products")
     .select(
-      "sku, name, category, price_kes, discount_pct, stock_qty, sizes, colors, summary, description, images",
+      "sku, name, category, brand, price_kes, discount_pct, stock_qty, sizes, colors, summary, description, images",
       { count: "exact" },
     )
     .eq("merchant_id", user.id)

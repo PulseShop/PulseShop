@@ -50,6 +50,15 @@ export const CATEGORY_GROUPS = [
       "Gaming Consoles",
       "Smart Home Gadgets",
       "Audio Equipment",
+      // Added with the brand shelves in lib/brands.ts. Three shelves of that
+      // table had nothing here to map onto: a television is not "Smart Home
+      // Gadgets", a smartwatch is not the "Watches" under Fashion (that leaf
+      // is jewellery, and a shopper filtering it does not want a Garmin), and
+      // a camera was landing under "Computer Accessories" or nowhere. Adding a
+      // leaf is safe; renaming one is not. See the note above.
+      "TVs & Home Entertainment",
+      "Smartwatches & Wearables",
+      "Cameras & Drones",
     ],
   },
   {

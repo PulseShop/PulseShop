@@ -64,6 +64,7 @@ import type {
 } from "../types";
 import type { ProductCsvInput } from "@/lib/productCsv";
 import { useAuth } from "@/stores/auth";
+import { normalizeBrand } from "@/lib/brands";
 import { statusForQty } from "@/lib/constants";
 import { minVariantPrice, variantPrice, variantPriceWithCode } from "@/lib/currency";
 import { fileToDataUrl } from "@/lib/image";
@@ -136,6 +137,14 @@ function queryProducts(all: Product[], q: ProductQuery = {}): Paged<Product> {
   if (q.categories?.length) {
     const wanted = new Set(q.categories);
     list = list.filter((p) => wanted.has(p.category));
+  }
+  // Any-of, matching p_brands in migration 0060, the same semantics the size
+  // and colour filters have. A product with no brand never matches a set
+  // filter, which is the only reading that makes sense: the shopper asked for
+  // HP, and "we don't know who made it" is not HP.
+  if (q.brands?.length) {
+    const wanted = new Set(q.brands);
+    list = list.filter((p) => Boolean(p.brand) && wanted.has(p.brand!));
   }
   if (q.status && q.status !== "all") {
     list =
@@ -1376,6 +1385,10 @@ export const mockServices: Services = {
         ...input,
         slug,
         metaDescription: input.metaDescription ?? null,
+        // Mirrors productInputToRow: whatever the caller sent, what gets stored
+        // is the normalised spelling, so the mock's brand facet aggregates the
+        // way the real one does.
+        brand: normalizeBrand(input.brand),
         // Keep only the spec matching the type — mirrors the real adapter's
         // mapper, which gates phoneSpecs/pcSpecs on product_type.
         productType: pt,
@@ -1403,6 +1416,9 @@ export const mockServices: Services = {
         ...patch,
         slug: patch.slug ? slugify(patch.slug) || products[idx].slug : products[idx].slug,
         metaDescription: patch.metaDescription ?? products[idx].metaDescription,
+        // Omitted leaves the brand alone; anything sent is normalised. Same
+        // patch semantics as the real adapter's productInputToRow.
+        brand: patch.brand !== undefined ? normalizeBrand(patch.brand) : products[idx].brand,
       };
       next.status = statusForQty(next.stockQty);
       // Same gating as create: a type change (or switch back to general) must
@@ -1488,14 +1504,23 @@ export const mockServices: Services = {
         });
     },
 
-    async getFacets(_merchantId?: string | null): Promise<ShopFacets> {
+    async getFacets(_merchantId?: string | null, categories?: string[]): Promise<ShopFacets> {
       await delay();
+      // Only the brand list narrows, matching the RPC (migration 0060). See the
+      // note on getFacets in services/types.ts for why the rest does not.
+      const inCategories = categories?.length
+        ? products.filter((p) => categories.includes(p.category))
+        : products;
       const ramOf = (p: Product) => p.phoneSpecs?.ramGb ?? p.pcSpecs?.ramGb ?? null;
       const storageOf = (p: Product) => p.phoneSpecs?.storageGb ?? p.pcSpecs?.storageGb ?? null;
       const nums = (xs: (number | null)[]) =>
         [...new Set(xs.filter((n): n is number => n != null))].sort((a, b) => a - b);
       return {
         categories: [...new Set(products.map((p) => p.category))].sort(),
+        // Sorted, not ordered; same contract as the RPC (migration 0060).
+        // orderBrands() puts them in merchandising order at the point of
+        // display, so both adapters can hand back the plain distinct set.
+        brands: [...new Set(inCategories.flatMap((p) => (p.brand ? [p.brand] : [])))].sort(),
         sizes: [...new Set(products.flatMap((p) => p.sizes ?? []))].sort(),
         colors: [...new Set(products.flatMap((p) => p.colors ?? []))].sort(),
         // Spec facets (migration 0038) — only what this shop stocks, 'general'
@@ -1604,6 +1629,7 @@ export const mockServices: Services = {
               // left unsaid. Photos especially: importing details now and
               // adding pictures later is a supported way to work, not an error.
               discountPct: null,
+              brand: null,
               sizes: null,
               colors: null,
               summary: null,
@@ -1613,6 +1639,11 @@ export const mockServices: Services = {
               sku: row.sku,
               name: row.name,
               category: row.category,
+              // After the spread, so the CSV door normalises like the others.
+              // Spread-if-stated rather than assigned outright: a file with no
+              // brand column must leave the default above standing, not write
+              // null over it.
+              ...(row.brand !== undefined ? { brand: normalizeBrand(row.brand) } : {}),
               priceKes: row.priceKes,
               stockQty,
               id: `p${Date.now()}${created}`,
@@ -1638,7 +1669,13 @@ export const mockServices: Services = {
           // fields a CSV has no column for (slug, variant pricing, colour
           // photos, SEO text) have to survive the import untouched.
           const merged = { ...products[idx], ...stated(row) };
-          products[idx] = { ...merged, status: statusForQty(merged.stockQty) };
+          products[idx] = {
+            ...merged,
+            status: statusForQty(merged.stockQty),
+            // A stated brand is normalised; an unstated one keeps whatever the
+            // product already had, which is what makes a partial import safe.
+            brand: row.brand !== undefined ? normalizeBrand(row.brand) : products[idx].brand,
+          };
           updated++;
         }
       }

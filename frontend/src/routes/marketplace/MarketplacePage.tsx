@@ -38,13 +38,13 @@ import {
 } from "lucide-react";
 import type { LucideIcon } from "lucide-react";
 import { useEffect, useMemo, useRef, useState } from "react";
-import { Link, NavLink, useSearchParams } from "react-router";
+import { Link, NavLink, useLocation, useSearchParams } from "react-router";
 import { MobileShell } from "@/components/layout/MobileShell";
 import { LogoLink } from "@/components/common/Logo";
 import { DesktopQuickNav } from "@/components/layout/DesktopQuickNav";
 import { SiteFooter } from "@/components/layout/SiteFooter";
 import { BrowsingHistoryRail } from "@/components/product/BrowsingHistoryRail";
-import { CategoryWall } from "@/components/product/CategoryWall";
+import { BrandWall, CategoryWall } from "@/components/product/CategoryWall";
 import type { CuratedTile } from "@/components/product/CategoryWall";
 import { ProductCard } from "@/components/product/ProductCard";
 import { ProductImage } from "@/components/product/ProductImage";
@@ -56,6 +56,7 @@ import { ProductCardSkeleton, Skeleton } from "@/components/ui/Skeleton";
 import { useDebounced } from "@/hooks/useDebounced";
 import { useProductAdd } from "@/hooks/useProductAdd";
 import { useSeo } from "@/hooks/useSeo";
+import { orderBrands } from "@/lib/brands";
 import { colorHex, groupLabel, sortSizes } from "@/lib/constants";
 import { ALL_GROUPS, useCategoryFilter } from "@/hooks/useCategoryFilter";
 import { HERO_SLOTS } from "@/lib/placements";
@@ -142,6 +143,7 @@ export function MarketplacePage() {
    * shareable and survivable across a reload.
    */
   const [params, setParams] = useSearchParams();
+  const { hash } = useLocation();
   const [search, setSearch] = useState(() => params.get("q") ?? "");
   const term = useDebounced(search.trim());
 
@@ -170,8 +172,55 @@ export function MarketplacePage() {
   const [sizes, setSizes] = useState<string[]>([]);
   const [colors, setColors] = useState<string[]>([]);
   const [minRating, setMinRating] = useState<number | null>(null);
+  /**
+   * The brand filter, kept in the URL rather than in component state
+   * (migration 0060).
+   *
+   * THE ONE FILTER ON THIS PAGE THAT IS ADDRESSABLE, and deliberately so. It is
+   * the only one that is LINKED TO: the "Shop by brands" band below points at
+   * `/?brand=HP`, and a link that cannot say what it filtered is not a link.
+   * Sizes, colours, price, rating and the category ribbon are all reached by
+   * tapping controls already on screen, so they stay in component state exactly
+   * as they were.
+   *
+   * DERIVED, NOT MIRRORED. `q` above is component state written back to the URL
+   * because it has to debounce a keystroke; a brand has nothing to debounce, and
+   * mirroring would break the case this exists for: the brand band is ON this
+   * page, so following one of its links is a same-route navigation, the
+   * component never remounts, and a state seeded once at mount would sit there
+   * ignoring the address bar. Reading straight from the parameters means the
+   * link works from anywhere, including from this page to itself.
+   *
+   * Otherwise the serialisation is the scheme `q` already established: written
+   * with `replace` so a filter is not a history entry, and the key removed
+   * entirely when nothing is picked. Repeated `brand=` entries rather than one
+   * comma-joined value, so a brand containing a comma cannot split itself in
+   * two.
+   */
+  const brands = useMemo(() => params.getAll("brand"), [params]);
+  const setBrands = (update: (current: string[]) => string[]) => {
+    const next = new URLSearchParams(params);
+    next.delete("brand");
+    for (const brand of update(params.getAll("brand"))) next.append("brand", brand);
+    setParams(next, { replace: true });
+  };
+
   const [filtersOpen, setFiltersOpen] = useState(false);
   const [view, setView] = useState<"grid" | "list">("grid");
+
+  /**
+   * The fragment a "Shop by brands" link arrives with.
+   *
+   * React Router does not scroll to a fragment on a client-side navigation, and
+   * this page is four browsing bands tall before the catalogue starts, so
+   * without this a brand link lands the shopper at the top with a filter
+   * applied somewhere below the fold. The target heading is rendered
+   * synchronously, so it always exists by the time this fires.
+   */
+  useEffect(() => {
+    if (hash !== "#catalogue") return;
+    document.getElementById("catalogue")?.scrollIntoView({ behavior: "smooth", block: "start" });
+  }, [hash]);
 
   const toggleIn = (setter: (fn: (v: string[]) => string[]) => void) => (value: string) =>
     setter((list) => (list.includes(value) ? list.filter((v) => v !== value) : [...list, value]));
@@ -192,9 +241,37 @@ export function MarketplacePage() {
   /** General -> specific, shared with the storefront. See useCategoryFilter. */
   const cat = useCategoryFilter(categories);
 
+  /**
+   * The brands in stock UNDER THE CHOSEN CATEGORY (migration 0060).
+   *
+   * A second facets call rather than a parameter on the one above, because the
+   * one above is what BUILDS the category ribbon: narrowing it would have the
+   * tree collapse to whichever group the shopper had already picked, and the
+   * ribbon would eat itself on the first tap. This query answers the narrower
+   * question and reads exactly one key off the answer.
+   *
+   * It is why the brand row can be trusted. The requirement on a brand chip is
+   * that it never leads to an empty grid, and the category ribbon sits directly
+   * above it: with Footwear selected, HP must not be on offer. Only the
+   * category is scoped this way and not price, size, colour or rating: those
+   * are behind the filter sheet rather than beside the chips, and a facets call
+   * per slider drag buys a correctness nobody is looking at.
+   *
+   * Disabled while nothing is category-filtered, so the common unfiltered
+   * marketplace costs no extra request and reads its brands off the wide facets
+   * like everything else.
+   */
+  const scopedBrandsQ = useQuery({
+    queryKey: ["marketplace-brand-facets", cat.queryCategories],
+    queryFn: () => services.products.getFacets(null, cat.queryCategories),
+    enabled: Boolean(cat.queryCategories?.length),
+    placeholderData: keepPreviousData,
+  });
+
   const activeFilterCount =
     sizes.length +
     colors.length +
+    brands.length +
     (availableOnly ? 1 : 0) +
     // The band counts as ONE filter however many ends are set: "3,000 to 5,000"
     // is one decision the shopper made, and badging it as two overstates how
@@ -209,6 +286,7 @@ export function MarketplacePage() {
   const clearFilters = () => {
     setSizes([]);
     setColors([]);
+    setBrands(() => []);
     setAvailableOnly(false);
     setMinPrice(null);
     setMaxPrice(null);
@@ -235,6 +313,10 @@ export function MarketplacePage() {
       label: c,
       remove: () => cat.toggleSub(c),
     })),
+    // Brands ahead of sizes and colours: on this page a brand is usually the
+    // strongest thing the shopper said, and it is the one they can arrive
+    // holding from a link rather than having chosen on screen.
+    ...brands.map((b) => ({ key: `brand:${b}`, label: b, remove: () => toggleIn(setBrands)(b) })),
     ...sizes.map((s) => ({ key: `size:${s}`, label: s, remove: () => toggleIn(setSizes)(s) })),
     ...colors.map((c) => ({ key: `color:${c}`, label: c, remove: () => toggleIn(setColors)(c) })),
     ...(availableOnly
@@ -263,6 +345,7 @@ export function MarketplacePage() {
     // when nothing is picked, so an unfiltered grid sends no category argument
     // at all. See useCategoryFilter and migration 0059.
     categories: cat.queryCategories,
+    brands,
     status: availableOnly ? ("in-stock" as const) : ("all" as const),
     minPrice,
     maxPrice,
@@ -292,6 +375,35 @@ export function MarketplacePage() {
   const priceCeiling = facetsQ.data?.priceCeiling ?? 0;
   const sizeOptions = sortSizes(facetsQ.data?.sizes ?? []);
   const colorOptions = facetsQ.data?.colors ?? [];
+  /**
+   * Only the brands something is actually filed under, in merchandising order.
+   *
+   * Straight from shop_facets, not from the table in lib/brands.ts, for the
+   * same reason the category ribbon is built from the facets rather than from
+   * CATEGORY_GROUPS: a shopper must never be able to pick a brand and land on
+   * an empty grid. The table decides the ORDER; the catalogue decides the list.
+   *
+   * A stale pick survives here on purpose. If the last HP in the marketplace
+   * sells out while a shopper is holding `?brand=HP`, the chip stays selectable
+   * (see brandChipOptions) rather than vanishing and silently widening their
+   * results without saying so.
+   */
+  const brandOptions = useMemo(() => {
+    // The wide list is the fallback for the first moment of a scoped fetch,
+    // before keepPreviousData has anything to hold. It can briefly offer a
+    // brand the chosen category does not stock; one render of a slightly
+    // generous list beats the row emptying and refilling under a thumb.
+    const scoped = cat.queryCategories?.length ? scopedBrandsQ.data?.brands : undefined;
+    return orderBrands(scoped ?? facetsQ.data?.brands ?? []);
+  }, [cat.queryCategories, scopedBrandsQ.data, facetsQ.data]);
+  const brandChipOptions = useMemo(
+    () => [...brandOptions, ...brands.filter((b) => !brandOptions.includes(b))],
+    [brandOptions, brands],
+  );
+  /** Every brand on the platform, for the "Shop by brands" band. Deliberately
+   *  NOT brandOptions; that one narrows with the category ribbon, and a way in
+   *  must not be narrowed by a filter set below it. */
+  const wallBrands = useMemo(() => orderBrands(facetsQ.data?.brands ?? []), [facetsQ.data]);
 
   const featuresQ = useQuery({
     queryKey: ["shop-features"],
@@ -522,6 +634,27 @@ export function MarketplacePage() {
         </ul>
       </div>
 
+      {/* Directly under Category, because it is the same kind of question,
+          "what sort of thing" then "whose", and the two together are how
+          almost every electronics purchase is narrowed. Absent entirely when
+          nothing in the catalogue carries a brand, which is also what a
+          pre-0060 database looks like. */}
+      {brandChipOptions.length > 0 && (
+        <div>
+          <h2 className="text-sm font-bold text-ink">Brand</h2>
+          <div className="mt-3 flex flex-wrap gap-2">
+            {brandChipOptions.map((b) => (
+              <Chip
+                key={b}
+                label={b}
+                active={brands.includes(b)}
+                onClick={() => toggleIn(setBrands)(b)}
+              />
+            ))}
+          </div>
+        </div>
+      )}
+
       {sizeOptions.length > 0 && (
         <div>
           <h2 className="text-sm font-bold text-ink">Size</h2>
@@ -740,6 +873,24 @@ export function MarketplacePage() {
           />
         )}
 
+        {/* WHO MAKES IT, under WHAT IT IS. The other axis a shopper browses by,
+            and the one the category wall cannot express: a brand cuts across
+            every shelf it appears on. Hidden while searching for the same
+            reason every band above it is: the query already answered the
+            question this section asks.
+
+            Fed the CATALOGUE-WIDE brand list, not the category-scoped one the
+            ribbon uses: this is a way IN, so it has to show every brand on the
+            platform rather than only those surviving a filter the shopper set
+            further down the page. */}
+        {!isSearching && (
+          <BrandWall
+            brands={wallBrands}
+            loading={facetsQ.isLoading}
+            className="mt-8 lg:mt-12"
+          />
+        )}
+
         {/* DEALS OF THE DAY. Every product on the platform that is marked down,
             biggest discount first — a whole-table query (migration 0058), not a
             filtered page, because a shelf that claims "every discount" and
@@ -784,9 +935,15 @@ export function MarketplacePage() {
             panel have nowhere else to live. */}
         {/* No top margin while searching: every band above this one is hidden
             then, so the gap would open directly under the masthead. */}
+        {/* The anchor brandListingPath() points at. A brand link is a "find me
+            this" intent arriving on a page whose first four bands answer "what
+            is here", so it lands on the grid rather than making the shopper
+            scroll past everything they did not ask about. scroll-mt clears the
+            sticky masthead, which would otherwise sit on top of the heading. */}
         <h2
+          id="catalogue"
           className={cn(
-            "text-lg font-extrabold text-ink lg:text-2xl",
+            "scroll-mt-20 text-lg font-extrabold text-ink lg:text-2xl",
             !isSearching && "mt-10 lg:mt-14",
           )}
         >
@@ -802,6 +959,9 @@ export function MarketplacePage() {
           groupLeaves={cat.groupLeaves}
           subs={cat.subs}
           onToggleSub={cat.toggleSub}
+          brandOptions={brandChipOptions}
+          brands={brands}
+          onToggleBrand={toggleIn(setBrands)}
           onOpenFilters={() => setFiltersOpen(true)}
           activeFilterCount={activeFilterCount}
           className="mt-3"
@@ -1537,6 +1697,9 @@ function CategoryRail({
   groupLeaves,
   subs,
   onToggleSub,
+  brandOptions,
+  brands,
+  onToggleBrand,
   onOpenFilters,
   activeFilterCount,
   className,
@@ -1548,6 +1711,11 @@ function CategoryRail({
   groupLeaves: string[];
   subs: string[];
   onToggleSub: (leaf: string) => void;
+  /** The brands in stock under the current category selection, in
+   *  merchandising order. Empty means no brand row at all. */
+  brandOptions: string[];
+  brands: string[];
+  onToggleBrand: (brand: string) => void;
   onOpenFilters: () => void;
   /** Everything switched on, categories included — the same figure the sheet's
    *  own badge shows, so the two never disagree. */
@@ -1693,6 +1861,47 @@ function CategoryRail({
               >
                 {on && <Check className="size-3.5 shrink-0" aria-hidden />}
                 {leaf}
+              </button>
+            );
+          })}
+        </div>
+      )}
+
+      {/* THE BRAND ROW.
+          Same strip, same scroll, same chip as the level above it; on a phone
+          this is a third swipeable line and nothing about reaching it is new,
+          which is the point: a filter that needed its own interaction would be
+          a filter nobody found. It is drawn as its own row rather than mixed in
+          with the specifics because "Smartphones" and "Samsung" are different
+          questions and a row that answers both is a row that answers neither.
+
+          Only when there is something to pick. A catalogue where nobody has
+          filled in a brand, and a database that has not had 0060 applied yet,
+          simply has two rows, exactly as before. */}
+      {brandOptions.length > 0 && (
+        <div className="no-scrollbar -mx-4 flex items-center gap-2 overflow-x-auto px-4 pb-0.5 lg:mx-0 lg:px-0">
+          {/* Labelled, unlike the two rows above it. Those are self-evident;
+              a strip of category names reads as categories, but a strip of
+              proper nouns does not say what it is a strip OF until one of them
+              happens to be a name the shopper recognises. */}
+          <span className="shrink-0 text-xs font-semibold text-muted">Brand</span>
+          {brandOptions.map((b) => {
+            const on = brands.includes(b);
+            return (
+              <button
+                key={b}
+                type="button"
+                onClick={() => onToggleBrand(b)}
+                aria-pressed={on}
+                className={cn(
+                  "flex min-h-9 shrink-0 items-center gap-1.5 rounded-full border px-3 text-[13px] font-semibold transition-colors",
+                  on
+                    ? "border-primary bg-primary text-on-accent"
+                    : "border-line bg-card text-muted hover:text-ink",
+                )}
+              >
+                {on && <Check className="size-3.5 shrink-0" aria-hidden />}
+                {b}
               </button>
             );
           })}

@@ -135,12 +135,14 @@ export function ProductSpecFields({
 
       {productType === "phone" && (
         <div className="grid grid-cols-2 gap-3">
-          <TextField
-            label="Brand"
-            placeholder="Apple, Samsung, Google…"
-            value={phone.brand}
-            onChange={(v) => setPhone({ brand: v })}
-          />
+          {/* BRAND IS NOT HERE ANY MORE. PhoneSpecs still carries one; it is
+              what the spec sheet on the product page prints beside the model,
+              but it is no longer typed here. Products have a brand column of
+              their own now (migration 0060), that is the one the shopper's
+              filter and the "Shop by brands" wall read, and two editable fields
+              both labelled Brand is a contradiction the seller gets to save.
+              ProductModal owns the single field and copies its value into
+              phoneSpecs.brand on submit. */}
           <TextField
             label="Model"
             placeholder="iPhone 16 Pro, Galaxy S25 Ultra…"

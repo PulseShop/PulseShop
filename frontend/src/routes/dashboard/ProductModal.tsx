@@ -16,6 +16,12 @@ import {
   sortSizes,
   statusForQty,
 } from "@/lib/constants";
+import {
+  MAX_BRAND,
+  categorySubCategories,
+  normalizeBrand,
+  suggestedBrands,
+} from "@/lib/brands";
 import { planHas } from "@/lib/entitlements";
 import { formatKes } from "@/lib/currency";
 import { processProductImage } from "@/lib/imageProcess";
@@ -142,6 +148,25 @@ export function ProductModal({
   // field, and a numeric state would force the intermediate empty string back to
   // 0 mid-keystroke. Parsed once, on submit.
   const [stockQty, setStockQty] = useState("0");
+  /**
+   * Who makes it (migration 0060).
+   *
+   * Kept as raw text while the seller types and normalised on blur and on
+   * submit, rather than on every keystroke: normalizeBrand() re-cases what it
+   * is given, and doing that mid-word means someone typing "GoPro" watches the
+   * P jump between cases as they go.
+   *
+   * ONE BRAND FIELD, NOT TWO. PhoneSpecs has carried a `brand` string since
+   * 0037, which is where phone brands lived before there was a product-level
+   * column. Two editable fields both labelled Brand is a contradiction waiting
+   * to be saved, so the relationship is settled in one direction: THIS is the
+   * brand, and on a phone listing it is copied into phoneSpecs.brand on submit
+   * so the spec sheet on the product page and the shopper's brand filter can
+   * never disagree. The duplicate input has been taken out of
+   * ProductSpecFields. Opening an older phone listing seeds this field from
+   * phoneSpecs.brand, so nothing typed before this existed is lost.
+   */
+  const [brand, setBrand] = useState("");
   const [productKey, setProductKey] = useState("");
   // Structured Phone/PC specs (see lib/productSpecs). Both forms are kept live
   // even when hidden, so toggling the type back and forth doesn't wipe what was
@@ -185,6 +210,11 @@ export function ProductModal({
       setSizeAdj(toAdjText(product.sizePriceAdj));
       setColorAdj(toAdjText(product.colorPriceAdj));
       setStockQty(String(product.stockQty));
+      // Falls back to the phone spec, which is where a phone listing's brand
+      // lived before the product-level column existed. Without this, editing an
+      // older phone would show an empty Brand field and the save would write
+      // the emptiness back over it.
+      setBrand(product.brand ?? product.phoneSpecs?.brand ?? "");
       // An existing product keeps the key it was created with — it's already on
       // the buyer's order messages and the merchant's own records.
       setProductKey(product.sku);
@@ -203,6 +233,7 @@ export function ProductModal({
       setSizeAdj({});
       setColorAdj({});
       setStockQty("0");
+      setBrand("");
       setProductKey(generateProductKey());
       setProductType("general");
       setPhoneForm(EMPTY_PHONE);
@@ -300,6 +331,30 @@ export function ProductModal({
    */
   const legacyCategory =
     product && isLegacyCategory(product.category) ? product.category : null;
+
+  /**
+   * The brands to offer for this category, plus whatever the product already
+   * carries if it isn't one of them.
+   *
+   * The trailing extra is the same courtesy sizeOptions pays a legacy size: a
+   * seller who typed their own brand, or reclassified a product into a shelf
+   * that does not suggest it, must still see their own value in the list rather
+   * than a list that silently disagrees with the field above it.
+   */
+  const brandOptions = useMemo(() => {
+    const preset = suggestedBrands(category);
+    const current = normalizeBrand(brand);
+    return current && !preset.includes(current) ? [...preset, current] : [...preset];
+  }, [category, brand]);
+
+  /** "Ultrabooks, Gaming Laptops, Desktops and Workstations", the shelf's own
+   * merchandising note, read as a sentence rather than a list. */
+  const subCategoryHint = useMemo(() => {
+    const subs = categorySubCategories(category);
+    if (subs.length === 0) return "";
+    if (subs.length === 1) return subs[0];
+    return `${subs.slice(0, -1).join(", ")} and ${subs[subs.length - 1]}`;
+  }, [category]);
 
   const stockNumber = Number(stockQty) || 0;
   const bumpStock = (delta: number) => setStockQty(String(Math.max(0, stockNumber + delta)));
@@ -418,9 +473,14 @@ export function ProductModal({
   });
 
   const onSubmit = handleSubmit((data) => {
+    const cleanBrand = normalizeBrand(brand);
+    // The phone spec's own brand is no longer typed anywhere; it is this one.
+    // Built before the validity check below so specError sees the value the
+    // seller actually entered rather than the stale form field.
+    const phoneSubmission: PhoneForm = { ...phoneForm, brand: cleanBrand ?? "" };
     // Spec fields live outside the zod schema (they're useState, not register),
     // so their one required-field check runs here.
-    const badSpec = specError(productType, phoneForm, pcForm);
+    const badSpec = specError(productType, phoneSubmission, pcForm);
     if (badSpec) {
       push(badSpec, "danger");
       return;
@@ -429,6 +489,10 @@ export function ProductModal({
       name: data.name,
       sku: productKey,
       category: data.category,
+      // Always sent, so clearing the field actually clears the column. Null
+      // rather than "": the database stores the absence, and every reader
+      // tests for it.
+      brand: cleanBrand,
       priceKes: data.priceKes,
       discountPct: data.discountPct || null,
       stockQty: stockNumber,
@@ -454,7 +518,7 @@ export function ProductModal({
       // productType is always sent so a type change is recorded; the matching
       // spec shape rides along, and the mapper clears specs when it's general.
       productType,
-      ...(productType === "phone" ? { phoneSpecs: toPhoneSpecs(phoneForm) } : {}),
+      ...(productType === "phone" ? { phoneSpecs: toPhoneSpecs(phoneSubmission) } : {}),
       ...(productType === "pc" ? { pcSpecs: toPcSpecs(pcForm) } : {}),
       // Only sent when the seller actually changed it. Sending the unchanged
       // value would be harmless today, but the column is the product's public
@@ -675,7 +739,67 @@ export function ProductModal({
             {errors.category && (
               <p className="text-xs font-medium text-danger">{errors.category.message}</p>
             )}
+            {/* What the taxonomy means by this shelf, from the same table the
+                brand suggestions come from. It is here because this is the one
+                moment someone is deciding where a product belongs, and it is
+                the cheapest way to stop "Ultrabooks" being typed in as a
+                category of its own. Nothing is filed under these; they are a
+                sentence, not a third level. */}
+            {subCategoryHint && (
+              <p className="text-xs text-muted">Includes {subCategoryHint}.</p>
+            )}
           </div>
+
+          {/*
+            BRAND: SUGGESTED, NEVER ENFORCED.
+
+            A native <datalist>, not a <select>. The suggestions are the brands
+            we expect on this shelf (lib/brands.ts), and they cover the nine
+            electronics categories and nothing else, so a closed dropdown would
+            trap every seller stocking furniture, kitenge or car parts into
+            picking a phone maker or leaving the field blank. A datalist offers
+            the list and still takes whatever is typed, and on a phone the
+            browser renders it as a native suggestion sheet rather than
+            something we would have to build and get wrong.
+
+            Normalised on blur so the seller SEES what will be stored: type
+            "hp", tab out, and the field says HP. That visibility is the whole
+            point; the alternative is a silent rewrite on save, which looks
+            like the form losing what they typed.
+          */}
+          <div className="col-span-2 flex flex-col gap-1.5 sm:col-span-1">
+            <label htmlFor="product-brand" className="text-sm font-semibold text-ink">
+              Brand <span className="font-medium text-muted">(optional)</span>
+            </label>
+            <input
+              id="product-brand"
+              type="text"
+              list={brandOptions.length > 0 ? "product-brand-options" : undefined}
+              autoComplete="off"
+              maxLength={MAX_BRAND}
+              value={brand}
+              onChange={(e) => setBrand(e.target.value)}
+              onBlur={() => setBrand(normalizeBrand(brand) ?? "")}
+              placeholder={
+                brandOptions.length > 0 ? `${brandOptions.slice(0, 3).join(", ")}…` : "e.g. Samsung"
+              }
+              aria-describedby="product-brand-hint"
+              className="h-11 rounded-btn border border-line bg-card px-3.5 text-sm text-ink outline-none transition-colors focus:border-primary focus:ring-2 focus:ring-primary/20"
+            />
+            {brandOptions.length > 0 && (
+              <datalist id="product-brand-options">
+                {brandOptions.map((b) => (
+                  <option key={b} value={b} />
+                ))}
+              </datalist>
+            )}
+            <p id="product-brand-hint" className="text-xs text-muted">
+              {productType === "phone"
+                ? "Also shown on the phone spec sheet, and what buyers filter by."
+                : "Type your own if it isn't listed. Buyers filter by this."}
+            </p>
+          </div>
+
           <Input
             label="Price (KES)"
             type="number"

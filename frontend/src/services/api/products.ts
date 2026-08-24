@@ -6,6 +6,7 @@ import type {
   Product,
   ShopFacets,
 } from "@/types";
+import { normalizeBrand } from "@/lib/brands";
 import { MAX_IMPORT_ROWS, type ProductCsvInput } from "@/lib/productCsv";
 import type {
   ProductExportEmailResult,
@@ -130,6 +131,11 @@ function searchArgs(merchantId: string | null, q: ProductQuery = {}) {
     // byte-identical to the pre-0059 one, which resolves against either version
     // of the function. Only the group filter itself needs the new signature.
     ...(q.categories?.length ? { p_categories: q.categories } : {}),
+    // Spread in only when used, exactly as p_categories is and for the same
+    // reason: PostgREST resolves an RPC by the SET of argument names, so
+    // sending `p_brands: null` would demand a signature that only exists after
+    // 0060 and 404 every unfiltered grid against a database mid-deploy.
+    ...(q.brands?.length ? { p_brands: q.brands } : {}),
     p_merchant_id: merchantId,
     p_search: q.search?.trim() ?? "",
     p_category: q.category && q.category !== "All" ? q.category : null,
@@ -406,6 +412,10 @@ export const productsApi: ProductService = {
         category: r.category,
         price_kes: r.priceKes,
       };
+      // Already normalised by the parser, and normalised again here for the
+      // same reason productInputToRow does it: the column is only useful to the
+      // buyer's filter if every door into it applies the same rule.
+      if (r.brand !== undefined) row.brand = normalizeBrand(r.brand);
       if (r.discountPct !== undefined) row.discount_pct = r.discountPct;
       if (r.stockQty !== undefined) row.stock_qty = r.stockQty;
       if (r.sizes !== undefined) row.sizes = r.sizes;
@@ -492,13 +502,25 @@ export const productsApi: ProductService = {
    * categories and no price filter at all. The two scopes now say which they
    * mean, and shop_facets() understands a null (migration 0048).
    */
-  async getFacets(merchantId?: string | null): Promise<ShopFacets> {
+  async getFacets(merchantId?: string | null, categories?: string[]): Promise<ShopFacets> {
     const scope = merchantId === undefined ? await requireUserId() : merchantId;
-    const { data, error } = await supabase.rpc("shop_facets", { p_merchant_id: scope });
+    const { data, error } = await supabase.rpc("shop_facets", {
+      p_merchant_id: scope,
+      // Spread in only when used, exactly as search_products does with its own
+      // optional arrays: PostgREST resolves by the SET of argument names, so an
+      // unconditional `p_categories: null` would 404 every filter panel against
+      // a database that has not had 0060 applied yet.
+      ...(categories?.length ? { p_categories: categories } : {}),
+    });
     if (error) throw error;
     const f = (data ?? {}) as Partial<ShopFacets>;
     return {
       categories: f.categories ?? [],
+      // Absent against a database without 0060, which reads as "no brands in
+      // stock": the ribbon's brand chip and the brand wall both hide
+      // themselves on an empty list, so the pre-migration state is the page as
+      // it was rather than an error.
+      brands: f.brands ?? [],
       sizes: f.sizes ?? [],
       colors: f.colors ?? [],
       productTypes: f.productTypes ?? [],

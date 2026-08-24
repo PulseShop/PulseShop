@@ -1,4 +1,5 @@
 import type { Merchant, PcSpecs, PhoneSpecs, Product, ProductType, StockStatus } from "@/types";
+import { normalizeBrand } from "@/lib/brands";
 import { toSocialHandle, toWhatsAppDigits } from "@/lib/phone";
 import type { MerchantUpdate, ProductInput } from "../types";
 
@@ -16,6 +17,9 @@ export interface ProductRow {
   slug?: string;
   sku: string;
   category: string;
+  /** Optional for the same reason merchant_id is: not every projection carries
+   * it, and a client running against a database without 0060 never sees it. */
+  brand?: string | null;
   price_kes: number;
   discount_pct: number | null;
   stock_qty: number;
@@ -75,6 +79,9 @@ export function toProduct(row: ProductRow): Product {
     slug: row.slug ?? "",
     sku: row.sku,
     category: row.category,
+    // Undefined stays undefined: "the read didn't carry it" and "the seller
+    // left it blank" are different facts and Product keeps them apart.
+    brand: row.brand,
     priceKes: row.price_kes,
     discountPct: row.discount_pct,
     stockQty: row.stock_qty,
@@ -143,6 +150,11 @@ export function productInputToRow(patch: Partial<ProductInput>): Record<string, 
   if (patch.metaDescription !== undefined) row.meta_description = patch.metaDescription || null;
   if (patch.sku !== undefined) row.sku = patch.sku;
   if (patch.category !== undefined) row.category = patch.category;
+  // Normalised HERE, not only in the form, so that every writer (the
+  // product modal, the CSV importer, anything added later) lands the same spelling in
+  // the column. The buyer's brand filter groups on exact equality; one caller
+  // skipping the trim is all it takes to split a shelf in two.
+  if (patch.brand !== undefined) row.brand = normalizeBrand(patch.brand);
   if (patch.priceKes !== undefined) row.price_kes = patch.priceKes;
   if (patch.discountPct !== undefined) row.discount_pct = patch.discountPct;
   if (patch.stockQty !== undefined) row.stock_qty = patch.stockQty;

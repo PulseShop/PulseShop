@@ -1,3 +1,4 @@
+import { MAX_BRAND, normalizeBrand } from "./brands";
 import {
   APPAREL_SIZES,
   CATEGORIES,
@@ -24,6 +25,13 @@ export const PRODUCT_CSV_COLUMNS = [
   "sku",
   "name",
   "category",
+  // Slotted in beside `category` rather than appended, because that is where a
+  // seller reads it: what the thing is, then who made it. Safe to insert
+  // mid-list in a way an RPC parameter would not be: the parser resolves
+  // columns BY HEADER NAME (see indexOf below), so a file exported before this
+  // column existed still imports, and its missing brand column is read as
+  // "leave every brand alone".
+  "brand",
   "price_kes",
   "discount_pct",
   "stock_qty",
@@ -74,6 +82,10 @@ const HEADER_ALIASES: Record<string, CsvColumn> = {
   product: "name",
   product_category: "category",
   type: "category",
+  make: "brand",
+  manufacturer: "brand",
+  brand_name: "brand",
+  vendor: "brand",
   price: "price_kes",
   price_ksh: "price_kes",
   unit_price: "price_kes",
@@ -151,6 +163,14 @@ export interface ProductCsvInput {
   name: string;
   category: string;
   priceKes: number;
+  /**
+   * Who makes it, already through normalizeBrand(). Follows the same
+   * undefined/null split as every optional field below: `undefined` is "the
+   * file had no brand column", which is what every CSV exported before this
+   * existed looks like and must leave brands untouched; `null` is "the column
+   * was there and the cell was blank", which clears it.
+   */
+  brand?: string | null;
   /**
    * UNDEFINED AND NULL MEAN DIFFERENT THINGS on every field below, and the
    * distinction is the whole reason a partial import is safe.
@@ -313,6 +333,7 @@ function productToCsvRow(p: Product): string[] {
     p.sku,
     p.name,
     p.category,
+    p.brand ?? "",
     String(p.priceKes),
     p.discountPct == null ? "" : String(p.discountPct),
     String(p.stockQty),
@@ -346,6 +367,7 @@ export function productCsvTemplate(): string {
       "SAMPLE-001",
       "Sample product (delete this row)",
       "Men's Clothing",
+      "Zawadi Basics",
       "1500",
       "10",
       "25",
@@ -359,6 +381,7 @@ export function productCsvTemplate(): string {
       "SAMPLE-002",
       "Details now, photos later (delete this row)",
       "Men's Clothing",
+      "",
       "2500",
       "",
       "",
@@ -495,6 +518,41 @@ export function parseProductCsv(text: string): ParsedProductCsv {
         notes.push(
           `"${rawCategory}" is not one of the categories in the product form, so it was imported as typed`,
         );
+      }
+    }
+
+    /* --- brand ---------------------------------------------------------------
+       NEVER fatal, and never refused for being unrecognised.
+
+       The same reasoning the category column above landed on, only more so:
+       the featured list in lib/brands.ts is nine shelves of electronics, and a
+       seller importing kitenge, furniture or car parts has brands we have
+       simply never heard of. Refusing those would fail whole catalogues to
+       enforce a vocabulary that was never meant to be closed.
+
+       So it is normalised rather than validated. normalizeBrand() is the same
+       function the product form and both adapters use, so "hp", "HP" and
+       " Hp " arrive as one brand however they were typed, and an unknown name
+       is kept, re-cased only where the seller typed it in a single case
+       throughout. The one hard limit is length, which mirrors the column's
+       CHECK; over it, the row still imports without the brand rather than
+       failing at the database. */
+    let brand: string | null | undefined;
+    if (has("brand")) {
+      const raw = cell("brand");
+      if (raw.length > MAX_BRAND) {
+        brand = null;
+        notes.push(
+          `brand "${truncate(raw, 20)}" is over ${MAX_BRAND} characters and was left off`,
+        );
+      } else {
+        brand = normalizeBrand(raw);
+        // Only worth saying when the seller can SEE the difference. A trim or a
+        // case fix on "hp" is the importer doing its job quietly; a rename to a
+        // spelling they did not type is a thing they should know about.
+        if (brand && brand !== raw.trim()) {
+          notes.push(`brand "${truncate(raw, 20)}" was saved as "${brand}"`);
+        }
       }
     }
 
@@ -654,6 +712,7 @@ export function parseProductCsv(text: string): ParsedProductCsv {
       priceKes: (price as { value: number }).value,
       // Spread-if-defined, so a column the file never had stays absent from the
       // object and the writer can tell "leave this alone" from "set it empty".
+      ...(brand !== undefined ? { brand } : {}),
       ...(discountPct !== undefined ? { discountPct } : {}),
       ...(stockQty !== undefined ? { stockQty } : {}),
       ...(sizes !== undefined ? { sizes } : {}),

@@ -359,6 +359,12 @@ function FormatGuide() {
           don't stock is skipped rather than failing the row.
         </li>
         <li>
+          <strong className="text-ink">brand</strong> is optional and takes any name, not just the
+          ones we suggest. Spelling is tidied so <span className="font-mono">hp</span> and{" "}
+          <span className="font-mono">HP</span> stay one brand in your buyers' filters. A file with
+          no brand column leaves every brand as it is.
+        </li>
+        <li>
           A <strong className="text-ink">category</strong> outside the product form's list still
           imports, kept as you typed it. Matching the list is what keeps the storefront filters
           working, so it's worth tidying later.

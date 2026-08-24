@@ -206,6 +206,112 @@ export function CategoryWall({
 }
 
 /**
+ * The same wall, one level sideways: who makes the things rather than what
+ * they are.
+ *
+ * A SEPARATE SECTION, NOT ANOTHER CARD IN THE WALL ABOVE. A card there stands
+ * for a shelf and is illustrated by something actually on it; a brand cuts
+ * ACROSS the shelves (Samsung is a phone, a television and a watch), so a
+ * single photograph could only ever misrepresent it, and a Samsung card sitting
+ * between Consumer Electronics and Fashion would read as a third kind of
+ * category. Names on their own, in their own band under the wall.
+ *
+ * IT IS DRAWN FROM THE CATALOGUE, NOT FROM lib/brands.ts. The featured table
+ * there is what the platform hopes to carry; `brands` is what shop_facets says
+ * is actually in stock (migration 0060). The table decides the order (see
+ * orderBrands), and the catalogue decides the list, so every name here leads to
+ * a grid with something in it. That is the same promise the category tiles
+ * make, and the reason neither is rendered from the taxonomy alone.
+ *
+ * NOTHING AT ALL UNTIL BRANDS EXIST. A young catalogue, or a database that has
+ * not had 0060 applied yet, produces an empty list, and an empty list renders
+ * null rather than a heading over a blank strip. Same rule the wall above
+ * follows, and the reason an unapplied migration degrades to the page as it
+ * was.
+ */
+export function BrandWall({
+  brands,
+  loading,
+  className,
+}: {
+  /** Brands in stock, already through orderBrands(). */
+  brands: string[];
+  loading: boolean;
+  className?: string;
+}) {
+  if (loading) {
+    return (
+      <section className={className} aria-label="Shop by brands">
+        <BrandHeading />
+        <div className="flex flex-wrap justify-center gap-2">
+          {Array.from({ length: 8 }).map((_, i) => (
+            <Skeleton key={i} className="h-10 w-24 rounded-full" />
+          ))}
+        </div>
+      </section>
+    );
+  }
+
+  if (brands.length === 0) return null;
+
+  return (
+    <section className={className} aria-label="Shop by brands">
+      <BrandHeading />
+      {/* Pills that wrap, not a scrolling rail. The rail above the catalogue is
+          a FILTER and lives beside the thing it filters, where a half-visible
+          chip at the edge is the cue that there is more. This is a directory:
+          the shopper is reading the whole list to find a name they know, and a
+          name they cannot see is a name they do not have. Centred to sit under
+          a centred heading, like the wall above. */}
+      <ul className="flex flex-wrap justify-center gap-2">
+        {brands.map((brand) => (
+          <li key={brand}>
+            <Link
+              to={brandListingPath(brand)}
+              className={cn(
+                "flex min-h-10 items-center rounded-full bg-card px-4 text-sm font-bold text-ink shadow-soft",
+                "transition-colors hover:text-primary focus-visible:outline-none",
+                "focus-visible:ring-2 focus-visible:ring-primary",
+              )}
+            >
+              {brand}
+            </Link>
+          </li>
+        ))}
+      </ul>
+    </section>
+  );
+}
+
+/**
+ * Where a brand name leads.
+ *
+ * The marketplace grid with the brand filter applied, which is the same state a
+ * shopper reaches by tapping the chip in the ribbon, one destination for one
+ * idea, rather than a /brand/:slug page that would have to re-implement the
+ * grid, the sort and the paging to say the same thing. The parameter name and
+ * its encoding are MarketplacePage's, not a second scheme: see the note on the
+ * brands state there.
+ *
+ * The hash lands the shopper on the catalogue rather than at the top of a page
+ * whose first four bands are about browsing, which is not the question they
+ * just asked.
+ */
+export const brandListingPath = (brand: string) =>
+  `/?brand=${encodeURIComponent(brand)}#catalogue`;
+
+function BrandHeading() {
+  return (
+    <div className="mb-4 text-center lg:mb-5">
+      <h2 className="text-lg font-extrabold text-ink lg:text-2xl">Shop by brands</h2>
+      <p className="mt-1 text-xs text-muted lg:text-sm">
+        The names our sellers actually stock, straight to their listings.
+      </p>
+    </div>
+  );
+}
+
+/**
  * The wall's heading, centred.
  *
  * Centred because this is now the page's main section rather than a strip

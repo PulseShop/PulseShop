@@ -225,6 +225,129 @@ export interface SeoCategory {
 }
 
 /**
+ * Hand-written copy for one category page.
+ *
+ * WHY ANY OF THIS IS HAND-WRITTEN. categorySeo() below generates a perfectly
+ * serviceable title and description for all forty leaves from their counts, and
+ * that is the right default: it is always accurate, it costs nothing per
+ * category, and it cannot go stale. What it cannot do is compete. "Compare 34
+ * laptop listings from 6 independent shops in Kenya" is a true sentence that
+ * says nothing a shopper was searching for, and on the two or three categories
+ * that carry real query volume that is the difference between ranking and not.
+ * So the generated copy stays as the floor and a category may override it.
+ *
+ * THE PROSE GOES BELOW THE GRID, NOT ABOVE IT. Copy above the products pushes
+ * the merchandise off the first screen to serve a crawler at the shopper's
+ * expense, which is the trade that makes so many category pages unusable. Under
+ * the grid it is read by whoever wants it and stepped over by everyone else,
+ * and a crawler does not care which end of the document it is in.
+ */
+export interface CategoryCopy {
+  /**
+   * Used verbatim, with no `| PulseShop` appended.
+   *
+   * The generated titles go through composeTitle() so that forty pages share
+   * one shape; the whole reason to hand-write one is to control the exact
+   * phrasing, and spending twelve of sixty characters on a word that is
+   * identical across the domain is precisely what an authored title is buying
+   * its way out of.
+   */
+  title: string;
+  description: string;
+  heading: string;
+  intro: string;
+  /** Heading over `points`, e.g. "Why Shop Laptops With Us?". */
+  pointsHeading: string;
+  /** A bolded lead-in and the sentence under it. */
+  points: { term: string; detail: string }[];
+}
+
+/**
+ * Authored copy, keyed by category SLUG rather than by name.
+ *
+ * The slug because that is what both readers already hold: the page has it from
+ * the URL, the renderer has it from the request path, and neither has to
+ * re-derive it from a display name. It also means this table cannot be keyed to
+ * a name that a future taxonomy edit orphans without the URL changing too.
+ *
+ * It lives in this module, not beside the page component, because this file is
+ * copied verbatim into the serverless bundle as api/_seo.ts. The server-rendered
+ * head and body and the client-rendered ones have to say the same thing; a
+ * crawler that sees one page following a link and a different one fetching it
+ * directly reads that as cloaking, and one shared constant is the only way to
+ * guarantee it.
+ */
+export const CATEGORY_COPY: Record<string, CategoryCopy> = {
+  "laptops-computers": {
+    title: "Buy Laptops Online | HP, Lenovo, Apple & Dell Deals",
+    description:
+      "Shop the best laptops for work, school, and gaming. Find great prices on HP, Lenovo, Apple, and ASUS. Enjoy secure checkout and fast delivery nationwide.",
+    heading: "Find the Perfect Laptop for Work, Study, or Gaming",
+    intro:
+      "Whether you are a professional upgrading your workstation, a student needing a reliable notebook, or a gamer looking for high-performance graphics, our extensive collection of laptops has you covered. We stock trusted, genuine devices from global industry leaders, including HP, Lenovo, Apple, Dell, and ASUS.",
+    pointsHeading: "Why Shop Laptops With Us?",
+    points: [
+      {
+        term: "A Machine for Every Budget",
+        detail:
+          "From affordable entry-level Chromebooks and everyday laptops to premium ultrabooks and heavy-duty gaming rigs, you can filter by RAM, processor, and price to find your exact match.",
+      },
+      {
+        term: "Guaranteed Authenticity",
+        detail:
+          "Every laptop we carry is 100% genuine, backed by standard manufacturer warranties to ensure you are fully protected under local consumer laws.",
+      },
+      {
+        term: "Seamless & Secure Payments",
+        detail:
+          "Upgrading your tech shouldn't be a hassle; enjoy instant, secure checkout options, including seamless mobile money integrations like M-Pesa STK push, so you can complete your purchase safely and quickly.",
+      },
+      {
+        term: "Fast Nationwide Delivery",
+        detail:
+          "Order your laptop today and get it dispatched directly to your doorstep or preferred pickup location anywhere in the country.",
+      },
+    ],
+  },
+  smartphones: {
+    title: "Latest Smartphones & Mobile Phones | Apple, Samsung, Tecno",
+    description:
+      "Discover the latest smartphones from Apple, Samsung, Infinix, and Tecno. Shop budget-friendly phones and premium flagships with fast delivery and secure payments.",
+    heading: "Shop the Latest Smartphones and Mobile Devices",
+    intro:
+      "Stay connected with our massive selection of the latest smartphones, carefully curated to fit every lifestyle and budget. From the unmatched camera quality of Apple iPhones and Samsung Galaxy flagships to the incredible battery life and value of Tecno, Infinix, and Xiaomi, you'll find exactly what you need to upgrade your mobile experience.",
+    pointsHeading: "Discover Your Next Phone",
+    points: [
+      {
+        term: "Premium Flagships",
+        detail:
+          "Experience cutting-edge mobile technology, stunning OLED displays, and pro-grade cameras for photography and content creation.",
+      },
+      {
+        term: "Mid-Range & Budget Phones",
+        detail:
+          "Get incredible performance, large screens, and all-day battery life without breaking the bank.",
+      },
+      {
+        term: "Accessories & More",
+        detail:
+          "Complete your mobile setup with compatible wireless earbuds, fast-charging cables, and durable phone cases.",
+      },
+      {
+        term: "Shop with Confidence",
+        detail:
+          "We prioritize your security; check out smoothly using familiar, trusted payment gateways, knowing your purchase is protected by robust buyer guarantees and transparent return policies.",
+      },
+    ],
+  },
+};
+
+/** Authored copy for a category slug, or null for the forty that have none and
+ * fall back to the generated title and description. */
+export const categoryCopy = (slug: string): CategoryCopy | null =>
+  CATEGORY_COPY[slug] ?? null;
+
+/**
  * How much stock a category needs before it is worth indexing.
  *
  * The number is a judgement, not a rule from anywhere: below it, a category
@@ -573,18 +696,30 @@ export function categorySeo(category: SeoCategory, origin: string): PageSeo {
   const count = Number(category.productCount) || 0;
   const shopCount = Number(category.shopCount) || 0;
   const products = categoryProducts(category);
+  const copy = categoryCopy(category.slug);
 
-  const description = truncate(
-    `Compare ${count} ${name.toLowerCase()} ${count === 1 ? "listing" : "listings"} ` +
-      `from ${shopCount} independent ${shopCount === 1 ? "shop" : "shops"} in Kenya. ` +
-      `Browse prices and order over WhatsApp on ${SITE_NAME}.`,
-    DESC_MAX,
-  );
+  // The authored description is used as written, not truncated to DESC_MAX:
+  // it was written to a length, and cutting it at 155 with an ellipsis would
+  // be the module second-guessing a decision somebody already made. The
+  // generated fallback is still truncated, because a count-driven sentence has
+  // no author to have made that decision.
+  const description =
+    copy?.description ??
+    truncate(
+      `Compare ${count} ${name.toLowerCase()} ${count === 1 ? "listing" : "listings"} ` +
+        `from ${shopCount} independent ${shopCount === 1 ? "shop" : "shops"} in Kenya. ` +
+        `Browse prices and order over WhatsApp on ${SITE_NAME}.`,
+      DESC_MAX,
+    );
 
+  // Authored copy does NOT buy a page out of the stock threshold. The rule is
+  // about whether there is anything behind the page worth sending a shopper to,
+  // and a beautifully written heading over two products is exactly the thin
+  // page CATEGORY_MIN_PRODUCTS exists to keep out of the index.
   const indexable = count >= CATEGORY_MIN_PRODUCTS;
 
   return {
-    title: composeTitle(name, "Buy online in Kenya"),
+    title: copy?.title ?? composeTitle(name, "Buy online in Kenya"),
     description,
     canonical: url,
     image: absolute(origin, products[0]?.image || DEFAULT_IMAGE),

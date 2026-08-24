@@ -65,6 +65,24 @@ export interface Product {
   slug: string;
   sku: string;
   category: string;
+  /**
+   * Who makes it (migration 0060). Normalised on every write path through
+   * normalizeBrand() in lib/brands.ts, because the buyer's brand filter groups
+   * on exact equality and "hp", "HP" and " Hp " would otherwise be three
+   * shelves holding a third of the stock each.
+   *
+   * OPTIONAL, and both absences are real. `undefined` is "this read did not
+   * carry the column": a projection that omits it, or a client talking to a
+   * database that has not had 0060 applied yet, which is a live state for the
+   * length of a deploy. `null` is "the seller did not say", which is most of
+   * the catalogue: brand is a meaningful fact about a laptop and a meaningless
+   * one about a bunch of sukuma wiki, so it is never required.
+   *
+   * On a PHONE listing this is the same value as `phoneSpecs.brand`; the
+   * product-level column is the one that filters, and the spec sheet mirrors
+   * it. See ProductModal for why there is only one field.
+   */
+  brand?: string | null;
   priceKes: number;
   discountPct: number | null;
   stockQty: number;
@@ -407,6 +425,15 @@ export interface Paged<T> {
 /** The filter aggregates a product list needs but can't derive from one page. */
 export interface ShopFacets {
   categories: string[];
+  /**
+   * Every brand in stock in scope, alphabetically (migration 0060). The filter
+   * ribbon and the "Shop by brands" wall are both drawn from this rather than
+   * from the table in lib/brands.ts, for the reason groupCategories() gives
+   * about categories: a chip that leads to an empty grid is worse than no chip,
+   * and the table lists brands the platform hopes to carry, not brands it has.
+   * Run through orderBrands() before rendering.
+   */
+  brands: string[];
   /** Every size/colour offered anywhere in the catalogue — the filter's options.
    * Returned alphabetically; run sizes through sortSizes() before rendering. */
   sizes: string[];

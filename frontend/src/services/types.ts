@@ -168,6 +168,13 @@ export interface ProductInput {
   metaDescription?: string | null;
   sku: string;
   category: string;
+  /**
+   * Who makes it. Omit to leave a product's brand alone on update; null or an
+   * empty string clears it. Whatever is sent is run through normalizeBrand()
+   * by the adapter, so a caller cannot write "hp" past the aggregation the
+   * buyer's filter depends on.
+   */
+  brand?: string | null;
   priceKes: number;
   discountPct: number | null;
   stockQty: number;
@@ -218,6 +225,17 @@ export interface ProductQuery {
    * not both. Empty or omitted = no constraint.
    */
   categories?: string[];
+  /**
+   * Match any of these brands (migration 0060), the same "any of" semantics
+   * `sizes` and `colors` have, and for the same reason: a shopper ticking HP
+   * and Lenovo wants either, not a product somehow made by both.
+   *
+   * Compared as stored, so the values must already be normalised; every write
+   * path runs through normalizeBrand(), and the filter's options come from
+   * shop_facets, so in practice they always are. Empty or omitted = no
+   * constraint.
+   */
+  brands?: string[];
   /** "in-stock" = anything not out of stock. */
   status?: "all" | "in-stock" | "available" | "low" | "out";
   /**
@@ -323,11 +341,22 @@ export interface ProductService {
    * from the rotation, which is only expressible if they arrive apart.
    */
   listBannerPlacements(limit?: number): Promise<BannerProduct[]>;
-  /** The category list, price range and stock counts a filter UI needs —
+  /**
+   * The category list, price range and stock counts a filter UI needs:
    * aggregates over the whole catalogue, which a single page can't give you.
    * Omit `merchantId` for the WHOLE marketplace (every shop); pass one for a
-   * single shop's catalogue. */
-  getFacets(merchantId?: string | null): Promise<ShopFacets>;
+   * single shop's catalogue.
+   *
+   * `categories` narrows the BRANDS key and nothing else (migration 0060). A
+   * brand chip that leads to an empty grid is the one failure the brand filter
+   * had to avoid, and the category ribbon sits directly above it, so the two
+   * have to agree: with Footwear selected, HP must not be on offer. The other
+   * facets deliberately stay catalogue-wide: the category list is what BUILDS
+   * the ribbon and narrowing it would make the ribbon collapse to whatever was
+   * already chosen, and a price slider whose ends move every time a chip is
+   * tapped is a control that will not hold still under the shopper's thumb.
+   */
+  getFacets(merchantId?: string | null, categories?: string[]): Promise<ShopFacets>;
   /**
    * Public: a cover image and a product count for every category that has
    * something to sell (migration 0057) — what the front page's category wall
