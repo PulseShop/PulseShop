@@ -1,5 +1,5 @@
-import { useQuery } from "@tanstack/react-query";
-import { ArrowRight, Minus, Plus, ShoppingBag, Trash2 } from "lucide-react";
+import { useQueries } from "@tanstack/react-query";
+import { ArrowRight, Minus, Plus, ShoppingBag, Store, Trash2 } from "lucide-react";
 import { useState } from "react";
 import { Link, useNavigate } from "react-router";
 import { type AppliedDiscount, DiscountCodeSection } from "@/components/cart/DiscountCodeSection";
@@ -13,7 +13,7 @@ import { formatKes } from "@/lib/currency";
 import { variantKey, variantLabel } from "@/lib/variant";
 import { useRemoveFromCart, useSetCartQty } from "@/hooks/useCart";
 import { services } from "@/services";
-import { cartSubtotal, useCart } from "@/stores/cart";
+import { cartShopCount, cartSubtotal, groupByShop, useCart } from "@/stores/cart";
 import { useShopHome } from "@/stores/shop";
 
 export function CartPage() {
@@ -26,15 +26,26 @@ export function CartPage() {
   const remove = useRemoveFromCart();
   const subtotal = cartSubtotal(items);
 
-  // The discount code needs the merchant's id to validate against; resolved
-  // from the cart's shop the same way checkout does (same query key, so the
-  // result is shared).
-  const shopSlug = items[0]?.shopSlug;
-  const merchantQ = useQuery({
-    queryKey: ["shop", shopSlug],
-    queryFn: () => services.products.getShop(shopSlug!),
-    enabled: Boolean(shopSlug),
+  // The cart can now span sellers (migration 0062), so it renders as one
+  // section per shop. Names come from one query per distinct slug, sharing the
+  // ["shop", slug] key every other page already uses — so a shop the buyer just
+  // came from is already in cache and never refetched.
+  const groups = groupByShop(items);
+  const shopQueries = useQueries({
+    queries: groups.map((g) => ({
+      queryKey: ["shop", g.shopSlug],
+      queryFn: () => services.products.getShop(g.shopSlug),
+    })),
   });
+  const shopCount = cartShopCount(items);
+
+  // A discount code belongs to ONE shop and is previewed against that shop's
+  // id, so the input only appears when the cart holds a single seller. The
+  // server still resolves a code against whichever shop in the cart owns it
+  // (place_cart_order), but showing a preview here for a mixed cart would mean
+  // guessing which seller it applies to, and a wrong preview at checkout is
+  // worse than no input.
+  const singleShop = shopCount === 1 ? shopQueries[0]?.data : undefined;
 
   const [applied, setApplied] = useState<AppliedDiscount | null>(null);
   const discountKes = applied?.preview.valid ? applied.preview.discountKes : 0;
@@ -80,14 +91,36 @@ export function CartPage() {
           <h1 className="text-lg font-extrabold text-ink lg:text-2xl">Your Cart</h1>
           <span className="text-sm font-semibold text-muted">
             {items.length} {items.length === 1 ? "item" : "items"}
+            {shopCount > 1 && ` from ${shopCount} shops`}
           </span>
         </div>
         <DesktopQuickNav />
       </header>
 
       <div className="px-4 pb-6 pt-1 lg:flex lg:items-start lg:gap-8 lg:px-6 lg:pt-4">
-        <div className="space-y-3 lg:flex-1">
-          {items.map((item) => (
+        <div className="space-y-4 lg:flex-1">
+          {groups.map((group, gi) => (
+            <section key={group.shopSlug} className="space-y-3">
+              {/* One header per seller. Shown even for a single-shop cart:
+                  the buyer is about to place an order that names this shop,
+                  and "sold by" is the fact that makes the grouping legible
+                  the first time a second shop appears. */}
+              <div className="flex items-center justify-between gap-3 px-1">
+                <Link
+                  to={`/shop/${group.shopSlug}`}
+                  className="flex min-w-0 items-center gap-2 text-sm font-bold text-ink transition-colors hover:text-primary"
+                >
+                  <Store className="size-4 shrink-0 text-primary" aria-hidden />
+                  <span className="truncate">
+                    {shopQueries[gi]?.data?.name ?? `@${group.shopSlug}`}
+                  </span>
+                </Link>
+                <span className="shrink-0 text-xs font-semibold tabular-nums text-muted">
+                  {formatKes(group.subtotal)}
+                </span>
+              </div>
+
+              {group.items.map((item) => (
             <div
               key={`${item.productId}-${variantKey(item.size, item.color)}`}
               className="flex gap-3 rounded-card bg-card p-3 shadow-soft"
@@ -139,14 +172,16 @@ export function CartPage() {
                 </div>
               </div>
             </div>
+              ))}
+            </section>
           ))}
         </div>
 
         {/* summary — sticky sidebar on desktop, inline card on mobile */}
         <div className="mt-3 space-y-3 rounded-card bg-card p-4 shadow-soft lg:sticky lg:top-24 lg:mt-0 lg:w-80 lg:shrink-0">
-          {merchantQ.data && (
+          {singleShop && (
             <DiscountCodeSection
-              merchantId={merchantQ.data.id}
+              merchantId={singleShop.id}
               items={items.map((i) => ({ productId: i.productId, qty: i.qty }))}
               applied={applied}
               onApply={(a) => {
@@ -175,7 +210,9 @@ export function CartPage() {
             <span className="text-lg font-extrabold text-primary">{formatKes(displayTotal)}</span>
           </div>
           <p className="text-xs text-muted">
-            Delivery is arranged with the seller after you place the order.
+            {shopCount > 1
+              ? `Your ${shopCount} shops send their items to the PulseShop warehouse. You pick a collection station at checkout.`
+              : "Your order goes to the PulseShop warehouse. You pick a collection station at checkout."}
           </p>
           <Button size="lg" className="w-full" onClick={() => navigate("/checkout")}>
             Proceed to Checkout <ArrowRight className="size-5" />

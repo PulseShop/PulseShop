@@ -1,5 +1,5 @@
 import { zodResolver } from "@hookform/resolvers/zod";
-import { useQuery } from "@tanstack/react-query";
+import { useQueries, useQuery } from "@tanstack/react-query";
 import type { LucideIcon } from "lucide-react";
 import {
   AlertTriangle,
@@ -11,7 +11,7 @@ import {
   ShieldCheck,
   Star,
 } from "lucide-react";
-import { useEffect, useState } from "react";
+import { useState } from "react";
 import { useForm } from "react-hook-form";
 import { Navigate, useNavigate } from "react-router";
 import { z } from "zod";
@@ -21,14 +21,12 @@ import { orderErrorMessage } from "@/lib/orderErrors";
 import { MobileShell } from "@/components/layout/MobileShell";
 import { ProductImage } from "@/components/product/ProductImage";
 import { RecommendedProducts } from "@/components/product/RecommendedProducts";
-import { FacebookIcon, InstagramIcon, PayPalIcon, WhatsAppIcon } from "@/components/ui/BrandIcons";
+import { PayPalIcon } from "@/components/ui/BrandIcons";
 import { Button } from "@/components/ui/Button";
 import { Input, Textarea } from "@/components/ui/Input";
 import { Skeleton } from "@/components/ui/Skeleton";
 import { formatKes } from "@/lib/currency";
-import { fulfillmentLabel } from "@/lib/constants";
 import { variantKey, variantLabel } from "@/lib/variant";
-import { cartOrderLink } from "@/lib/deeplinks";
 import { isValidPhone } from "@/lib/phone";
 import { cn } from "@/lib/utils";
 import { services } from "@/services";
@@ -36,18 +34,13 @@ import { activeShareCode, useAttribution } from "@/stores/attribution";
 import { type AppliedDiscount, DiscountCodeSection } from "@/components/cart/DiscountCodeSection";
 import type { PaymentMethod } from "@/types";
 import { useClearCart } from "@/hooks/useCart";
-import { cartSubtotal, useCart } from "@/stores/cart";
+import { cartShopCount, cartSubtotal, groupByShop, useCart } from "@/stores/cart";
 import { useOrderStore } from "@/stores/order";
 import { useOrderHistory } from "@/stores/orderHistory";
 import { useShop } from "@/stores/shop";
 import { useToasts } from "@/stores/toast";
 import { PaymentSheet } from "@/routes/order/PaymentSheet";
 
-const CHANNEL_LABEL: Record<Channel, string> = {
-  whatsapp: "WhatsApp",
-  instagram: "Instagram",
-  facebook: "Facebook",
-};
 
 const customerSchema = z.object({
   name: z.string().min(2, "Enter your full name"),
@@ -58,14 +51,6 @@ const customerSchema = z.object({
 });
 
 type CustomerForm = z.infer<typeof customerSchema>;
-type Channel = "whatsapp" | "instagram" | "facebook";
-
-const channels: { id: Channel; label: string; icon: typeof WhatsAppIcon }[] = [
-  { id: "whatsapp", label: "WhatsApp", icon: WhatsAppIcon },
-  { id: "instagram", label: "Instagram", icon: InstagramIcon },
-  { id: "facebook", label: "Facebook", icon: FacebookIcon },
-];
-
 /**
  * The payment methods offered on the page.
  *
@@ -104,7 +89,7 @@ const payMethods: {
 const trustMarks: { label: string; icon: LucideIcon }[] = [
   { label: "SSL encrypted", icon: Lock },
   { label: "Secure payment", icon: ShieldCheck },
-  { label: "Seller confirms", icon: CircleCheck },
+  { label: "Collect in person", icon: CircleCheck },
 ];
 
 export function CheckoutPage() {
@@ -117,16 +102,34 @@ export function CheckoutPage() {
   const addOrder = useOrderHistory((s) => s.add);
   const activeSlug = useShop((s) => s.slug);
 
-  // The cart holds items from one shop; resolve that shop publicly by its
-  // handle so guest shoppers can check out. (Falls back to the shop being
-  // browsed for carts persisted before items carried a shopSlug.)
-  const shopSlug = items[0]?.shopSlug ?? activeSlug;
-  const merchantQ = useQuery({
-    queryKey: ["shop", shopSlug],
-    queryFn: () => services.products.getShop(shopSlug!),
-    enabled: Boolean(shopSlug),
+  // The cart can span sellers (migration 0062). Each shop is resolved publicly
+  // by its handle so guests can check out, sharing the ["shop", slug] key the
+  // cart page and storefront already use.
+  const groups = groupByShop(items);
+  const shopQueries = useQueries({
+    queries: groups.map((g) => ({
+      queryKey: ["shop", g.shopSlug ?? activeSlug],
+      queryFn: () => services.products.getShop(g.shopSlug ?? activeSlug!),
+    })),
   });
-  const [channel, setChannel] = useState<Channel>("whatsapp");
+  const shops = shopQueries.map((q) => q.data);
+  // Set only when the cart holds exactly one seller — see the discount section.
+  const singleShop = shopQueries.length === 1 ? shopQueries[0]?.data : undefined;
+  const shopsLoading = shopQueries.some((q) => q.isLoading);
+
+  // Where the buyer collects. Goods go seller -> warehouse -> station, so this
+  // replaces both the old delivery line and the channel picker: fulfilment is
+  // the platform's now, not an arrangement between buyer and seller.
+  const stationsQ = useQuery({
+    queryKey: ["pickup-stations"],
+    queryFn: () => services.orders.listPickupStations(),
+  });
+  const [stationId, setStationId] = useState<string | null>(null);
+  const stations = stationsQ.data ?? [];
+  // Nothing is preselected: collecting from the wrong town is a real cost to
+  // the buyer, so this is a decision they have to make rather than one that
+  // defaults quietly to whichever station happens to sort first.
+  const station = stations.find((st) => st.id === stationId) ?? null;
   // Chosen on the page (the summary panel) and handed to the sheet, so the
   // buyer is not asked which method twice.
   const [payMethod, setPayMethod] = useState<PaymentMethod>("mpesa");
@@ -151,12 +154,6 @@ export function CheckoutPage() {
   // regenerated on failure. useState's initialiser, not a plain call: a fresh
   // key on every render would make every retry look like a new order.
   const [idempotencyKey] = useState(() => crypto.randomUUID());
-  const [pendingNotify, setPendingNotify] = useState<{
-    channel: Channel;
-    label: string;
-    url: string;
-    message: string;
-  } | null>(null);
 
   const {
     register,
@@ -169,24 +166,10 @@ export function CheckoutPage() {
     mode: "onBlur",
   });
 
-  // Default to the seller's first configured channel — the buyer can only
-  // pick among channels the seller actually set up (see the disabled state
-  // in the selector below).
-  const merchantContacts = merchantQ.data?.contacts;
-  useEffect(() => {
-    if (!merchantContacts || merchantContacts[channel]) return;
-    const firstAvailable = channels.find((c) => merchantContacts[c.id]);
-    if (firstAvailable) setChannel(firstAvailable.id);
-  }, [merchantContacts, channel]);
-
   // Nothing to check out — bounce back to the cart.
   if (items.length === 0) return <Navigate to="/cart" replace />;
 
-  // Carts saved before items carried their shop can't be routed — start over.
-  if (!shopSlug) return <Navigate to="/cart" replace />;
-
-  const merchant = merchantQ.data;
-  if (!merchant) {
+  if (shopsLoading) {
     return (
       <MobileShell nav={false} wide>
         <div className="space-y-4 p-4">
@@ -198,10 +181,17 @@ export function CheckoutPage() {
     );
   }
 
-  // place_order is the real gate (it rejects any non-'open' shop server-side);
-  // this just stops a buyer from filling in the whole form only to hit that
-  // error at the very last step.
-  const shopClosed = merchant.shopStatus !== "open";
+  // Carts saved before items carried their shop can't be routed — start over.
+  if (groups.some((g) => !g.shopSlug)) return <Navigate to="/cart" replace />;
+
+  const shopCount = cartShopCount(items);
+
+  // place_cart_order is the real gate (it rejects any non-'open' shop
+  // server-side); this just stops a buyer filling in the whole form only to hit
+  // that error at the last step. With several sellers it takes ONE closed shop
+  // to block the order, so the closed ones are named rather than counted.
+  const closedShops = shops.filter((m) => m && m.shopStatus !== "open");
+  const shopClosed = closedShops.length > 0;
 
   const total = cartSubtotal(items);
   // Units, not lines: "3 items" beside a two-line list is what the shopper
@@ -225,7 +215,6 @@ export function CheckoutPage() {
     reference: string,
     accessToken: string | null,
     paymentMethod: PaymentMethod | null,
-    ch: Channel | "direct",
   ) => {
     const placedAt = new Date().toISOString();
     // This is a LOCAL convenience cache (the guest's /orders list, since only
@@ -247,19 +236,24 @@ export function CheckoutPage() {
         color: item.color,
         qty: item.qty,
         totalKes: Math.round(item.unitPrice * item.qty * discountRatio),
-        channel: ch,
+        channel: "direct",
         paymentMethod,
         placedAt,
       });
     }
   };
 
-  // Creates the real DB order (pending) and returns its server-generated
-  // reference — the single source of truth used everywhere downstream
-  // (local order history, the WhatsApp/IG/FB message, the payment sheet).
-  const createOrder = (data: { name: string; phone: string; notes?: string }, ch: Channel | "direct") =>
+  // Creates the real DB order group (pending) and returns its server-generated
+  // reference — the single source of truth used everywhere downstream (local
+  // order history, the payment sheet, the collection slip).
+  //
+  // Passing pickupStationId is what routes this through place_cart_order, which
+  // fans the cart out into one order per seller under a parent group. `channel`
+  // stays 'direct' — the shop's social handles are no longer how the order is
+  // fulfilled, so there is nothing to pick.
+  const createOrder = (data: { name: string; phone: string; notes?: string }) =>
     services.orders.submitCartOrder({
-      shopSlug,
+      pickupStationId: stationId ?? undefined,
       items: items.map((i) => ({
         productId: i.productId,
         size: i.size,
@@ -267,7 +261,7 @@ export function CheckoutPage() {
         qty: i.qty,
       })),
       customer: { name: data.name, phone: data.phone, notes: data.notes ?? "" },
-      channel: ch,
+      channel: "direct",
       payment: null,
       idempotencyKey,
       captchaToken: captcha.token,
@@ -289,30 +283,21 @@ export function CheckoutPage() {
       push("Fill in your details first");
       return;
     }
+    // A station is required and deliberately not defaulted, so this is the one
+    // field the schema cannot enforce. Checked before the order is created,
+    // not after: place_cart_order would reject it anyway, but only once the
+    // buyer had already been told their order was being placed.
+    if (!stationId) {
+      push("Choose where you'll collect your order", "danger");
+      return;
+    }
     const data = getValues();
     saveCustomer({ name: data.name, phone: data.phone, notes: data.notes ?? "" });
     setPlacing(true);
     try {
-      const { reference, accessToken } = await createOrder(data, "direct");
+      const { reference, accessToken } = await createOrder(data);
       setPendingReference(reference);
       setPendingToken(accessToken);
-      // Pre-build the seller notification for the chosen channel now, while
-      // we still have the reference — PaymentSheet fires it automatically
-      // once payment succeeds, so there's no separate "send order" step.
-      const { url, message } = cartOrderLink(
-        merchant,
-        items.map((i) => ({
-          name: i.name,
-          size: i.size,
-          color: i.color,
-          qty: i.qty,
-          unitPrice: i.unitPrice,
-        })),
-        { name: data.name, phone: data.phone, notes: data.notes ?? "" },
-        channel,
-        reference,
-      );
-      setPendingNotify({ channel, label: CHANNEL_LABEL[channel], url, message });
       setPayOpen(true);
     } catch (err) {
       // The server's reason is the useful one ("insufficient stock for X",
@@ -388,83 +373,106 @@ export function CheckoutPage() {
                 </span>
               </div>
 
-              {/* Who you are buying from. The cart is single-shop, so this is
-                  one named seller — and naming them here is what makes the
-                  receipt read as a deal with a person rather than a form. */}
-              <div className="flex items-center gap-3 border-b border-line-soft bg-fill-soft px-5 py-3">
-                <img
-                  src={merchant.avatarUrl}
-                  alt=""
-                  className="size-9 shrink-0 rounded-full object-cover"
-                />
-                <div className="min-w-0">
-                  <p className="truncate text-sm font-extrabold text-ink">{merchant.name}</p>
-                  <div className="flex items-center gap-1.5">
-                    {/* A shop with no ratings yet gets its handle and nothing
-                        else. Five empty stars beside a "0.0" reads as a badly
-                        rated seller, which is the opposite of true — and this
-                        is the last screen before someone pays. */}
-                    {merchant.stats.rating > 0 && (
-                      <>
-                        <div className="flex items-center gap-0.5" aria-hidden>
-                          {[1, 2, 3, 4, 5].map((n) => (
-                            <Star
-                              key={n}
-                              className={cn(
-                                "size-3",
-                                n <= Math.round(merchant.stats.rating)
-                                  ? "fill-amber-400 text-amber-400"
-                                  : "fill-line text-line",
-                              )}
-                            />
-                          ))}
+              {/* One block per seller. The grouping is not decoration: it is
+                  exactly how the order is recorded (one orders row per shop
+                  under a parent group, migration 0062), and it is what tells a
+                  buyer why two things arrive under one reference. */}
+              {groups.map((group, gi) => {
+                const shop = shops[gi];
+                const closed = shop && shop.shopStatus !== "open";
+                return (
+                  <div key={group.shopSlug}>
+                    <div className="flex items-center gap-3 border-b border-line-soft bg-fill-soft px-5 py-3">
+                      {shop && (
+                        <img
+                          src={shop.avatarUrl}
+                          alt=""
+                          className="size-9 shrink-0 rounded-full object-cover"
+                        />
+                      )}
+                      <div className="min-w-0 flex-1">
+                        <p className="truncate text-sm font-extrabold text-ink">
+                          {shop?.name ?? `@${group.shopSlug}`}
+                        </p>
+                        <div className="flex items-center gap-1.5">
+                          {/* A shop with no ratings yet gets its handle and
+                              nothing else. Five empty stars beside a "0.0"
+                              reads as a badly rated seller, which is the
+                              opposite of true. */}
+                          {shop && shop.stats.rating > 0 && (
+                            <>
+                              <div className="flex items-center gap-0.5" aria-hidden>
+                                {[1, 2, 3, 4, 5].map((n) => (
+                                  <Star
+                                    key={n}
+                                    className={cn(
+                                      "size-3",
+                                      n <= Math.round(shop.stats.rating)
+                                        ? "fill-amber-400 text-amber-400"
+                                        : "fill-line text-line",
+                                    )}
+                                  />
+                                ))}
+                              </div>
+                              <span className="text-xs font-semibold tabular-nums text-ink">
+                                {shop.stats.rating.toFixed(1)}
+                              </span>
+                            </>
+                          )}
+                          {/* Only when the name resolved — otherwise the name
+                              line is already showing @slug and this repeats it. */}
+                          {shop && (
+                            <span className="text-xs font-medium text-muted">
+                              @{group.shopSlug}
+                            </span>
+                          )}
                         </div>
-                        <span className="text-xs font-semibold tabular-nums text-ink">
-                          {merchant.stats.rating.toFixed(1)}
+                      </div>
+                      {closed && (
+                        <span className="shrink-0 rounded-btn bg-warning/10 px-2 py-1 text-[11px] font-bold text-warning">
+                          Not accepting orders
                         </span>
-                      </>
-                    )}
-                    <span className="text-xs font-medium text-muted">@{merchant.handle}</span>
-                  </div>
-                </div>
-              </div>
-
-              {/* Numbered lines — thumbnail / name+variant / qty / price. The
-                  four columns line up down the list so the eye can total it. */}
-              <ol className="divide-y divide-line-soft">
-                {items.map((item, i) => (
-                  <li
-                    key={`${item.productId}-${variantKey(item.size, item.color)}`}
-                    className="flex items-center gap-2.5 px-4 py-3.5 sm:gap-4 sm:px-5 sm:py-4"
-                  >
-                    <span className="w-4 shrink-0 text-sm font-semibold tabular-nums text-muted">
-                      {i + 1}.
-                    </span>
-                    <ProductImage
-                      src={item.image}
-                      alt={item.name}
-                      className="size-12 shrink-0 rounded-lg border border-line-soft object-cover sm:size-16"
-                    />
-                    <div className="min-w-0 flex-1">
-                      <p className="line-clamp-2 text-[15px] font-semibold leading-snug text-ink">
-                        {item.name}
-                      </p>
-                      <p className="mt-1 text-sm text-muted">
-                        {variantLabel(item.size, item.color) || "Standard"}
-                        {/* qty rides along on phones, where its own column
-                            would squeeze the name down to two words */}
-                        <span className="tabular-nums sm:hidden"> · Qty {item.qty}</span>
-                      </p>
+                      )}
+                      <span className="shrink-0 text-sm font-bold tabular-nums text-ink">
+                        {formatKes(group.subtotal)}
+                      </span>
                     </div>
-                    <span className="hidden w-16 shrink-0 text-sm tabular-nums text-muted sm:block">
-                      Qty: {item.qty}
-                    </span>
-                    <span className="min-w-[76px] shrink-0 text-right text-sm font-bold tabular-nums text-ink sm:w-24 sm:text-[15px]">
-                      {formatKes(item.unitPrice * item.qty)}
-                    </span>
-                  </li>
-                ))}
-              </ol>
+
+                    <ol className="divide-y divide-line-soft">
+                      {group.items.map((item, i) => (
+                        <li
+                          key={`${item.productId}-${variantKey(item.size, item.color)}`}
+                          className="flex items-center gap-2.5 px-4 py-3.5 sm:gap-4 sm:px-5 sm:py-4"
+                        >
+                          <span className="w-4 shrink-0 text-sm font-semibold tabular-nums text-muted">
+                            {i + 1}.
+                          </span>
+                          <ProductImage
+                            src={item.image}
+                            alt={item.name}
+                            className="size-12 shrink-0 rounded-lg border border-line-soft object-cover sm:size-16"
+                          />
+                          <div className="min-w-0 flex-1">
+                            <p className="line-clamp-2 text-[15px] font-semibold leading-snug text-ink">
+                              {item.name}
+                            </p>
+                            <p className="mt-1 text-sm text-muted">
+                              {variantLabel(item.size, item.color) || "Standard"}
+                              <span className="tabular-nums sm:hidden"> · Qty {item.qty}</span>
+                            </p>
+                          </div>
+                          <span className="hidden w-16 shrink-0 text-sm tabular-nums text-muted sm:block">
+                            Qty: {item.qty}
+                          </span>
+                          <span className="min-w-[76px] shrink-0 text-right text-sm font-bold tabular-nums text-ink sm:w-24 sm:text-[15px]">
+                            {formatKes(item.unitPrice * item.qty)}
+                          </span>
+                        </li>
+                      ))}
+                    </ol>
+                  </div>
+                );
+              })}
             </section>
 
             {/* ---------------- shipping & contact information ---------------- */}
@@ -492,68 +500,85 @@ export function CheckoutPage() {
                   />
                 </div>
 
-                {/* right half — delivery, then the channel the seller replies on */}
+                {/* right half — where the buyer collects */}
                 <div className="space-y-3.5">
-                  <p className="text-sm font-bold text-ink">Delivery options</p>
-                  {/* Sellers arrange and price delivery themselves over the
-                      chosen channel, so this names the options the shop offers
-                      rather than quoting a figure PulseShop cannot stand
-                      behind. */}
-                  <div className="flex items-start gap-3 rounded-btn border border-primary/30 bg-primary/[0.06] px-3.5 py-3">
-                    <span
-                      className="mt-0.5 flex size-[18px] shrink-0 items-center justify-center rounded-full border-2 border-primary"
-                      aria-hidden
-                    >
-                      <span className="size-2 rounded-full bg-primary" />
-                    </span>
-                    <div className="min-w-0">
-                      <p className="text-sm font-semibold capitalize text-ink">
-                        {fulfillmentLabel(merchant.fulfillment)}
-                      </p>
-                      <p className="mt-0.5 text-xs leading-relaxed text-muted">
-                        Cost and timing are agreed with the seller once they confirm your order.
-                      </p>
+                  <p className="text-sm font-bold text-ink">Collect from</p>
+                  {/* Goods go seller -> warehouse -> station, so this replaced
+                      both the old delivery line and the social-channel picker.
+                      Nothing is preselected: collecting in the wrong town is a
+                      real cost, so it is a decision, not a default. */}
+                  {stationsQ.isLoading ? (
+                    <div className="space-y-2">
+                      <Skeleton className="h-16 w-full rounded-btn" />
+                      <Skeleton className="h-16 w-full rounded-btn" />
                     </div>
-                  </div>
-
-                  <p className="pt-1 text-sm font-bold text-ink">Where the seller reaches you</p>
-                  <div className="grid grid-cols-3 gap-2 rounded-btn bg-fill p-1">
-                    {channels.map(({ id: ch, label, icon: Icon }) => {
-                      const available = Boolean(merchant.contacts[ch]);
-                      return (
-                        <button
-                          key={ch}
-                          type="button"
-                          onClick={() => available && setChannel(ch)}
-                          disabled={!available}
-                          aria-label={available ? label : `${label}, not set up by this seller`}
-                          className={cn(
-                            "flex h-11 items-center justify-center gap-1.5 rounded-[10px] text-xs font-bold transition-all duration-200 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary",
-                            !available && "cursor-not-allowed opacity-35",
-                            available && channel === ch
-                              ? "bg-card text-ink shadow-soft"
-                              : "text-muted hover:text-ink",
-                          )}
-                        >
-                          <Icon
+                  ) : stations.length === 0 ? (
+                    <div className="flex items-start gap-2 rounded-btn border border-warning/30 bg-warning/5 px-3.5 py-3 text-xs">
+                      <AlertTriangle className="mt-0.5 size-4 shrink-0 text-warning" />
+                      <span className="text-ink">
+                        No pickup stations are available right now. Please try again shortly.
+                      </span>
+                    </div>
+                  ) : (
+                    <div
+                      role="radiogroup"
+                      aria-label="Pickup station"
+                      className="max-h-72 space-y-2 overflow-y-auto pr-0.5"
+                    >
+                      {stations.map((st) => {
+                        const selected = st.id === stationId;
+                        return (
+                          <button
+                            key={st.id}
+                            type="button"
+                            role="radio"
+                            aria-checked={selected}
+                            onClick={() => setStationId(st.id)}
                             className={cn(
-                              "size-4",
-                              available && ch === "whatsapp" && "text-whatsapp",
-                              available && ch === "instagram" && "text-instagram",
-                              available && ch === "facebook" && "text-facebook",
+                              "flex w-full items-start gap-3 rounded-btn border px-3.5 py-3 text-left transition-all duration-200 active:scale-[0.99] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary focus-visible:ring-offset-2 focus-visible:ring-offset-card",
+                              selected
+                                ? "border-primary bg-primary/[0.06]"
+                                : "border-line bg-card hover:border-primary/45",
                             )}
-                          />
-                          {label}
-                        </button>
-                      );
-                    })}
-                  </div>
+                          >
+                            <span
+                              className={cn(
+                                "mt-0.5 flex size-[18px] shrink-0 items-center justify-center rounded-full border-2 transition-colors",
+                                selected ? "border-primary" : "border-faint",
+                              )}
+                              aria-hidden
+                            >
+                              {selected && <span className="size-2 rounded-full bg-primary" />}
+                            </span>
+                            <span className="min-w-0 flex-1">
+                              <span className="flex items-baseline gap-2">
+                                <span className="text-sm font-bold text-ink">{st.name}</span>
+                                <span className="text-xs font-medium text-muted">{st.town}</span>
+                              </span>
+                              <span className="mt-0.5 block text-xs leading-relaxed text-muted">
+                                {st.address}
+                                {st.openingHours ? ` · ${st.openingHours}` : ""}
+                              </span>
+                            </span>
+                          </button>
+                        );
+                      })}
+                    </div>
+                  )}
+
                   <p className="text-xs leading-relaxed text-muted">
-                    Once you pay, your order goes to{" "}
-                    <span className="font-bold text-ink">{merchant.name}</span> via{" "}
-                    <span className="font-bold text-ink">{CHANNEL_LABEL[channel]}</span>. They
-                    confirm
-                    stock and delivery with you.
+                    {shopCount > 1 ? (
+                      <>
+                        Your {shopCount} shops send their items to the PulseShop warehouse. Once
+                        everything has arrived you'll be told to collect it, together, from your
+                        chosen station.
+                      </>
+                    ) : (
+                      <>
+                        The shop sends your order to the PulseShop warehouse. You'll be told when
+                        it reaches your chosen station.
+                      </>
+                    )}
                   </p>
                 </div>
               </div>
@@ -591,8 +616,10 @@ export function CheckoutPage() {
                   <span className="font-medium tabular-nums text-ink">{formatKes(total)}</span>
                 </div>
                 <div className="flex items-baseline justify-between gap-3 text-sm">
-                  <span className="text-muted">Delivery</span>
-                  <span className="text-right font-medium text-ink">Arranged with seller</span>
+                  <span className="shrink-0 text-muted">Collection</span>
+                  <span className="text-right font-medium text-ink">
+                    {station ? `${station.name}, ${station.town}` : "Choose a station"}
+                  </span>
                 </div>
                 {applied?.preview.valid && (
                   <div className="flex items-baseline justify-between gap-3 text-sm">
@@ -610,10 +637,16 @@ export function CheckoutPage() {
                 </div>
               </div>
 
-              {/* discount code */}
+              {/* Discount code. A code belongs to ONE shop and is previewed
+                  against that shop's id, so the input only appears when the
+                  cart holds a single seller. place_cart_order still resolves a
+                  code against whichever shop in a mixed cart owns it; what is
+                  missing is a preview that could say which, and a wrong
+                  preview at checkout is worse than no field. */}
+              {singleShop && (
               <div className="border-t border-line-soft px-5 py-4">
                 <DiscountCodeSection
-                  merchantId={merchant.id}
+                  merchantId={singleShop.id}
                   items={items.map((i) => ({ productId: i.productId, qty: i.qty }))}
                   getPhone={() => getValues("phone") || undefined}
                   applied={applied}
@@ -625,6 +658,7 @@ export function CheckoutPage() {
                   initialCode={storedCode}
                 />
               </div>
+              )}
 
               {/* ---------------- payment method ---------------- */}
               <div className="border-t border-line-soft px-5 py-4">
@@ -714,11 +748,15 @@ export function CheckoutPage() {
             </div>
 
             {shopClosed && (
-              <div className="flex items-center gap-2 rounded-card border border-warning/30 bg-warning/5 px-4 py-3 text-sm">
-                <AlertTriangle className="size-4 shrink-0 text-warning" />
+              <div className="flex items-start gap-2 rounded-card border border-warning/30 bg-warning/5 px-4 py-3 text-sm">
+                <AlertTriangle className="mt-0.5 size-4 shrink-0 text-warning" />
                 <span className="text-ink">
-                  <span className="font-bold">{merchant.name}</span> isn't accepting orders right
-                  now.
+                  <span className="font-bold">
+                    {closedShops.map((m) => m!.name).join(", ")}
+                  </span>{" "}
+                  {closedShops.length === 1 ? "isn't" : "aren't"} accepting orders right now.
+                  Remove {closedShops.length === 1 ? "that shop's" : "those shops'"} items to
+                  continue.
                 </span>
               </div>
             )}
@@ -726,22 +764,29 @@ export function CheckoutPage() {
             <p className="flex items-start justify-center gap-1.5 px-2 text-center text-xs leading-relaxed text-muted">
               <ShieldCheck className="mt-0.5 size-4 shrink-0 text-primary" />
               <span>
-                Your order isn't complete until{" "}
-                <span className="font-semibold text-ink">{merchant.name}</span> confirms stock and
-                delivery with you.
+                {station ? (
+                  <>
+                    You'll collect from{" "}
+                    <span className="font-semibold text-ink">{station.name}</span>, {station.town},
+                    once everything has reached the station.
+                  </>
+                ) : (
+                  <>Choose a pickup station above to place your order.</>
+                )}
               </span>
             </p>
           </aside>
         </div>
 
-        {/* One more nudge before they pay — more from the same shop (the cart is
-            single-shop), minus what's already in the cart. Full width under both
+        {/* One more nudge before they pay. With a mixed cart there is no single
+            "same shop" to recommend from, so this leads with the first seller
+            in the cart — the one the buyer started with. Full width under both
             columns: it is a browsing rail, not part of the checkout flow, and it
             must not push the order button further down the page. */}
         <div className="mt-6 lg:mt-12">
           <RecommendedProducts
             title="You may also like"
-            shopId={merchant.id}
+            shopId={shops[0]?.id ?? ""}
             exclude={items.map((i) => i.productId)}
             limit={6}
             layout="rail"
@@ -755,12 +800,11 @@ export function CheckoutPage() {
         amount={displayTotal}
         defaultPhone={getValues("phone") || customer.phone}
         defaultMethod={payMethod}
-        merchantName={merchant.name}
+        merchantName={shopCount === 1 ? (shops[0]?.name ?? "") : `${shopCount} shops`}
         orderReference={pendingReference ?? ""}
-        notify={pendingNotify}
         onPaid={(method) => {
           if (!pendingReference) return;
-          recordOrders(pendingReference, pendingToken, method, channel);
+          recordOrders(pendingReference, pendingToken, method);
           clearCart();
           // The link has been credited on the order; keeping it would let one
           // Status post claim every future order from this device too.

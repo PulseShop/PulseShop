@@ -4,10 +4,12 @@ import type {
   MyOrder,
   OrderChannel,
   OrderDraft,
+  OrderGroup,
   OrderLine,
   Paged,
   PaymentMethod,
   PaymentStatus,
+  PickupStation,
   PlacedOrderRef,
 } from "@/types";
 import type { OrderService, PageQuery } from "../types";
@@ -161,6 +163,8 @@ async function placeOrder(
   captchaToken?: string,
   discountCode?: string | null,
   shareCode?: string | null,
+  /** Presence routes the Edge Function to place_cart_order (0062). */
+  pickupStationId?: string,
 ): Promise<PlacedOrderRef> {
   const { data, error } = await supabase.functions.invoke<{
     reference?: string;
@@ -183,6 +187,7 @@ async function placeOrder(
       })),
       discount_code: discountCode || null,
       share_code: shareCode || null,
+      pickup_station_id: pickupStationId || null,
     },
   });
 
@@ -225,7 +230,63 @@ export const ordersApi: OrderService = {
       draft.captchaToken,
       draft.discountCode,
       draft.shareCode,
+      draft.pickupStationId,
     );
+  },
+
+  /**
+   * The stations a buyer can collect from. Public read (RLS returns only the
+   * active ones), so this works before anybody signs in.
+   */
+  async listPickupStations(): Promise<PickupStation[]> {
+    const { data, error } = await supabase
+      .from("pickup_stations")
+      .select("id, name, town, address, opening_hours")
+      .order("sort_order")
+      .order("name");
+    if (error) throw error;
+    return (data ?? []).map((r) => ({
+      id: r.id as string,
+      name: r.name as string,
+      town: r.town as string,
+      address: r.address as string,
+      openingHours: (r.opening_hours as string) ?? "",
+    }));
+  },
+
+  /**
+   * A whole multi-shop order, by its reference and secret token. Mirrors
+   * lookupOrder for the single-shop case; the token is what authorises the
+   * read, because the reference is short and gets quoted aloud.
+   */
+  async lookupOrderGroup(reference: string, accessToken: string): Promise<OrderGroup | null> {
+    const { data, error } = await supabase.rpc("get_order_group_by_token", {
+      p_reference: reference,
+      p_access_token: accessToken,
+    });
+    if (error) throw error;
+    const row = (data ?? [])[0] as Record<string, unknown> | undefined;
+    if (!row) return null;
+    return {
+      id: row.id as string,
+      reference: row.reference as string,
+      customerName: row.customer_name as string,
+      customerPhone: row.customer_phone as string,
+      customerNotes: (row.customer_notes as string) ?? "",
+      paymentMethod: (row.payment_method as PaymentMethod | null) ?? null,
+      paymentStatus: row.payment_status as PaymentStatus,
+      subtotalKes: row.subtotal_kes as number,
+      totalKes: row.total_kes as number,
+      placedAt: row.placed_at as string,
+      station: {
+        id: "",
+        name: row.station_name as string,
+        town: row.station_town as string,
+        address: row.station_address as string,
+        openingHours: (row.station_hours as string) ?? "",
+      },
+      sellerOrders: (row.seller_orders as OrderGroup["sellerOrders"]) ?? [],
+    };
   },
 
   /**

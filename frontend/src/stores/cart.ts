@@ -23,9 +23,16 @@ interface CartState {
    */
   discountCode: string | null;
   /**
-   * Adds an item. The cart holds items from ONE shop at a time (an order goes
-   * to a single seller) — returns false when the item belongs to a different
-   * shop than the current cart, so the UI can tell the shopper.
+   * Adds an item, from any shop (migration 0062).
+   *
+   * The cart used to hold one seller at a time because an order went to one
+   * seller. It no longer does: checkout fans a mixed cart out into one order
+   * per seller under a parent group, so there is nothing left to refuse.
+   *
+   * Still returns boolean rather than void, and still returns true, because
+   * every call site checks it to decide whether to show a rejection message.
+   * Changing the signature would silently turn those branches into dead code
+   * that still renders "added to cart" — this way they simply stop firing.
    */
   add: (item: Omit<CartItem, "qty">, qty?: number) => boolean;
   setQty: (productId: string, size: string | null, color: string | null, qty: number) => void;
@@ -36,12 +43,10 @@ interface CartState {
 
 export const useCart = create<CartState>()(
   persist(
-    (set, get) => ({
+    (set) => ({
       items: [],
       discountCode: null,
       add: (item, qty = 1) => {
-        const current = get().items;
-        if (current.length > 0 && current[0].shopSlug !== item.shopSlug) return false;
         set((s) => {
           const existing = s.items.find((i) =>
             sameLine(i, item.productId, item.size, item.color),
@@ -100,3 +105,35 @@ export const cartCount = (items: CartItem[]) => items.reduce((n, i) => n + i.qty
 /** Sum of unitPrice × qty across all lines. */
 export const cartSubtotal = (items: CartItem[]) =>
   items.reduce((sum, i) => sum + i.unitPrice * i.qty, 0);
+
+/**
+ * The cart split by seller, which is the shape both the cart and the checkout
+ * now render and the shape the server fans the order out into.
+ *
+ * Insertion-ordered rather than sorted by name: the shopper built this list in
+ * this order, and re-sorting it would shuffle the page under them every time
+ * they add something. A Map preserves that ordering by construction.
+ */
+export interface CartShopGroup {
+  shopSlug: string;
+  items: CartItem[];
+  subtotal: number;
+}
+
+export function groupByShop(items: CartItem[]): CartShopGroup[] {
+  const groups = new Map<string, CartItem[]>();
+  for (const item of items) {
+    const existing = groups.get(item.shopSlug);
+    if (existing) existing.push(item);
+    else groups.set(item.shopSlug, [item]);
+  }
+  return [...groups].map(([shopSlug, groupItems]) => ({
+    shopSlug,
+    items: groupItems,
+    subtotal: cartSubtotal(groupItems),
+  }));
+}
+
+/** How many distinct sellers the cart spans. Drives the "N shops" copy. */
+export const cartShopCount = (items: CartItem[]) =>
+  new Set(items.map((i) => i.shopSlug)).size;

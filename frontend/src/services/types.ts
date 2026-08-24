@@ -25,6 +25,8 @@ import type {
   GroupBuy,
   MerchantGroupBuy,
   Merchant,
+  OrderGroup,
+  PickupStation,
   PlacementInput,
   Plan,
   MerchantOrder,
@@ -421,6 +423,10 @@ export interface OrderService {
    * guest (or anyone without the placing account) uses to track their order.
    * Returns null when the reference/key don't match. */
   lookupOrder(reference: string, accessToken: string): Promise<MyOrder | null>;
+  /** Stations a buyer can collect from (migration 0062). */
+  listPickupStations(): Promise<PickupStation[]>;
+  /** A whole multi-shop order by reference + secret token. */
+  lookupOrderGroup(reference: string, accessToken: string): Promise<OrderGroup | null>;
 }
 
 /**

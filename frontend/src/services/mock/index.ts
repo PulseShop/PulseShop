@@ -22,6 +22,8 @@ import type {
   FollowerSeries,
   Merchant,
   MerchantOrder,
+  OrderGroup,
+  PickupStation,
   MerchantReviewsSummary,
   MyOrder,
   OrderChannel,
@@ -1255,6 +1257,19 @@ const mockAdmin: AdminService = {
   },
 };
 
+/**
+ * Pickup stations for mock mode. Mirrors the starter rows seeded by migration
+ * 0062 so the checkout looks the same with or without a backend.
+ */
+const MOCK_STATIONS: PickupStation[] = [
+  { id: "st1", name: "Nairobi CBD", town: "Nairobi", address: "Tom Mboya Street, opposite the Fire Station", openingHours: "Mon-Sat 8:00-18:00" },
+  { id: "st2", name: "Westlands", town: "Nairobi", address: "Woodvale Grove, Westlands", openingHours: "Mon-Sat 9:00-18:00" },
+  { id: "st3", name: "Thika Road", town: "Nairobi", address: "TRM Drive, Roysambu", openingHours: "Mon-Sat 9:00-18:00" },
+  { id: "st4", name: "Mombasa CBD", town: "Mombasa", address: "Nkrumah Road, near the Old Post Office", openingHours: "Mon-Sat 8:30-17:30" },
+  { id: "st5", name: "Kisumu Town", town: "Kisumu", address: "Oginga Odinga Street", openingHours: "Mon-Sat 8:30-17:30" },
+  { id: "st6", name: "Nakuru Town", town: "Nakuru", address: "Kenyatta Avenue", openingHours: "Mon-Sat 8:30-17:30" },
+];
+
 export const mockServices: Services = {
   admin: mockAdmin,
   auth: {
@@ -1882,6 +1897,60 @@ export const mockServices: Services = {
         (r) => r.order.reference === reference && r.accessToken === accessToken,
       );
       return rec ? structuredClone(rec.order) : null;
+    },
+
+    /**
+     * Mock mode has one seller, so a "multi-shop" group here always has one
+     * sub-order. That is still worth having: it exercises the group-shaped
+     * read path the UI now renders, so a layout that only works with two
+     * sellers fails here rather than in production.
+     */
+    async listPickupStations(): Promise<PickupStation[]> {
+      await delay();
+      return structuredClone(MOCK_STATIONS);
+    },
+
+    async lookupOrderGroup(reference: string, accessToken: string): Promise<OrderGroup | null> {
+      await delay();
+      const recs = loadMyOrders().filter(
+        (r) => r.order.reference === reference && r.accessToken === accessToken,
+      );
+      if (recs.length === 0) return null;
+      const total = recs.reduce((n, r) => n + r.order.totalKes, 0);
+      return {
+        id: reference,
+        reference,
+        // MyOrder is the BUYER's view and deliberately carries no customer
+        // name/phone (they already know who they are); the real RPC reads them
+        // off order_groups. Mock mode has no such row, so these stay blank.
+        customerName: "",
+        customerPhone: "",
+        customerNotes: "",
+        paymentMethod: recs[0].order.paymentMethod ?? null,
+        paymentStatus: "pending",
+        subtotalKes: total,
+        totalKes: total,
+        placedAt: recs[0].order.placedAt,
+        station: MOCK_STATIONS[0],
+        sellerOrders: [
+          {
+            reference: `${reference}-1`,
+            shopName: recs[0].order.shopName ?? merchant.name,
+            shopHandle: recs[0].order.shopSlug ?? merchant.handle,
+            totalKes: total,
+            items: recs.flatMap((r) =>
+              r.order.items.map((l) => ({
+                productName: l.productName,
+                image: l.image,
+                size: l.size,
+                color: l.color ?? null,
+                qty: l.qty,
+                unitPriceKes: l.unitPriceKes,
+              })),
+            ),
+          },
+        ],
+      };
     },
   },
 

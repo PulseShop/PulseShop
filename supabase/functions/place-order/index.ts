@@ -97,6 +97,14 @@ const PayloadSchema = z.object({
   /** Optional seller-created discount code. place_order() validates and
    * applies it server-side, so this is forwarded, never trusted. */
   discount_code: z.string().trim().min(4).max(24).nullish(),
+  /**
+   * Pickup station (migration 0062). Its PRESENCE is what selects the
+   * multi-shop path: with a station the cart may span sellers and is placed
+   * through place_cart_order(), without one it is the legacy single-shop
+   * place_order(). Keeping both behind one function means the captcha and JWT
+   * checks above are not duplicated, and an un-updated client keeps working.
+   */
+  pickup_station_id: z.string().uuid().nullish(),
   /** Which share link the buyer arrived on (migration 0052). Bookkeeping only:
    * place_order() drops one it cannot resolve rather than rejecting the order,
    * so a malformed value here costs attribution and never a sale. Bounded to
@@ -129,6 +137,8 @@ const SAFE_RPC_ERRORS = new Set([
   "this shop is not accepting orders right now",
   "discount code is no longer valid for this order",
   "could not generate a unique order reference",
+  // place_cart_order (0062)
+  "choose a pickup station",
 ]);
 
 /** The same, for the messages that interpolate a product name or a variant. */
@@ -225,20 +235,35 @@ Deno.serve(async (req) => {
   }
 
   const admin = createClient(SUPABASE_URL, SERVICE_ROLE_KEY);
-  const { data, error } = await admin.rpc("place_order", {
-    // name, phone and channel are guaranteed present by PayloadSchema; the
-    // remaining fallbacks are for fields the schema genuinely allows to be absent.
-    p_customer_name: body.customer_name,
-    p_customer_phone: body.customer_phone,
-    p_customer_notes: body.customer_notes ?? "",
-    p_channel: body.channel,
-    p_payment_method: body.payment_method ?? null,
-    p_items: body.items,
-    p_idempotency_key: body.idempotency_key ?? null,
-    p_customer_id: customerId,
-    p_discount_code: body.discount_code ?? null,
-    p_share_code: body.share_code ?? null,
-  });
+  // A cart that names a station goes through the multi-shop RPC; everything
+  // else takes the original single-shop path untouched.
+  const { data, error } = body.pickup_station_id
+    ? await admin.rpc("place_cart_order", {
+        p_customer_name: body.customer_name,
+        p_customer_phone: body.customer_phone,
+        p_customer_notes: body.customer_notes ?? "",
+        p_pickup_station_id: body.pickup_station_id,
+        p_payment_method: body.payment_method ?? null,
+        p_items: body.items,
+        p_idempotency_key: body.idempotency_key ?? null,
+        p_customer_id: customerId,
+        p_discount_code: body.discount_code ?? null,
+        p_share_code: body.share_code ?? null,
+      })
+    : await admin.rpc("place_order", {
+        // name, phone and channel are guaranteed present by PayloadSchema; the
+        // remaining fallbacks are for fields the schema genuinely allows to be absent.
+        p_customer_name: body.customer_name,
+        p_customer_phone: body.customer_phone,
+        p_customer_notes: body.customer_notes ?? "",
+        p_channel: body.channel,
+        p_payment_method: body.payment_method ?? null,
+        p_items: body.items,
+        p_idempotency_key: body.idempotency_key ?? null,
+        p_customer_id: customerId,
+        p_discount_code: body.discount_code ?? null,
+        p_share_code: body.share_code ?? null,
+      });
 
   if (error) {
     // The RPC's own guards (stock, single-shop, quantity) are user-actionable,

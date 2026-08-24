@@ -34,7 +34,7 @@ export function PaymentSheet({
   defaultPhone,
   merchantName,
   orderReference,
-  notify,
+  notify = null,
   onPaid,
   defaultMethod = "mpesa",
 }: {
@@ -47,7 +47,13 @@ export function PaymentSheet({
   orderReference: string;
   /** Seller notification to fire the moment payment succeeds — built from the
    * channel the buyer picked in checkout (whichever the seller has set up). */
-  notify: Notify | null;
+  /**
+   * The seller handoff message, for the legacy single-shop flow. Optional
+   * because the pickup-station flow (0062) has no handoff: the order goes to
+   * the warehouse, not into a WhatsApp thread. Every use below already guards
+   * on it being absent.
+   */
+  notify?: Notify | null;
   onPaid: (method: PaymentMethod) => void;
   /** Method the buyer already picked on the checkout page. The sheet still
    * shows its own toggle — this only decides which one starts selected, so

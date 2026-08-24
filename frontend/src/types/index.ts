@@ -681,8 +681,65 @@ export interface OrderDraft extends OrderSubmission {
 }
 
 /** A multi-item order from the cart checkout. All items belong to one shop. */
+/** A pickup station a buyer collects from (migration 0062). */
+export interface PickupStation {
+  id: string;
+  name: string;
+  town: string;
+  address: string;
+  openingHours: string;
+}
+
+/** One seller's slice of a multi-shop order, as the buyer sees it back. */
+export interface OrderGroupSellerOrder {
+  reference: string;
+  shopName: string;
+  shopHandle: string;
+  totalKes: number;
+  items: {
+    productName: string;
+    image: string;
+    size: string | null;
+    color: string | null;
+    qty: number;
+    unitPriceKes: number;
+  }[];
+}
+
+/**
+ * What the buyer placed: one payment, one collection, N seller orders.
+ *
+ * The buyer holds the GROUP's reference. Each seller's sub-order has its own
+ * (`PS-XXXXXXXXXX-1`), which the warehouse and the seller quote, but nobody
+ * asks a shopper for one.
+ */
+export interface OrderGroup {
+  id: string;
+  reference: string;
+  customerName: string;
+  customerPhone: string;
+  customerNotes: string;
+  paymentMethod: PaymentMethod | null;
+  paymentStatus: PaymentStatus;
+  subtotalKes: number;
+  totalKes: number;
+  placedAt: string;
+  station: PickupStation;
+  sellerOrders: OrderGroupSellerOrder[];
+}
+
 export interface CartOrderDraft extends OrderSubmission {
-  shopSlug: string;
+  /**
+   * The shop, when the cart holds exactly one. Multi-shop carts leave this
+   * undefined: the seller is resolved per line server-side.
+   */
+  shopSlug?: string;
+  /**
+   * Which station the buyer collects from. Its presence is what routes the
+   * order through the multi-shop path (place_cart_order) rather than the
+   * legacy single-shop one.
+   */
+  pickupStationId?: string;
   items: {
     productId: string;
     size: string | null;
