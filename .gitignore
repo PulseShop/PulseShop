@@ -53,3 +53,5 @@ supabase/.temp/
 # because the block at the top of this file already covers env files, and does it
 # more carefully — it keeps the committed .env.example templates visible.
 .vercel
+.codex
+.claude
