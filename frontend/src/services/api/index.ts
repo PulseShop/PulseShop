@@ -17,7 +17,7 @@ import { storageApi } from "./storage";
 /**
  * Real backend adapter. Auth, products, orders and storage hit Supabase.
  * Payments go through the payments adapter (placeholder until the partner wires
- * the real M-Pesa/PayPal backend — see services/api/payments.ts).
+ * the real M-Pesa/PayPal/card backend — see services/api/payments.ts).
  */
 export const apiServices: Services = {
   auth: authApi,

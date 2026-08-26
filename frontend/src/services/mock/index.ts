@@ -2585,5 +2585,10 @@ export const mockServices: Services = {
       await delay(1200);
       return { status: "paid", reference: makeRef() };
     },
+
+    async payWithCard(_amount: number): Promise<PaymentResult> {
+      await delay(1200);
+      return { status: "paid", reference: makeRef() };
+    },
   },
 };

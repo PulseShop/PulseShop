@@ -189,7 +189,7 @@ export function LandingPage() {
             <FeatureTile
               icon={Wallet}
               title="Get paid your way"
-              body="Take M-Pesa and PayPal when you're ready, or keep it simple with pay-on-delivery."
+              body="Take M-Pesa, PayPal and card payments when you're ready, or keep it simple with pay-on-delivery."
             />
           </div>
 

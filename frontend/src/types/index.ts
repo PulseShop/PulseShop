@@ -514,7 +514,7 @@ export interface Analytics {
 }
 
 export type OrderChannel = "whatsapp" | "instagram" | "facebook" | "direct";
-export type PaymentMethod = "mpesa" | "paypal";
+export type PaymentMethod = "mpesa" | "paypal" | "card";
 export type PaymentStatus = "idle" | "pending" | "paid" | "failed";
 
 /**
@@ -913,7 +913,7 @@ export interface InvoiceInput {
  * How a seller paid US for their tier.
  *
  * Deliberately NOT the buyer-facing `PaymentMethod` above, which is how a
- * shopper pays a seller ("mpesa" | "paypal"). The two lists only look alike:
+ * shopper pays a seller ("mpesa" | "paypal" | "card"). The two lists only look alike:
  * this one has to carry 'waiver', because writing a month off is a real thing
  * that happens and recording it as a payment keeps the invoice balanced while
  * leaving a trace.

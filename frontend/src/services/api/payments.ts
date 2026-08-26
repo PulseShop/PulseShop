@@ -6,7 +6,7 @@ import type { PaymentService } from "../types";
  *  PAYMENTS — PLACEHOLDER FOR THE PAYMENTS INTEGRATION (partner to complete)
  * ─────────────────────────────────────────────────────────────────────────────
  *  Payment SECRETS (M-Pesa Daraja consumer key/secret/passkey, PayPal client
- *  secret) must NEVER live in the frontend. This adapter only talks to OUR
+ *  secret, card-gateway secret) must NEVER live in the frontend. This adapter only talks to OUR
  *  backend, which holds the secrets and calls the real gateways server-side.
  *
  *  Set `VITE_PAYMENTS_API` to the backend base URL (e.g. "/api/payments") to go
@@ -24,6 +24,8 @@ import type { PaymentService } from "../types";
  *   POST {VITE_PAYMENTS_API}/mpesa/stk   body: { phone, amount }
  *        -> 200 { status: "paid" | "failed", reference: string }
  *   POST {VITE_PAYMENTS_API}/paypal/order body: { amount }
+ *        -> 200 { status: "paid" | "failed", reference: string }
+ *   POST {VITE_PAYMENTS_API}/card/checkout body: { amount }
  *        -> 200 { status: "paid" | "failed", reference: string }
  * ─────────────────────────────────────────────────────────────────────────────
  */
@@ -59,5 +61,10 @@ export const paymentsApi: PaymentService = {
   async payWithPaypal(amount: number): Promise<PaymentResult> {
     if (!PAYMENTS_API) return simulate("PP", 1200);
     return callBackend("/paypal/order", { amount });
+  },
+
+  async payWithCard(amount: number): Promise<PaymentResult> {
+    if (!PAYMENTS_API) return simulate("CARD", 1200);
+    return callBackend("/card/checkout", { amount });
   },
 };

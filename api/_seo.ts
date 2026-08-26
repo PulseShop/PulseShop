@@ -641,7 +641,7 @@ export const FAQ_ITEMS: { q: string; a: string }[] = [
   },
   {
     q: "How do I get paid?",
-    a: "Today you arrange payment directly with your buyer: M-Pesa, cash on pickup or delivery, whatever works for you both. Integrated M-Pesa and PayPal checkout is on the way.",
+    a: "Today you arrange payment directly with your buyer: M-Pesa, cash on pickup or delivery, whatever works for you both. Integrated M-Pesa, PayPal and card checkout is on the way.",
   },
   {
     q: "Do my customers need to install anything?",

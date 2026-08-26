@@ -2,7 +2,7 @@
 
 Social-commerce storefront builder for the Kenyan market. Sellers get a hosted
 shop linked from their social bio; shoppers browse and order through WhatsApp,
-Instagram, Facebook or direct checkout. KES pricing, M-Pesa and PayPal.
+Instagram, Facebook or direct checkout. KES pricing, M-Pesa, PayPal and card payments.
 
 Ships as a mobile-first PWA on Vercel, backed by Supabase, and packaged for
 Android as a Trusted Web Activity.
@@ -185,10 +185,10 @@ There is no traditional application server. Three runtimes, each for a specific 
 
 ### Payments
 
-`services/api/payments.ts` is a deliberate placeholder. M-Pesa Daraja and PayPal
-secrets must never reach the browser, so the adapter talks only to
-`VITE_PAYMENTS_API`. Until that is set, both methods simulate success. Expected
-contracts are documented in the file header.
+`services/api/payments.ts` is a deliberate placeholder. M-Pesa Daraja, PayPal and
+card-gateway secrets must never reach the browser, so the adapter talks only to
+`VITE_PAYMENTS_API`. Until that is set, all three methods simulate success for
+beta UI testing. Expected contracts are documented in the file header.
 
 ---
 

@@ -1,4 +1,4 @@
-import { Check, Loader2, Phone, RotateCcw } from "lucide-react";
+import { Check, CreditCard, Loader2, Phone, RotateCcw } from "lucide-react";
 import { useEffect, useState } from "react";
 import { FacebookIcon, InstagramIcon, PayPalIcon, WhatsAppIcon } from "@/components/ui/BrandIcons";
 import { Button } from "@/components/ui/Button";
@@ -15,6 +15,7 @@ type Stage =
   | { step: "mpesa-phone" }
   | { step: "pending"; method: PaymentMethod }
   | { step: "paypal-approve" }
+  | { step: "card-approve" }
   | { step: "success"; method: PaymentMethod }
   | { step: "failed"; method: PaymentMethod };
 
@@ -135,6 +136,25 @@ export function PaymentSheet({
     }
   };
 
+  const startCard = async () => {
+    const win = notify ? window.open("", "_blank", "noopener") : null;
+    setStage({ step: "pending", method: "card" });
+    try {
+      const result = await services.payments.payWithCard(amount);
+      if (result.status === "paid") {
+        setStage({ step: "success", method: "card" });
+        onPaid("card");
+        await dispatchNotify(win);
+      } else {
+        win?.close();
+        setStage({ step: "failed", method: "card" });
+      }
+    } catch {
+      win?.close();
+      setStage({ step: "failed", method: "card" });
+    }
+  };
+
   return (
     <Sheet open={open} onOpenChange={reset} title="Complete Payment">
       {stage.step === "choose" && (
@@ -142,8 +162,8 @@ export function PaymentSheet({
           <p className="text-center text-2xl font-extrabold text-ink">{formatKes(amount)}</p>
 
           {/* method toggle */}
-          <div className="grid grid-cols-2 gap-2 rounded-btn bg-fill p-1">
-            {(["mpesa", "paypal"] as const).map((m) => (
+          <div className="grid grid-cols-3 gap-2 rounded-btn bg-fill p-1">
+            {(["mpesa", "paypal", "card"] as const).map((m) => (
               <button
                 key={m}
                 type="button"
@@ -157,9 +177,13 @@ export function PaymentSheet({
                   <>
                     <Phone className="size-4 text-success" /> M-Pesa
                   </>
-                ) : (
+                ) : m === "paypal" ? (
                   <>
                     <PayPalIcon className="size-4 text-facebook" /> PayPal
+                  </>
+                ) : (
+                  <>
+                    <CreditCard className="size-4 text-primary" /> Card
                   </>
                 )}
               </button>
@@ -184,7 +208,7 @@ export function PaymentSheet({
                 Send STK Prompt
               </Button>
             </div>
-          ) : (
+          ) : method === "paypal" ? (
             <div className="space-y-3">
               <p className="text-center text-sm text-muted">
                 You'll be redirected to PayPal to approve this payment.
@@ -196,6 +220,21 @@ export function PaymentSheet({
               >
                 <PayPalIcon className="size-5" />
                 Pay with PayPal
+              </button>
+            </div>
+          ) : (
+            <div className="space-y-3">
+              <p className="text-center text-sm text-muted">
+                You'll continue to a secure card checkout. Your card details never pass through
+                PulseShop.
+              </p>
+              <button
+                type="button"
+                onClick={() => setStage({ step: "card-approve" })}
+                className="flex h-12 w-full items-center justify-center gap-2 rounded-btn bg-primary text-sm font-extrabold text-on-accent transition-transform active:scale-[0.98]"
+              >
+                <CreditCard className="size-5" />
+                Pay with card
               </button>
             </div>
           )}
@@ -222,17 +261,43 @@ export function PaymentSheet({
         </div>
       )}
 
+      {stage.step === "card-approve" && (
+        <div className="space-y-4 text-center">
+          <div className="rounded-card border border-line bg-fill-soft p-5">
+            <CreditCard className="mx-auto size-8 text-primary" />
+            <p className="mt-3 text-sm font-semibold text-ink">
+              Continue with card payment of {formatKes(amount)} to {merchantName}?
+            </p>
+            <p className="mt-1 text-xs text-muted">Secure gateway handoff</p>
+          </div>
+          <div className="flex gap-2">
+            <Button variant="outline" className="flex-1" onClick={() => setStage({ step: "choose" })}>
+              Cancel
+            </Button>
+            <Button className="flex-1" onClick={startCard}>
+              Continue
+            </Button>
+          </div>
+        </div>
+      )}
+
       {stage.step === "pending" && (
         <div className="flex flex-col items-center gap-4 py-6 text-center">
           <Loader2 className="size-10 animate-spin text-primary" />
           <div>
             <p className="font-bold text-ink">
-              {stage.method === "mpesa" ? "Check your phone" : "Talking to PayPal…"}
+              {stage.method === "mpesa"
+                ? "Check your phone"
+                : stage.method === "paypal"
+                  ? "Talking to PayPal…"
+                  : "Opening secure card checkout…"}
             </p>
             <p className="mt-1 text-sm text-muted">
               {stage.method === "mpesa"
                 ? "Enter your M-Pesa PIN on the STK prompt to complete payment."
-                : "Confirming your payment…"}
+                : stage.method === "paypal"
+                  ? "Confirming your payment…"
+                  : "Confirming your card payment…"}
             </p>
           </div>
         </div>
@@ -282,9 +347,11 @@ export function PaymentSheet({
           <p className="font-bold text-ink">Payment failed</p>
           <Button
             className="w-full"
-            onClick={() =>
-              stage.method === "mpesa" ? setStage({ step: "mpesa-phone" }) : startPaypal()
-            }
+            onClick={() => {
+              if (stage.method === "mpesa") setStage({ step: "mpesa-phone" });
+              else if (stage.method === "paypal") startPaypal();
+              else setStage({ step: "card-approve" });
+            }}
           >
             Try again
           </Button>

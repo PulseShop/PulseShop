@@ -540,6 +540,7 @@ export interface CartService {
 export interface PaymentService {
   payWithMpesa(phone: string, amount: number): Promise<PaymentResult>;
   payWithPaypal(amount: number): Promise<PaymentResult>;
+  payWithCard(amount: number): Promise<PaymentResult>;
 }
 
 /** Editable discount-code fields. `productIds` is only read/written when

@@ -92,7 +92,7 @@ const PayloadSchema = z.object({
   customer_phone: z.string().trim().min(1).max(30),
   customer_notes: z.string().max(500).nullish(),
   channel: z.enum(["whatsapp", "instagram", "facebook", "direct"]).default("direct"),
-  payment_method: z.enum(["mpesa", "paypal"]).nullish(),
+  payment_method: z.enum(["mpesa", "paypal", "card"]).nullish(),
   items: z.array(OrderItemSchema).min(1).max(50),
   /** Optional seller-created discount code. place_order() validates and
    * applies it server-side, so this is forwarded, never trusted. */

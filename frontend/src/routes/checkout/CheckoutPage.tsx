@@ -5,6 +5,7 @@ import {
   AlertTriangle,
   ArrowLeft,
   CircleCheck,
+  CreditCard,
   Loader2,
   Lock,
   Phone,
@@ -54,9 +55,9 @@ type CustomerForm = z.infer<typeof customerSchema>;
 /**
  * The payment methods offered on the page.
  *
- * Deliberately only the two the platform can actually charge (see
- * PaymentMethod in @/types). A checkout that shows a wallet button it cannot
- * complete costs more trust at this exact step than the extra logo buys.
+ * These are the three shopper-facing methods supported by the payment adapter
+ * (see PaymentMethod in @/types). Card uses the same secure gateway handoff as
+ * the wallet methods and never asks this app to handle raw card details.
  * Brand marks keep their own colours — a teal PayPal mark is not PayPal — while
  * every piece of UI chrome around them takes the brand accent.
  */
@@ -82,6 +83,13 @@ const payMethods: {
     hint: "Card or PayPal balance",
     icon: PayPalIcon,
     iconClass: "text-facebook",
+  },
+  {
+    id: "card",
+    label: "Card",
+    hint: "Secure card checkout",
+    icon: CreditCard,
+    iconClass: "text-primary",
   },
 ];
 
@@ -664,9 +672,7 @@ export function CheckoutPage() {
               <div className="border-t border-line-soft px-5 py-4">
                 <h3 className="font-sans-force mb-3 text-sm font-bold text-ink">Payment method</h3>
                 {/* Picked here so the sheet opens straight onto the buyer's
-                    choice instead of asking the same question twice. Only the
-                    two methods the platform can actually charge are offered — a
-                    dead wallet button on the pay screen is worse than none. */}
+                    choice instead of asking the same question twice. */}
                 <div role="radiogroup" aria-label="Payment method" className="space-y-2">
                   {payMethods.map(({ id, label, hint, icon: Icon, iconClass }) => {
                     const selected = payMethod === id;
