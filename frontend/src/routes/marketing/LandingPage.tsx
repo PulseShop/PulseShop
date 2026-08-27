@@ -10,6 +10,7 @@ import {
 } from "lucide-react";
 import { useMemo, useState } from "react";
 import { Link, useNavigate } from "react-router";
+import { Reveal } from "@/components/common/Reveal";
 import { Button } from "@/components/ui/Button";
 import {
   FacebookIcon,
@@ -55,37 +56,47 @@ export function LandingPage() {
       {/* hero */}
       <section className="mx-auto grid max-w-6xl items-center gap-12 px-5 pb-14 pt-10 md:grid-cols-2 md:pt-20">
         <div>
-          <span className="inline-flex items-center gap-1.5 rounded-full glass px-3 py-1.5 text-xs font-bold text-primary">
-            <Sparkles className="size-3.5" />
-            Your Store. Your Link. Your Sales.
-          </span>
-          <h1 className="mt-5 text-5xl leading-[1.02] tracking-tight text-ink md:text-6xl">
-            Turn your bio link into a real store.
-          </h1>
-          <p className="mt-5 max-w-md text-lg leading-relaxed text-ink/70">
-            PulseShop gives sellers a hosted shop that lives behind their daily
-            posts — shoppers browse your catalog straight from Instagram,
-            Facebook or WhatsApp.
-          </p>
+          <Reveal>
+            <span className="inline-flex items-center gap-1.5 rounded-full glass px-3 py-1.5 text-xs font-bold text-primary">
+              <Sparkles className="size-3.5" />
+              Your Store. Your Link. Your Sales.
+            </span>
+          </Reveal>
+          <Reveal delay={70}>
+            <h1 className="mt-5 text-5xl leading-[1.02] tracking-tight text-ink md:text-6xl">
+              Turn your bio link into a real store.
+            </h1>
+          </Reveal>
+          <Reveal delay={140}>
+            <p className="mt-5 max-w-md text-lg leading-relaxed text-ink/70">
+              PulseShop gives sellers a hosted shop that lives behind their
+              daily posts; shoppers browse your catalog straight from Instagram,
+              Facebook or WhatsApp.
+            </p>
+          </Reveal>
 
-          <EmailCapture />
+          <Reveal delay={210}>
+            <EmailCapture />
 
-          <p className="mt-3 text-xs font-medium text-muted">
-            Free to start · No card needed · Live in minutes
-          </p>
-          <p className="mt-4 text-sm text-ink/70">
-            Already selling with us?{" "}
-            <Link
-              to="/login"
-              className="font-bold text-primary underline underline-offset-2"
-            >
-              Log in
-            </Link>
-          </p>
+            <p className="mt-3 text-xs font-medium text-muted">
+              Free to start · No card needed · Live in minutes
+            </p>
+            <p className="mt-4 text-sm text-ink/70">
+              Already selling with us?{" "}
+              <Link
+                to="/login"
+                className="font-bold text-primary underline underline-offset-2"
+              >
+                Log in
+              </Link>
+            </p>
+          </Reveal>
         </div>
 
         {/* signature: a bio link resolving into a live shop */}
-        <ShopPreview />
+        <Reveal delay={120}>
+          <ShopPreview />
+        </Reveal>
       </section>
 
       {/* channel strip — the apps the whole pitch rests on */}
@@ -109,63 +120,102 @@ export function LandingPage() {
       </section>
 
       {/* stats band — full-bleed dark, the Shopify pacing break */}
-      <section className="band-ink mt-8">
+      <section className="band-ink grain mt-8">
         <div className="mx-auto grid max-w-6xl grid-cols-2 gap-8 px-5 py-16 md:grid-cols-4">
-          {stats.map((stat) => (
-            <div key={stat.label} className="text-center">
-              <p className="text-4xl tracking-tight md:text-5xl">{stat.value}</p>
+          {stats.map((stat, i) => (
+            <Reveal key={stat.label} delay={i * 80} className="text-center">
+              <p className="font-display text-4xl tracking-tight md:text-5xl">
+                {stat.value}
+              </p>
               <p className="mt-2 text-sm text-white/60">{stat.label}</p>
-            </div>
+            </Reveal>
           ))}
         </div>
       </section>
 
-      {/* how it works */}
-      <section className="mx-auto max-w-6xl px-5 py-20">
-        <div className="mx-auto max-w-2xl text-center">
-          <h2 className="text-3xl text-ink md:text-4xl">Live in three steps</h2>
-          <p className="mt-3 text-base text-ink/70">
-            No warehouse, no card machine, no setup marathon — just your shop,
-            behind your link.
-          </p>
-        </div>
-        <div className="mt-12 grid gap-5 md:grid-cols-3">
-          {steps.map(({ icon: Icon, title, body }, i) => (
-            <div
-              key={title}
-              className="rounded-card border border-line bg-card p-7 shadow-soft"
-            >
-              <div className="flex items-center gap-3">
-                <span className="flex size-11 items-center justify-center rounded-full bg-primary/12 text-primary">
-                  <Icon className="size-5" />
+      {/* how it works — an asymmetric split: a left-aligned header held sticky
+          on desktop while a numbered rail scrolls past it. Breaks the earlier
+          three-equal-columns pattern for an editorial, sequential read. */}
+      <section className="mx-auto max-w-6xl px-5 py-20 md:py-28">
+        <div className="grid gap-12 md:grid-cols-[minmax(0,0.85fr)_minmax(0,1.15fr)] md:gap-16">
+          <div className="md:sticky md:top-28 md:self-start">
+            <Reveal>
+              <span className="font-sans-force text-xs font-bold uppercase tracking-widest text-primary">
+                How it works
+              </span>
+              <h2 className="mt-3 text-3xl text-ink md:text-5xl">
+                Live in three steps
+              </h2>
+              <p className="mt-4 max-w-sm text-base leading-relaxed text-ink/70">
+                No warehouse, no card machine, no setup marathon; just your shop,
+                behind your link.
+              </p>
+              <Link to="/signup" className="mt-7 inline-block">
+                <Button size="lg">
+                  Open your Shop <ArrowRight className="size-5" />
+                </Button>
+              </Link>
+            </Reveal>
+          </div>
+
+          <ol className="relative">
+            {/* the rail the numerals thread onto — a soft gradient so it fades
+                out at both ends instead of stopping in a hard cap */}
+            <span
+              aria-hidden
+              className="absolute left-7 top-2 bottom-2 w-px bg-gradient-to-b from-transparent via-line to-transparent md:left-8"
+            />
+            {steps.map(({ icon: Icon, title, body }, i) => (
+              <Reveal
+                as="li"
+                key={title}
+                delay={i * 90}
+                className="relative flex gap-5 pb-10 last:pb-0 md:gap-7"
+              >
+                {/* opaque bead masks the rail so the number sits ON the line */}
+                <span className="relative z-10 flex size-14 shrink-0 items-center justify-center rounded-full border border-line bg-card font-display text-2xl text-primary shadow-soft md:size-16 md:text-3xl">
+                  {i + 1}
                 </span>
-                <span className="font-sans-force text-xs font-bold uppercase tracking-widest text-muted">
-                  Step {i + 1}
-                </span>
-              </div>
-              <h3 className="mt-5 text-xl text-ink">{title}</h3>
-              <p className="mt-2 text-sm leading-relaxed text-ink/70">{body}</p>
-            </div>
-          ))}
+                <div className="pt-1.5 md:pt-2.5">
+                  <div className="flex items-center gap-2">
+                    <Icon className="size-4 text-primary" />
+                    <span className="font-sans-force text-xs font-bold uppercase tracking-widest text-muted">
+                      Step {i + 1}
+                    </span>
+                  </div>
+                  <h3 className="mt-2 text-xl text-ink md:text-2xl">{title}</h3>
+                  <p className="mt-1.5 max-w-md text-sm leading-relaxed text-ink/70 md:text-base">
+                    {body}
+                  </p>
+                </div>
+              </Reveal>
+            ))}
+          </ol>
         </div>
       </section>
 
       {/* features — a bento of one lead tile and three supporting ones */}
-      <section className="bg-fill-soft">
+      <section className="grain bg-fill-soft">
         <div className="mx-auto max-w-6xl px-5 py-20">
-          <div className="mx-auto max-w-2xl text-center">
-            <h2 className="text-3xl text-ink md:text-4xl">
+          <Reveal className="max-w-xl">
+            <span className="font-sans-force text-xs font-bold uppercase tracking-widest text-primary">
+              The toolkit
+            </span>
+            <h2 className="mt-3 text-3xl text-ink md:text-5xl">
               Everything to run your shop
             </h2>
-            <p className="mt-3 text-base text-ink/70">
+            <p className="mt-4 max-w-md text-base leading-relaxed text-ink/70">
               One dashboard for your catalog, your orders and the links that
               bring buyers in.
             </p>
-          </div>
+          </Reveal>
 
           <div className="mt-12 grid gap-5 md:grid-cols-3 md:grid-rows-2">
             {/* lead tile — coral, spans two columns */}
-            <article className="flex flex-col justify-between rounded-bento bg-primary p-8 text-on-accent md:col-span-2 md:row-span-2">
+            <Reveal
+              as="article"
+              className="flex flex-col justify-between rounded-bento bg-primary p-8 text-on-accent md:col-span-2 md:row-span-2"
+            >
               <span className="flex size-12 items-center justify-center rounded-full bg-white/20">
                 <MessageCircle className="size-6" />
               </span>
@@ -179,15 +229,17 @@ export function LandingPage() {
                   Instagram and Facebook.
                 </p>
               </div>
-            </article>
+            </Reveal>
 
             <FeatureTile
               icon={Boxes}
+              delay={80}
               title="One HQ for your catalog"
               body="Add products, set prices and discounts, and track stock from a single dashboard."
             />
             <FeatureTile
               icon={Wallet}
+              delay={160}
               title="Get paid your way"
               body="Take M-Pesa, PayPal and card payments when you're ready, or keep it simple with pay-on-delivery."
             />
@@ -197,20 +249,21 @@ export function LandingPage() {
             <FeatureTile
               icon={Link2}
               title="Links that look the part"
-              body="Your shop shows a rich preview everywhere you paste it — bio, story, DM or search."
+              body="Your shop shows a rich preview everywhere you paste it: bio, story, DM or search."
             />
             <FeatureTile
               icon={ShoppingBag}
+              delay={80}
               title="A storefront, not a link list"
-              body="Buyers land on a real catalog with photos, variants and prices — then order in a tap."
+              body="Buyers land on a real catalog with photos, variants and prices, then order in a tap."
             />
           </div>
         </div>
       </section>
 
       {/* closing CTA — full-bleed dark */}
-      <section className="band-ink">
-        <div className="mx-auto flex max-w-3xl flex-col items-center gap-6 px-5 py-24 text-center">
+      <section className="band-ink grain">
+        <Reveal className="mx-auto flex max-w-3xl flex-col items-center gap-6 px-5 py-24 text-center">
           <h2 className="max-w-xl text-4xl md:text-5xl">
             Ready to open your shop?
           </h2>
@@ -233,7 +286,7 @@ export function LandingPage() {
               </Button>
             </Link>
           </div>
-        </div>
+        </Reveal>
       </section>
     </MarketingShell>
   );
@@ -275,19 +328,25 @@ function FeatureTile({
   icon: Icon,
   title,
   body,
+  delay = 0,
 }: {
   icon: typeof Boxes;
   title: string;
   body: string;
+  delay?: number;
 }) {
   return (
-    <article className="rounded-bento border border-line bg-card p-7 shadow-soft">
-      <span className="flex size-11 items-center justify-center rounded-full bg-primary/12 text-primary">
+    <Reveal
+      as="article"
+      delay={delay}
+      className="group rounded-bento border border-line bg-card p-7 shadow-soft transition-[transform,box-shadow] duration-200 hover:-translate-y-1 hover:shadow-float"
+    >
+      <span className="flex size-11 items-center justify-center rounded-full bg-primary/12 text-primary transition-transform duration-200 group-hover:scale-110">
         <Icon className="size-5" />
       </span>
       <h3 className="mt-5 text-xl text-ink">{title}</h3>
       <p className="mt-2 text-sm leading-relaxed text-ink/70">{body}</p>
-    </article>
+    </Reveal>
   );
 }
 

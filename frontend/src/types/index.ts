@@ -267,6 +267,36 @@ export interface PlatformStats {
   generatedAt: string;
 }
 
+/**
+ * A seller's early-access registration (migration 0064) — the public form at
+ * /earlyaccessform, where a shop owner claims the founding-cohort offer (top
+ * tier free for nine months plus a specialist to switch them over).
+ *
+ * `referral` is the optional "where did you hear about us" note; everything
+ * else is required. The row is write-only to the public: anyone may submit one,
+ * nobody but a platform admin can read them back (admin_list_early_access).
+ */
+export interface EarlyAccessInput {
+  fullName: string;
+  email: string;
+  phone: string;
+  shopName: string;
+  location: string;
+  /** Optional "where did you hear about us". */
+  referral?: string;
+}
+
+export interface EarlyAccessSignup {
+  id: string;
+  fullName: string;
+  email: string;
+  phone: string;
+  shopName: string;
+  location: string;
+  referral: string | null;
+  createdAt: string;
+}
+
 /** One day on the growth curve. Totals are running, not daily. */
 export interface GrowthPoint {
   day: string;

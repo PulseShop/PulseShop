@@ -13,6 +13,7 @@ import { BannerPanel } from "./BannerPanel";
 import { ControlSidebar, isSectionId } from "./ControlSidebar";
 import type { SectionId } from "./ControlSidebar";
 import { RepeatRateCard, RevenueCard, TopProductsCard } from "./DashboardExtras";
+import { EarlyAccessPanel } from "./EarlyAccessPanel";
 import { InvoicesPanel } from "./InvoicesPanel";
 import { ReportsPanel } from "./ReportsPanel";
 import { SettingsPanel } from "./SettingsPanel";
@@ -155,6 +156,7 @@ export function AdminPage() {
         <div className="mt-4 min-w-0 flex-1 space-y-6 lg:mt-0">
           {section === "promotions" && <BannerPanel />}
           {section === "shops" && <ShopsPanel />}
+          {section === "early-access" && <EarlyAccessPanel />}
           {section === "invoices" && <InvoicesPanel />}
           {section === "transactions" && <TransactionsPanel />}
           {section === "reports" && <ReportsPanel />}

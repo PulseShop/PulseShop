@@ -749,12 +749,126 @@ input[type="radio"] {
   animation: step-swing-in 560ms cubic-bezier(0.34, 1.56, 0.64, 1) both;
 }
 
+/* ---------------------------------------------------------------------------
+   Early-access enrollment stamp (routes/marketing/EarlyAccessFormPage).
+
+   The founding-seller pass is "sealed" on submit: one gold impact that arrives
+   oversized and rotated, overshoots on contact, then settles at rest. It is the
+   page's single signature motion, so it is a decisive press rather than a loop —
+   spend the boldness once, here, and keep everything around it quiet.
+   --------------------------------------------------------------------------- */
+@keyframes stamp-press {
+  0% {
+    opacity: 0;
+    transform: rotate(-26deg) scale(2.4);
+  }
+  55% {
+    opacity: 1;
+    transform: rotate(-13deg) scale(0.9);
+  }
+  72% {
+    transform: rotate(-13deg) scale(1.08);
+  }
+  100% {
+    opacity: 1;
+    transform: rotate(-13deg) scale(1);
+  }
+}
+.animate-stamp-press {
+  animation: stamp-press 640ms cubic-bezier(0.34, 1.56, 0.64, 1) both;
+}
+
+/* A single ink halo expanding out from under the seal, so the press reads as
+   contact with the paper rather than a sticker fading in. */
+@keyframes stamp-halo {
+  0% {
+    opacity: 0.55;
+    transform: scale(0.2);
+  }
+  100% {
+    opacity: 0;
+    transform: scale(1.9);
+  }
+}
+.animate-stamp-halo {
+  animation: stamp-halo 640ms ease-out both;
+}
+
+/* Reduced motion: the seal is present from the first frame, still and rotated —
+   no impact, nothing to animate. The pass still reads as sealed. */
+@media (prefers-reduced-motion: reduce) {
+  .animate-stamp-press {
+    animation: none;
+    opacity: 1;
+    transform: rotate(-13deg);
+  }
+  .animate-stamp-halo {
+    animation: none;
+    opacity: 0;
+  }
+}
+
 .no-scrollbar::-webkit-scrollbar {
   display: none;
 }
 .no-scrollbar {
   -ms-overflow-style: none;
   scrollbar-width: none;
+}
+
+/* ---------------------------------------------------------------------------
+   Scroll-reveal (components/common/Reveal.tsx).
+
+   The offset + fade lives ONLY inside the no-preference block: a visitor who
+   asked for reduced motion never gets the starting transform, so there is
+   nothing to animate and the content is at rest from first paint — the JS still
+   runs, it just toggles a class over styles that resolve to a no-op. Transform +
+   opacity only, so the whole thing composites on the GPU and never touches
+   layout. transition-delay is set inline per item to stagger a row. */
+@media (prefers-reduced-motion: no-preference) {
+  .reveal {
+    opacity: 0;
+    transform: translateY(18px);
+    transition:
+      opacity 640ms cubic-bezier(0.22, 1, 0.36, 1),
+      transform 640ms cubic-bezier(0.22, 1, 0.36, 1);
+    will-change: opacity, transform;
+  }
+  .reveal.is-visible {
+    opacity: 1;
+    transform: none;
+  }
+}
+
+/* ---------------------------------------------------------------------------
+   Grain overlay.
+
+   A fixed-in-place, pointer-events-none film of monochrome noise laid over a
+   band to break the digital flatness of a plain fill — the cream surfaces read
+   as printed paper rather than a flat vector slab. The noise is an inline SVG
+   feTurbulence data URI, so it costs no network request and tiles itself; kept
+   at a low alpha so it is felt more than seen. `isolation` + the ::after keep it
+   scoped to the element it sits on without needing a wrapper div. */
+.grain {
+  position: relative;
+  isolation: isolate;
+}
+.grain::after {
+  content: "";
+  position: absolute;
+  inset: 0;
+  z-index: -1;
+  pointer-events: none;
+  opacity: 0.5;
+  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='160' height='160'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.8' numOctaves='2' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23n)'/%3E%3C/svg%3E");
+  mix-blend-mode: multiply;
+}
+/* On the near-black bands multiply would swallow the grain; screen lifts it to a
+   faint lit dust instead, and it needs less of it. */
+:root[data-theme="dark"] .grain::after,
+.band-ink.grain::after {
+  mix-blend-mode: screen;
+  opacity: 0.28;
 }
 
 /* ---------------------------------------------------------------------------

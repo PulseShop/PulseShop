@@ -19,6 +19,8 @@ import type {
   CategoryShowcase,
   DiscountCode,
   DiscountPreview,
+  EarlyAccessInput,
+  EarlyAccessSignup,
   FollowerSeries,
   Merchant,
   MerchantOrder,
@@ -1258,6 +1260,59 @@ const mockAdmin: AdminService = {
 };
 
 /**
+ * Early-access registrations, in localStorage (migration 0064).
+ *
+ * Persisted rather than in-memory so a signup made on the form survives the
+ * navigation to /admindev and shows up in the Early access tab, which is the
+ * whole round trip the real backend does. `list` is unguarded here on purpose,
+ * same reasoning as mockAdmin: the mock exists so the control room can be built
+ * and looked at without a live admin session.
+ */
+const EARLY_ACCESS_KEY = "pulseshop-mock-early-access";
+
+function loadEarlyAccess(): EarlyAccessSignup[] {
+  try {
+    return JSON.parse(localStorage.getItem(EARLY_ACCESS_KEY) ?? "[]") as EarlyAccessSignup[];
+  } catch {
+    return [];
+  }
+}
+
+function saveEarlyAccess(list: EarlyAccessSignup[]) {
+  try {
+    localStorage.setItem(EARLY_ACCESS_KEY, JSON.stringify(list));
+  } catch {
+    /* storage full/unavailable — keep in-memory copy */
+  }
+}
+
+let earlyAccessSignups = loadEarlyAccess();
+
+const mockEarlyAccess = {
+  async submit(input: EarlyAccessInput): Promise<void> {
+    await delay();
+    const row: EarlyAccessSignup = {
+      id: `ea${Date.now()}`,
+      fullName: input.fullName.trim(),
+      email: input.email.trim(),
+      phone: input.phone.trim(),
+      shopName: input.shopName.trim(),
+      location: input.location.trim(),
+      referral: input.referral?.trim() || null,
+      createdAt: new Date().toISOString(),
+    };
+    // Newest first, matching admin_list_early_access()'s order by created_at desc.
+    earlyAccessSignups = [row, ...earlyAccessSignups];
+    saveEarlyAccess(earlyAccessSignups);
+  },
+
+  async list(): Promise<EarlyAccessSignup[]> {
+    await delay();
+    return structuredClone(earlyAccessSignups);
+  },
+};
+
+/**
  * Pickup stations for mock mode. Mirrors the starter rows seeded by migration
  * 0062 so the checkout looks the same with or without a backend.
  */
@@ -1272,6 +1327,7 @@ const MOCK_STATIONS: PickupStation[] = [
 
 export const mockServices: Services = {
   admin: mockAdmin,
+  earlyAccess: mockEarlyAccess,
   auth: {
     // Accepts any credentials and returns the demo shop's session.
     async login({ email }: Credentials): Promise<AuthUser> {

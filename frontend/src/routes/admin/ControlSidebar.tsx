@@ -5,6 +5,7 @@ import {
   Gauge,
   Megaphone,
   Receipt,
+  Rocket,
   Settings,
   Store,
 } from "lucide-react";
@@ -26,6 +27,7 @@ export const SECTIONS = [
   { id: "dashboard", label: "Dashboard", icon: Gauge },
   { id: "promotions", label: "Promotions", icon: Megaphone },
   { id: "shops", label: "Shops", icon: Store },
+  { id: "early-access", label: "Early access", icon: Rocket },
   { id: "invoices", label: "Invoices", icon: FileText },
   { id: "transactions", label: "Transactions", icon: Receipt },
   { id: "reports", label: "Reports", icon: BarChart3 },

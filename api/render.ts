@@ -81,13 +81,17 @@ const RESERVED = new Set([
   "shop", "shops", "product", "cart", "checkout", "order", "orders", "account",
   "favorites", "login", "signup", "welcome", "auth", "reset-password",
   "dashboard", "dev", "api", "assets", "icons", "prices", "about", "faq",
-  "admindev", "s", "g", "category",
+  "admindev", "s", "g", "category", "earlyaccessform",
 ]);
 
 /** Pages that exist for a signed-in human and must never be indexed. */
 const PRIVATE_ROOTS = new Set([
   "cart", "checkout", "order", "orders", "account", "favorites", "login",
   "signup", "auth", "reset-password", "dashboard", "dev", "shop", "admindev",
+  // A public lead-capture form, not a page anyone should reach from search —
+  // it is shared as a direct link (pulseshop.space/earlyaccessform). Served as
+  // a noindex 200 so it works when visited but never competes in results.
+  "earlyaccessform",
   // /s/CODE is a doorway that immediately replaces itself with the real
   // product page (migration 0052). Indexing it would put a redirect in the
   // results where the product belongs, and would have a crawler scoring

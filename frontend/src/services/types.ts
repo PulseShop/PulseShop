@@ -20,6 +20,8 @@ import type {
   CategoryShowcase,
   DiscountCode,
   DiscountPreview,
+  EarlyAccessInput,
+  EarlyAccessSignup,
   FollowerSeries,
   Fulfillment,
   GroupBuy,
@@ -738,9 +740,25 @@ export interface AdminService {
   setSocialLinks(links: SocialLinks): Promise<void>;
 }
 
+/**
+ * Early-access seller registrations (migration 0064).
+ *
+ * `submit` is the one public call — anyone filling the /earlyaccessform can make
+ * it, which is why the table's RLS allows an anon INSERT and nothing else.
+ * `list` is admin-only: like every other admin read it goes through a
+ * definer RPC that asserts is_platform_admin(), so the boundary is the database,
+ * not this interface.
+ */
+export interface EarlyAccessService {
+  submit(input: EarlyAccessInput): Promise<void>;
+  /** Every registration, newest first. Admin-only. */
+  list(): Promise<EarlyAccessSignup[]>;
+}
+
 export interface Services {
   auth: AuthService;
   admin: AdminService;
+  earlyAccess: EarlyAccessService;
   products: ProductService;
   orders: OrderService;
   analytics: AnalyticsService;

@@ -4,6 +4,7 @@ import { adminApi } from "./admin";
 import { authApi } from "./auth";
 import { cartApi } from "./cart";
 import { discountsApi } from "./discounts";
+import { earlyAccessApi } from "./earlyAccess";
 import { favoritesApi } from "./favorites";
 import { followsApi } from "./follows";
 import { groupBuysApi } from "./groupBuys";
@@ -22,6 +23,7 @@ import { storageApi } from "./storage";
 export const apiServices: Services = {
   auth: authApi,
   admin: adminApi,
+  earlyAccess: earlyAccessApi,
   products: productsApi,
   orders: ordersApi,
   analytics: analyticsApi,

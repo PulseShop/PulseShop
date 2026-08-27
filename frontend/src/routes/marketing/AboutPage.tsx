@@ -7,6 +7,7 @@ import {
 } from "lucide-react";
 import { useMemo } from "react";
 import { Link } from "react-router";
+import { Reveal } from "@/components/common/Reveal";
 import { Button } from "@/components/ui/Button";
 import { useSeo } from "@/hooks/useSeo";
 import { aboutSeo } from "@/lib/seo";
@@ -42,7 +43,10 @@ export function AboutPage() {
   return (
     <MarketingShell>
       {/* hero */}
-      <section className="mx-auto max-w-3xl px-5 pb-6 pt-12 text-center md:pt-20">
+      <Reveal
+        as="section"
+        className="mx-auto max-w-3xl px-5 pb-6 pt-12 text-center md:pt-20"
+      >
         <span className="inline-flex items-center gap-1.5 rounded-full glass px-3 py-1.5 text-xs font-bold text-primary">
           <Sparkles className="size-3.5" />
           Our story
@@ -72,45 +76,58 @@ export function AboutPage() {
           A real storefront for every seller who runs their business from their
           phone and their social feed.
         </p>
-      </section>
+      </Reveal>
 
       {/* mission band — full-bleed dark statement */}
-      <section className="band-ink mt-8">
-        <div className="mx-auto max-w-4xl px-5 py-20 text-center">
+      <section className="band-ink grain mt-8">
+        <Reveal className="mx-auto max-w-4xl px-5 py-20 text-center">
           <p className="font-sans-force text-xs font-bold uppercase tracking-widest text-white/50">
             Why we exist
           </p>
           <p className="mt-6 text-3xl leading-snug tracking-tight md:text-4xl">
-            E-commerce was booming everywhere — yet the local shops posting
+            E-commerce was booming everywhere, yet the local shops posting
             products every morning and taking orders in their DMs were being
             left out of it. PulseShop closes that gap.
           </p>
-        </div>
+        </Reveal>
       </section>
 
-      {/* story */}
-      <section className="mx-auto max-w-2xl space-y-5 px-5 py-20 text-lg leading-relaxed text-ink/80">
-        <p>
-          PulseShop began with a simple observation: the tools built for online
-          selling assumed a warehouse, a card machine and a marketing team.
-          Their customers, meanwhile, were already shopping on WhatsApp,
-          Instagram and Facebook.
-        </p>
-        <p>
-          Inspired by that wave of trending e-commerce, founder{" "}
-          <strong className="font-bold text-ink">Raynald Gitau</strong> and
-          co-founder{" "}
-          <strong className="font-bold text-ink">Wilch Kelvin</strong> set out
-          to give every local shop a real storefront that lives right behind the
-          social posts they already make — so evolving into the new generation
-          of online shopping takes minutes, not months.
-        </p>
-        <p>
-          Today that idea is PulseShop: a link you drop in your bio that opens
-          into a full catalogue, takes orders straight to your chats, and grows
-          with your shop, from the first five products to a storefront that
-          shows up in search results.
-        </p>
+      {/* story — asymmetric: a held eyebrow on the left, the prose on the right,
+          so the section reads as an editorial column rather than centered text */}
+      <section className="mx-auto max-w-5xl px-5 py-20 md:py-28">
+        <div className="grid gap-8 md:grid-cols-[minmax(0,0.6fr)_minmax(0,1.4fr)] md:gap-14">
+          <Reveal className="md:sticky md:top-28 md:self-start">
+            <span className="font-sans-force text-xs font-bold uppercase tracking-widest text-primary">
+              The story
+            </span>
+            <p className="mt-3 font-display text-2xl leading-tight text-ink md:text-3xl">
+              From a DM order to a real storefront.
+            </p>
+          </Reveal>
+          <div className="space-y-5 text-lg leading-relaxed text-ink/80">
+            <Reveal as="p">
+              PulseShop began with a simple observation: the tools built for
+              online selling assumed a warehouse, a card machine and a marketing
+              team. Their customers, meanwhile, were already shopping on
+              WhatsApp, Instagram and Facebook.
+            </Reveal>
+            <Reveal as="p" delay={80}>
+              Inspired by that wave of trending e-commerce, founder{" "}
+              <strong className="font-bold text-ink">Raynald Gitau</strong> and
+              co-founder{" "}
+              <strong className="font-bold text-ink">Wilch Kelvin</strong> set
+              out to give every local shop a real storefront that lives right
+              behind the social posts they already make, so evolving into the
+              new generation of online shopping takes minutes, not months.
+            </Reveal>
+            <Reveal as="p" delay={160}>
+              Today that idea is PulseShop: a link you drop in your bio that
+              opens into a full catalogue, takes orders straight to your chats,
+              and grows with your shop, from the first five products to a
+              storefront that shows up in search results.
+            </Reveal>
+          </div>
+        </div>
       </section>
 
       {/* team */}

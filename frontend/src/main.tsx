@@ -85,6 +85,11 @@ const AccountPage = lazy(() =>
 const ComponentsPage = lazy(() =>
   import("@/routes/dev/ComponentsPage").then((m) => ({ default: m.ComponentsPage })),
 );
+const EarlyAccessFormPage = lazy(() =>
+  import("@/routes/marketing/EarlyAccessFormPage").then((m) => ({
+    default: m.EarlyAccessFormPage,
+  })),
+);
 const AdminPage = lazy(() =>
   import("@/routes/admin/AdminPage").then((m) => ({ default: m.AdminPage })),
 );
@@ -290,6 +295,10 @@ createRoot(document.getElementById("root")!).render(
               <Route path="/prices" element={<PricesPage />} />
               <Route path="/about" element={<AboutPage />} />
               <Route path="/faq" element={<FaqPage />} />
+              {/* Public seller lead form. Registered in api/render.ts RESERVED /
+                  PRIVATE_ROOTS so the renderer serves it as a noindex page rather
+                  than treating "earlyaccessform" as a shop handle. */}
+              <Route path="/earlyaccessform" element={<EarlyAccessFormPage />} />
               <Route path="/auth/callback" element={<AuthCallbackPage />} />
               <Route path="/shop" element={<StorefrontPage />} />
               <Route path="/login" element={<LoginPage />} />
