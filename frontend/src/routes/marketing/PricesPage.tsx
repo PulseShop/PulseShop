@@ -137,7 +137,7 @@ export function PricesPage() {
       </section>
 
       {/* comparison table */}
-      <section className="mx-auto max-w-6xl px-5 py-14">
+      <section className="mx-auto max-w-6xl px-5 py-12 md:py-14">
         <div className="mx-auto max-w-2xl text-center">
           <h2 className="text-3xl text-ink md:text-4xl">
             Compare plans side by side
@@ -147,7 +147,12 @@ export function PricesPage() {
             unlocks.
           </p>
         </div>
-        <div className="mt-10 overflow-x-auto rounded-modal border border-line bg-card">
+        {/* The table is wider than a phone and scrolls sideways; on a phone that
+            is easy to miss, so say so. */}
+        <p className="mt-6 text-center text-xs font-semibold text-muted md:hidden">
+          Swipe the table sideways to compare plans →
+        </p>
+        <div className="mt-3 overflow-x-auto rounded-modal border border-line bg-card md:mt-10">
           <table className="w-full min-w-[640px] text-left text-sm">
             <thead>
               <tr className="border-b border-line">
@@ -220,7 +225,7 @@ export function PricesPage() {
 
       {/* tier detail */}
       <section className="bg-fill-soft">
-        <div className="mx-auto max-w-6xl px-5 py-16">
+        <div className="mx-auto max-w-6xl px-5 py-12 md:py-16">
           <div className="mx-auto max-w-2xl text-center">
             <h2 className="text-3xl text-ink md:text-4xl">Every plan in detail</h2>
             <p className="mt-3 text-base text-ink/70">
@@ -294,8 +299,8 @@ export function PricesPage() {
 
       {/* closing CTA — full-bleed dark */}
       <section className="band-ink">
-        <div className="mx-auto flex max-w-3xl flex-col items-center gap-6 px-5 py-24 text-center">
-          <h2 className="max-w-xl text-4xl md:text-5xl">
+        <div className="mx-auto flex max-w-3xl flex-col items-center gap-6 px-5 py-16 text-center md:py-24">
+          <h2 className="max-w-xl text-3xl sm:text-4xl md:text-5xl">
             Every shop starts free.
           </h2>
           <p className="max-w-md text-lg text-white/70">

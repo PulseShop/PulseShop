@@ -64,8 +64,8 @@ export function FaqPage() {
 
       {/* closing CTA — full-bleed dark */}
       <section className="band-ink">
-        <div className="mx-auto flex max-w-3xl flex-col items-center gap-6 px-5 py-24 text-center">
-          <h2 className="max-w-xl text-4xl md:text-5xl">
+        <div className="mx-auto flex max-w-3xl flex-col items-center gap-6 px-5 py-16 text-center md:py-24">
+          <h2 className="max-w-xl text-3xl sm:text-4xl md:text-5xl">
             Question answered? Open your shop.
           </h2>
           <p className="max-w-md text-lg text-white/70">

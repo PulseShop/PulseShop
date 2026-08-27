@@ -54,7 +54,7 @@ export function LandingPage() {
   return (
     <MarketingShell>
       {/* hero */}
-      <section className="mx-auto grid max-w-6xl items-center gap-12 px-5 pb-14 pt-10 md:grid-cols-2 md:pt-20">
+      <section className="mx-auto grid max-w-6xl items-center gap-10 px-5 pb-14 pt-10 md:grid-cols-2 md:gap-12 md:pt-20">
         <div>
           <Reveal>
             <span className="inline-flex items-center gap-1.5 rounded-full glass px-3 py-1.5 text-xs font-bold text-primary">
@@ -63,7 +63,7 @@ export function LandingPage() {
             </span>
           </Reveal>
           <Reveal delay={70}>
-            <h1 className="mt-5 text-5xl leading-[1.02] tracking-tight text-ink md:text-6xl">
+            <h1 className="mt-5 text-4xl leading-[1.06] tracking-tight text-ink sm:text-5xl sm:leading-[1.02] md:text-6xl">
               Turn your bio link into a real store.
             </h1>
           </Reveal>
@@ -121,7 +121,7 @@ export function LandingPage() {
 
       {/* stats band — full-bleed dark, the Shopify pacing break */}
       <section className="band-ink grain mt-8">
-        <div className="mx-auto grid max-w-6xl grid-cols-2 gap-8 px-5 py-16 md:grid-cols-4">
+        <div className="mx-auto grid max-w-6xl grid-cols-2 gap-x-6 gap-y-10 px-5 py-12 md:grid-cols-4 md:gap-8 md:py-16">
           {stats.map((stat, i) => (
             <Reveal key={stat.label} delay={i * 80} className="text-center">
               <p className="font-display text-4xl tracking-tight md:text-5xl">
@@ -136,8 +136,8 @@ export function LandingPage() {
       {/* how it works — an asymmetric split: a left-aligned header held sticky
           on desktop while a numbered rail scrolls past it. Breaks the earlier
           three-equal-columns pattern for an editorial, sequential read. */}
-      <section className="mx-auto max-w-6xl px-5 py-20 md:py-28">
-        <div className="grid gap-12 md:grid-cols-[minmax(0,0.85fr)_minmax(0,1.15fr)] md:gap-16">
+      <section className="mx-auto max-w-6xl px-5 py-16 md:py-28">
+        <div className="grid gap-10 md:grid-cols-[minmax(0,0.85fr)_minmax(0,1.15fr)] md:gap-16">
           <div className="md:sticky md:top-28 md:self-start">
             <Reveal>
               <span className="font-sans-force text-xs font-bold uppercase tracking-widest text-primary">
@@ -196,7 +196,7 @@ export function LandingPage() {
 
       {/* features — a bento of one lead tile and three supporting ones */}
       <section className="grain bg-fill-soft">
-        <div className="mx-auto max-w-6xl px-5 py-20">
+        <div className="mx-auto max-w-6xl px-5 py-16 md:py-20">
           <Reveal className="max-w-xl">
             <span className="font-sans-force text-xs font-bold uppercase tracking-widest text-primary">
               The toolkit
@@ -263,8 +263,8 @@ export function LandingPage() {
 
       {/* closing CTA — full-bleed dark */}
       <section className="band-ink grain">
-        <Reveal className="mx-auto flex max-w-3xl flex-col items-center gap-6 px-5 py-24 text-center">
-          <h2 className="max-w-xl text-4xl md:text-5xl">
+        <Reveal className="mx-auto flex max-w-3xl flex-col items-center gap-6 px-5 py-16 text-center md:py-24">
+          <h2 className="max-w-xl text-3xl sm:text-4xl md:text-5xl">
             Ready to open your shop?
           </h2>
           <p className="max-w-md text-lg text-white/70">

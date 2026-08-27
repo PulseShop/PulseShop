@@ -80,7 +80,7 @@ export function AboutPage() {
 
       {/* mission band — full-bleed dark statement */}
       <section className="band-ink grain mt-8">
-        <Reveal className="mx-auto max-w-4xl px-5 py-20 text-center">
+        <Reveal className="mx-auto max-w-4xl px-5 py-16 text-center md:py-20">
           <p className="font-sans-force text-xs font-bold uppercase tracking-widest text-white/50">
             Why we exist
           </p>
@@ -94,7 +94,7 @@ export function AboutPage() {
 
       {/* story — asymmetric: a held eyebrow on the left, the prose on the right,
           so the section reads as an editorial column rather than centered text */}
-      <section className="mx-auto max-w-5xl px-5 py-20 md:py-28">
+      <section className="mx-auto max-w-5xl px-5 py-16 md:py-28">
         <div className="grid gap-8 md:grid-cols-[minmax(0,0.6fr)_minmax(0,1.4fr)] md:gap-14">
           <Reveal className="md:sticky md:top-28 md:self-start">
             <span className="font-sans-force text-xs font-bold uppercase tracking-widest text-primary">
@@ -132,7 +132,7 @@ export function AboutPage() {
 
       {/* team */}
       <section className="bg-fill-soft">
-        <div className="mx-auto max-w-4xl px-5 py-16">
+        <div className="mx-auto max-w-4xl px-5 py-14 md:py-16">
           <div className="mx-auto max-w-2xl text-center">
             <h2 className="text-3xl text-ink md:text-4xl">The team</h2>
             <p className="mt-3 text-base text-ink/70">
@@ -159,7 +159,7 @@ export function AboutPage() {
       </section>
 
       {/* values */}
-      <section className="mx-auto max-w-6xl px-5 py-20">
+      <section className="mx-auto max-w-6xl px-5 py-16 md:py-20">
         <div className="mx-auto max-w-2xl text-center">
           <h2 className="text-3xl text-ink md:text-4xl">What we believe</h2>
           <p className="mt-3 text-base text-ink/70">
@@ -184,8 +184,8 @@ export function AboutPage() {
 
       {/* CTA — full-bleed dark */}
       <section className="band-ink">
-        <div className="mx-auto flex max-w-3xl flex-col items-center gap-6 px-5 py-24 text-center">
-          <h2 className="max-w-xl text-4xl md:text-5xl">Be part of the story.</h2>
+        <div className="mx-auto flex max-w-3xl flex-col items-center gap-6 px-5 py-16 text-center md:py-24">
+          <h2 className="max-w-xl text-3xl sm:text-4xl md:text-5xl">Be part of the story.</h2>
           <p className="max-w-md text-lg text-white/70">
             Open your shop today and join the sellers already growing on
             PulseShop.
