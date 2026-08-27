@@ -54,6 +54,11 @@ export function RatingRow({
   compact?: boolean;
 }) {
   const [hover, setHover] = useState<number | null>(null);
+  // A product nobody has reviewed renders "0.0" beside five empty stars, which
+  // reads as a one-star product rather than a new listing. Say what is actually
+  // true instead. (ProductCard already guards this by not mounting RatingRow at
+  // 0; the product page mounts it regardless, so the empty state lives here.)
+  const unrated = reviewCount === 0;
 
   const average = (
     <>
@@ -74,13 +79,23 @@ export function RatingRow({
       <div
         className="flex items-center gap-1.5"
         role="img"
-        aria-label={`Rated ${rating.toFixed(1)} out of 5 from ${reviewCount} ${
-          reviewCount === 1 ? "review" : "reviews"
-        }`}
+        aria-label={
+          unrated
+            ? "No reviews yet"
+            : `Rated ${rating.toFixed(1)} out of 5 from ${reviewCount} ${
+                reviewCount === 1 ? "review" : "reviews"
+              }`
+        }
       >
         <AverageStars value={rating} compact={compact} />
         <span aria-hidden className="flex items-center gap-1.5">
-          {average}
+          {unrated ? (
+            <span className={cn("font-medium text-muted", compact ? "text-xs" : "text-sm")}>
+              No reviews yet
+            </span>
+          ) : (
+            average
+          )}
         </span>
       </div>
     );
@@ -120,7 +135,11 @@ export function RatingRow({
           </button>
         ))}
       </div>
-      {average}
+      {unrated && myRating == null ? (
+        <span className="text-sm font-medium text-muted">Be the first to rate</span>
+      ) : (
+        average
+      )}
       {myRating != null && (
         <span className="text-xs font-semibold text-primary">· Your rating</span>
       )}

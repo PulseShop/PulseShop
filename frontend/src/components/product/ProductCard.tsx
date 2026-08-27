@@ -27,12 +27,18 @@ export function ProductCard({
   product,
   className,
   layout = "grid",
+  shopClosed = false,
 }: {
   product: Product;
   className?: string;
   /** "row" is the storefront's list view: wider, and with room for the specs a
    * square tile has nowhere to put. */
   layout?: "grid" | "row";
+  /** The owning shop is closed and cannot take orders. Suppresses the Add
+   * affordance so the tile does not offer a button that leads nowhere — the
+   * storefront already says so at the top, this stops each tile contradicting
+   * it. Browsing stays open; only ordering is withheld. */
+  shopClosed?: boolean;
 }) {
   const isFavorite = useFavorites((s) => s.isFavorite(product.id));
   const toggle = useFavoriteToggle();
@@ -188,12 +194,15 @@ export function ProductCard({
           {priceBlock}
           <div className="mt-auto flex flex-wrap items-center justify-between gap-2 pt-0.5">
             {!soldOut ? <StockBadge status={product.status} /> : <span />}
-            {!soldOut && (
-              <Button size="sm" aria-label={addLabel} onClick={onAddClick}>
-                <ShoppingBag className="size-4" />
-                Add
-              </Button>
-            )}
+            {!soldOut &&
+              (shopClosed ? (
+                <span className="text-[11px] font-semibold text-muted">Not taking orders</span>
+              ) : (
+                <Button size="sm" aria-label={addLabel} onClick={onAddClick}>
+                  <ShoppingBag className="size-4" />
+                  Add
+                </Button>
+              ))}
           </div>
         </div>
 
@@ -265,9 +274,15 @@ export function ProductCard({
       {!soldOut && (
         <button
           type="button"
-          aria-label={addLabel}
-          onClick={onAddClick}
-          className="absolute bottom-2.5 right-2.5 flex size-9 items-center justify-center rounded-full bg-primary text-on-accent shadow-soft transition-transform active:scale-90 hover:bg-primary-deep"
+          aria-label={shopClosed ? "This shop is not taking orders right now" : addLabel}
+          onClick={shopClosed ? undefined : onAddClick}
+          disabled={shopClosed}
+          className={cn(
+            "absolute bottom-2.5 right-2.5 flex size-9 items-center justify-center rounded-full shadow-soft transition-transform",
+            shopClosed
+              ? "cursor-not-allowed bg-fill text-muted"
+              : "bg-primary text-on-accent hover:bg-primary-deep active:scale-90",
+          )}
         >
           <ShoppingBag className="size-[18px]" />
         </button>

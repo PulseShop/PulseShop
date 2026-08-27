@@ -1,5 +1,5 @@
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { ArrowLeft, ChevronRight, Heart, Minus, Plus, Search, ShoppingBag } from "lucide-react";
+import { ArrowLeft, ChevronRight, Heart, Minus, Plus, Search, ShoppingBag, Star } from "lucide-react";
 import { useEffect, useMemo, useState } from "react";
 import { Link, useNavigate, useParams } from "react-router";
 import { MobileShell } from "@/components/layout/MobileShell";
@@ -16,6 +16,7 @@ import { SizeSelector } from "@/components/product/SizeSelector";
 import { StockBadge, stockDetailLabel } from "@/components/product/StockBadge";
 import { Button } from "@/components/ui/Button";
 import { FacebookIcon, InstagramIcon, WhatsAppIcon } from "@/components/ui/BrandIcons";
+import { FollowButton } from "@/components/shop/FollowButton";
 import { FulfillmentBadge } from "@/components/shop/FulfillmentBadge";
 import { ShopFooter } from "@/components/shop/ShopFooter";
 import { SocialLinks } from "@/components/shop/SocialLinks";
@@ -526,11 +527,11 @@ export function ProductDetailPage() {
                   <ChevronRight className="size-3.5" />
                 </>
               )}
-              <Link to={home} className="hover:text-primary">
-                Store
+              <Link to={home} className="max-w-[10rem] truncate hover:text-primary">
+                {merchant?.name ?? "Shop"}
               </Link>
-              <ChevronRight className="size-3.5" />
-              <span>{product.category}</span>
+              <ChevronRight className="size-3.5 shrink-0" />
+              <span className="truncate">{product.category}</span>
             </nav>
 
             <div className="flex items-start justify-between gap-3">
@@ -561,6 +562,48 @@ export function ProductDetailPage() {
               onRate={!ownsProduct && canReview ? rate : undefined}
               pending={rateMut.isPending}
             />
+            {/* Who you're buying from, their rating, and a follow — the trust a
+                review section would carry, sourced from the shop itself. Most new
+                listings have no reviews, so this is where a shopper's confidence
+                actually comes from. Hidden when a seller previews their own
+                product (they can't follow themselves). */}
+            {merchant && !ownsProduct && (
+              <div className="flex items-center gap-2.5 rounded-card border border-line bg-card p-2.5">
+                <Link to={home} className="flex min-w-0 flex-1 items-center gap-2.5">
+                  {merchant.avatarUrl ? (
+                    <img
+                      src={merchant.avatarUrl}
+                      alt=""
+                      className="size-9 shrink-0 rounded-full bg-fill object-cover"
+                    />
+                  ) : (
+                    <span className="flex size-9 shrink-0 items-center justify-center rounded-full bg-primary/15 text-xs font-extrabold text-primary">
+                      {merchant.name.slice(0, 2).toUpperCase()}
+                    </span>
+                  )}
+                  <span className="min-w-0">
+                    <span className="block truncate text-sm font-bold text-ink">
+                      {merchant.name}
+                    </span>
+                    <span className="flex items-center gap-1 truncate text-xs text-muted">
+                      {merchant.stats.rating > 0 && (
+                        <>
+                          <Star className="size-3 shrink-0 fill-amber-400 text-amber-400" aria-hidden />
+                          <span className="font-semibold text-ink">
+                            {merchant.stats.rating.toFixed(1)}
+                          </span>
+                          <span aria-hidden>·</span>
+                        </>
+                      )}
+                      <span className="truncate">
+                        {merchant.location || `@${merchant.handle}`}
+                      </span>
+                    </span>
+                  </span>
+                </Link>
+                <FollowButton merchantId={merchant.id} className="shrink-0" />
+              </div>
+            )}
             {/* Phone only, for the same reason as the price above: on desktop
                 both of these live in the buy box. */}
             <div className="flex flex-wrap items-center gap-2 lg:hidden">

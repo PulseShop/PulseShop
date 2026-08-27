@@ -1002,7 +1002,12 @@ export function StorefrontPage() {
                 className={cn("animate-grid-fade", view === "grid" ? GRID_CLASS : LIST_CLASS)}
               >
                 {filtered.map((p) => (
-                  <ProductCard key={p.id} product={p} layout={view === "list" ? "row" : "grid"} />
+                  <ProductCard
+                    key={p.id}
+                    product={p}
+                    layout={view === "list" ? "row" : "grid"}
+                    shopClosed={merchant?.shopStatus === "closed"}
+                  />
                 ))}
               </div>
 

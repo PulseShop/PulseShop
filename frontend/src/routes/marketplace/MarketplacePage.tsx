@@ -47,6 +47,7 @@ import { SiteFooter } from "@/components/layout/SiteFooter";
 import { BrowsingHistoryRail } from "@/components/product/BrowsingHistoryRail";
 import { BrandWall, CategoryWall } from "@/components/product/CategoryWall";
 import type { CuratedTile } from "@/components/product/CategoryWall";
+import { CategoryQuickNav } from "@/components/product/CategoryQuickNav";
 import { ProductCard } from "@/components/product/ProductCard";
 import { ProductImage } from "@/components/product/ProductImage";
 import { PriceRangeFilter } from "@/components/product/PriceRangeFilter";
@@ -803,6 +804,16 @@ export function MarketplacePage() {
             whichever product happens to be in the hero this second, and a
             document outline that changes every twelve seconds is no outline. */}
         <h1 className="sr-only">PulseShop marketplace — every shop in one place</h1>
+
+        {/* Phone-only shortcut into the biggest stocked shelves, above the paid
+            row. It gives a shopper who knows what they want a one-tap path in
+            without scrolling past the promos and clearance first; desktop hides
+            it (the wall and paid row share the wider viewport there). Hidden on
+            search for the same reason the browsing bands are: the query already
+            answered the question it asks. */}
+        {!isSearching && (
+          <CategoryQuickNav entries={showcaseQ.data ?? []} className="mb-3" />
+        )}
 
         {/* THE PAID ROW, AS TWO UNITS RATHER THAN ONE.
 
